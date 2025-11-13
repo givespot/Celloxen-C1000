@@ -1,0 +1,1394 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celloxen Health Portal - Patient Portal</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .login-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .login-box {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            padding: 40px;
+            width: 100%;
+            max-width: 450px;
+        }
+
+        .logo-section {
+            text-align: center;
+            margin-bottom: 30px;
+        }
+
+        .logo-section h1 {
+            color: #667eea;
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+
+        .logo-section p {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #334155;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 10px;
+            font-size: 15px;
+            transition: all 0.3s;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .btn-login {
+            width: 100%;
+            padding: 14px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+
+        .btn-login:hover {
+            transform: translateY(-2px);
+        }
+
+        .btn-login:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .error-message {
+            background: #fee;
+            color: #c33;
+            padding: 12px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+            font-size: 14px;
+        }
+
+        .forgot-password {
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .forgot-password a {
+            color: #667eea;
+            text-decoration: none;
+            font-size: 14px;
+        }
+
+        /* Dashboard Styles */
+        .dashboard-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .top-nav {
+            background: white;
+            border-radius: 15px;
+            padding: 20px 30px;
+            margin-bottom: 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .nav-left h2 {
+            color: #667eea;
+            font-size: 24px;
+        }
+
+        .nav-left p {
+            color: #64748b;
+            font-size: 14px;
+            margin-top: 5px;
+        }
+
+        .nav-right {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+        }
+
+        .btn-nav {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: all 0.3s;
+        }
+
+        .btn-profile {
+            background: #f1f5f9;
+            color: #334155;
+        }
+
+        .btn-logout {
+            background: #fee;
+            color: #c33;
+        }
+
+        .btn-nav:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            flex-wrap: wrap;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            background: white;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 15px;
+            font-weight: 500;
+            color: #64748b;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        }
+
+        .content-area {
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        }
+
+        .stat-card h3 {
+            font-size: 16px;
+            opacity: 0.9;
+            margin-bottom: 10px;
+        }
+
+        .stat-card .value {
+            font-size: 32px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        .stat-card .subtext {
+            font-size: 13px;
+            opacity: 0.8;
+        }
+
+        .info-card {
+            background: #f8fafc;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 20px;
+        }
+
+        .info-card h4 {
+            color: #334155;
+            margin-bottom: 15px;
+            font-size: 16px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 10px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+
+        .info-row:last-child {
+            border-bottom: none;
+        }
+
+        .info-label {
+            color: #64748b;
+            font-size: 14px;
+        }
+
+        .info-value {
+            color: #334155;
+            font-weight: 500;
+            font-size: 14px;
+        }
+
+        .progress-bar {
+            background: #e2e8f0;
+            border-radius: 10px;
+            height: 20px;
+            overflow: hidden;
+            margin-top: 10px;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .appointment-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+            transition: all 0.3s;
+        }
+
+        .appointment-card:hover {
+            border-color: #667eea;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+
+        .appointment-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .appointment-type {
+            color: #667eea;
+            font-weight: 600;
+            font-size: 16px;
+        }
+
+        .status-badge {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+
+        .status-scheduled {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .status-completed {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .assessment-card {
+            background: white;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            margin-bottom: 15px;
+        }
+
+        .score-badge {
+            display: inline-block;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-weight: 600;
+            font-size: 18px;
+        }
+
+        .score-low {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .score-medium {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .score-high {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .therapy-item {
+            background: #f8fafc;
+            border-left: 4px solid #667eea;
+            padding: 15px;
+            margin-bottom: 10px;
+            border-radius: 8px;
+        }
+
+        .therapy-item h5 {
+            color: #334155;
+            margin-bottom: 8px;
+        }
+
+        .therapy-item p {
+            color: #64748b;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+
+        .priority-badge {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 12px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .priority-primary {
+            background: #dbeafe;
+            color: #1e40af;
+        }
+
+        .priority-secondary {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: #64748b;
+        }
+
+        .empty-state h3 {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+
+        @media (max-width: 768px) {
+            .dashboard-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .top-nav {
+                flex-direction: column;
+                gap: 15px;
+            }
+
+            .tabs {
+                overflow-x: auto;
+                flex-wrap: nowrap;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const API_BASE_URL = 'https://celloxen.com/api/v1';
+
+        // Patient Portal App
+        function PatientPortal() {
+            const [isLoggedIn, setIsLoggedIn] = useState(false);
+            const [patientData, setPatientData] = useState(null);
+            const [token, setToken] = useState(null);
+            const [activeTab, setActiveTab] = useState('dashboard');
+            const [loading, setLoading] = useState(false);
+
+            useEffect(() => {
+                const savedToken = localStorage.getItem('patient_token');
+                const savedPatient = localStorage.getItem('patient_data');
+                
+                if (savedToken && savedPatient) {
+                    setToken(savedToken);
+                    setPatientData(JSON.parse(savedPatient));
+                    setIsLoggedIn(true);
+                }
+            }, []);
+
+            const handleLogin = (tokenData) => {
+                setToken(tokenData.access_token);
+                setPatientData({
+                    patient_id: tokenData.patient_id,
+                    patient_name: tokenData.patient_name
+                });
+                localStorage.setItem('patient_token', tokenData.access_token);
+                localStorage.setItem('patient_data', JSON.stringify({
+                    patient_id: tokenData.patient_id,
+                    patient_name: tokenData.patient_name
+                }));
+                setIsLoggedIn(true);
+            };
+
+            const handleLogout = () => {
+                localStorage.removeItem('patient_token');
+                localStorage.removeItem('patient_data');
+                setToken(null);
+                setPatientData(null);
+                setIsLoggedIn(false);
+                setActiveTab('dashboard');
+            };
+
+            if (!isLoggedIn) {
+                return <LoginPage onLogin={handleLogin} />;
+            }
+
+            return (
+                <div className="dashboard-container">
+                    <TopNav 
+                        patientName={patientData.patient_name}
+                        onLogout={handleLogout}
+                        onProfileClick={() => setActiveTab('profile')}
+                    />
+
+                    <div className="tabs">
+                        <button 
+                            className={`tab ${activeTab === 'dashboard' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('dashboard')}
+                        >
+                            📊 Dashboard
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'assessments' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('assessments')}
+                        >
+                            📋 My Assessments
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'therapy' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('therapy')}
+                        >
+                            💊 Therapy Plans
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'appointments' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('appointments')}
+                        >
+                            📅 Appointments
+                        </button>
+                        <button 
+                            className={`tab ${activeTab === 'profile' ? 'active' : ''}`}
+                            onClick={() => setActiveTab('profile')}
+                        >
+                            👤 My Profile
+                        </button>
+                    </div>
+
+                    <div className="content-area">
+                        {activeTab === 'dashboard' && <Dashboard token={token} />}
+                        {activeTab === 'assessments' && <Assessments token={token} />}
+                        {activeTab === 'therapy' && <TherapyPlans token={token} />}
+                        {activeTab === 'appointments' && <Appointments token={token} />}
+                        {activeTab === 'profile' && <Profile token={token} />}
+                    </div>
+                </div>
+            );
+        }
+
+        // Login Page Component
+        function LoginPage({ onLogin }) {
+            const [email, setEmail] = useState('');
+            const [password, setPassword] = useState('');
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+
+            const handleSubmit = async (e) => {
+                e.preventDefault();
+                setError('');
+                setLoading(true);
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/login`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                        },
+                        body: JSON.stringify({ email, password })
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        onLogin(data);
+                    } else {
+                        setError(data.detail || 'Login failed. Please check your credentials.');
+                    }
+                } catch (err) {
+                    setError('Unable to connect to server. Please try again.');
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            return (
+                <div className="login-container">
+                    <div className="login-box">
+                        <div className="logo-section">
+                            <h1>🏥 Celloxen Health Portal</h1>
+                            <p>Patient Portal</p>
+                        </div>
+
+                        {error && <div className="error-message">{error}</div>}
+
+                        <form onSubmit={handleSubmit}>
+                            <div className="form-group">
+                                <label>Email Address</label>
+                                <input
+                                    type="email"
+                                    value={email}
+                                    onChange={(e) => setEmail(e.target.value)}
+                                    placeholder="your.email@example.com"
+                                    required
+                                />
+                            </div>
+
+                            <div className="form-group">
+                                <label>Password</label>
+                                <input
+                                    type="password"
+                                    value={password}
+                                    onChange={(e) => setPassword(e.target.value)}
+                                    placeholder="Enter your password"
+                                    required
+                                />
+                            </div>
+
+                            <button 
+                                type="submit" 
+                                className="btn-login"
+                                disabled={loading}
+                            >
+                                {loading ? 'Logging in...' : 'Login to Patient Portal'}
+                            </button>
+                        </form>
+
+                        <div className="forgot-password">
+                            <a href="#">Forgot your password?</a>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // Top Navigation Component
+        function TopNav({ patientName, onLogout, onProfileClick }) {
+            return (
+                <div className="top-nav">
+                    <div className="nav-left">
+                        <h2>Welcome, {patientName}!</h2>
+                        <p>Track your wellness journey</p>
+                    </div>
+                    <div className="nav-right">
+                        <button className="btn-nav btn-profile" onClick={onProfileClick}>
+                            👤 My Profile
+                        </button>
+                        <button className="btn-nav btn-logout" onClick={onLogout}>
+                            🚪 Logout
+                        </button>
+                    </div>
+                </div>
+            );
+        }
+
+        // Dashboard Component
+        function Dashboard({ token }) {
+            const [dashboardData, setDashboardData] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetchDashboard();
+            }, []);
+
+            const fetchDashboard = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/dashboard`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setDashboardData(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching dashboard:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (loading) {
+                return <div className="loading">Loading your dashboard...</div>;
+            }
+
+            if (!dashboardData) {
+                return <div className="empty-state"><h3>Unable to load dashboard</h3></div>;
+            }
+
+            const { next_appointment, therapy_progress, recent_assessments } = dashboardData;
+
+            return (
+                <div>
+                    <h2 style={{marginBottom: '20px', color: '#334155'}}>Your Health Dashboard</h2>
+
+                    <div className="dashboard-grid">
+                        <div className="stat-card">
+                            <h3>Therapy Progress</h3>
+                            <div className="value">
+                                {therapy_progress.has_active_plan 
+                                    ? `${therapy_progress.progress_percentage}%`
+                                    : 'No Active Plan'}
+                            </div>
+                            <div className="subtext">
+                                {therapy_progress.has_active_plan 
+                                    ? `${therapy_progress.completed_sessions} of ${therapy_progress.total_sessions} sessions completed`
+                                    : 'Complete an assessment to start'}
+                            </div>
+                        </div>
+
+                        <div className="stat-card" style={{background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)'}}>
+                            <h3>Assessments Completed</h3>
+                            <div className="value">{recent_assessments.length}</div>
+                            <div className="subtext">Track your wellness journey</div>
+                        </div>
+
+                        <div className="stat-card" style={{background: 'linear-gradient(135deg, #4facfe 0%, #00f2fe 100%)'}}>
+                            <h3>Next Appointment</h3>
+                            <div className="value">
+                                {next_appointment ? '✓' : '—'}
+                            </div>
+                            <div className="subtext">
+                                {next_appointment 
+                                    ? `${next_appointment.appointment_date}`
+                                    : 'No upcoming appointments'}
+                            </div>
+                        </div>
+                    </div>
+
+                    {next_appointment && (
+                        <div className="info-card">
+                            <h4>📅 Next Appointment</h4>
+                            <div className="info-row">
+                                <span className="info-label">Date</span>
+                                <span className="info-value">{next_appointment.appointment_date}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Time</span>
+                                <span className="info-value">{next_appointment.appointment_time}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Type</span>
+                                <span className="info-value">{next_appointment.appointment_type}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Clinic</span>
+                                <span className="info-value">{next_appointment.clinic_name}</span>
+                            </div>
+                        </div>
+                    )}
+
+                    {therapy_progress.has_active_plan && (
+                        <div className="info-card">
+                            <h4>💊 Current Therapy Progress</h4>
+                            <div className="progress-bar">
+                                <div 
+                                    className="progress-fill" 
+                                    style={{width: `${therapy_progress.progress_percentage}%`}}
+                                >
+                                    {therapy_progress.progress_percentage}%
+                                </div>
+                            </div>
+                            <p style={{marginTop: '10px', color: '#64748b', fontSize: '14px'}}>
+                                Status: <strong>{therapy_progress.plan_status}</strong>
+                            </p>
+                        </div>
+                    )}
+
+                    {recent_assessments.length > 0 && (
+                        <div className="info-card">
+                            <h4>📋 Recent Assessments</h4>
+                            {recent_assessments.map(assessment => (
+                                <div key={assessment.assessment_id} className="info-row">
+                                    <span className="info-label">
+                                        {new Date(assessment.assessment_date).toLocaleDateString()}
+                                    </span>
+                                    <span className="info-value">
+                                        Wellness Score: {assessment.wellness_score}/100
+                                    </span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        // Assessments Component
+        function Assessments({ token }) {
+            const [assessments, setAssessments] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetchAssessments();
+            }, []);
+
+            const fetchAssessments = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/assessments`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setAssessments(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching assessments:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const getScoreClass = (score) => {
+                if (score < 40) return 'score-low';
+                if (score < 70) return 'score-medium';
+                return 'score-high';
+            };
+
+            if (loading) {
+                return <div className="loading">Loading your assessments...</div>;
+            }
+
+            if (assessments.length === 0) {
+                return (
+                    <div className="empty-state">
+                        <h3>No Assessments Yet</h3>
+                        <p>Visit your clinic to complete your first health assessment</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <h2 style={{marginBottom: '20px', color: '#334155'}}>My Health Assessments</h2>
+                    
+                    {assessments.map(assessment => (
+                        <div key={assessment.assessment_id} className="assessment-card">
+                            <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                                <div>
+                                    <h3 style={{color: '#334155', marginBottom: '5px'}}>
+                                        Assessment - {new Date(assessment.assessment_date).toLocaleDateString()}
+                                    </h3>
+                                    <p style={{color: '#64748b', fontSize: '14px'}}>{assessment.clinic_name}</p>
+                                </div>
+                                <span className={`score-badge ${getScoreClass(assessment.wellness_score)}`}>
+                                    {assessment.wellness_score}/100
+                                </span>
+                            </div>
+
+                            <div className="info-card" style={{marginTop: '15px'}}>
+                                <div className="info-row">
+                                    <span className="info-label">Diabetics</span>
+                                    <span className="info-value">{assessment.diabetics_score}/100</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Chronic Pain</span>
+                                    <span className="info-value">{assessment.chronic_pain_score}/100</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Anxiety/Stress</span>
+                                    <span className="info-value">{assessment.anxiety_stress_score}/100</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Energy/Vitality</span>
+                                    <span className="info-value">{assessment.energy_vitality_score}/100</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Sleep Quality</span>
+                                    <span className="info-value">{assessment.sleep_quality_score}/100</span>
+                                </div>
+                            </div>
+
+                            {assessment.recommendations && (
+                                <div style={{marginTop: '15px', padding: '15px', background: '#f8fafc', borderRadius: '8px'}}>
+                                    <h4 style={{color: '#334155', marginBottom: '10px', fontSize: '14px'}}>
+                                        Recommendations
+                                    </h4>
+                                    <p style={{color: '#64748b', fontSize: '14px', whiteSpace: 'pre-wrap'}}>
+                                        {assessment.recommendations}
+                                    </p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        // Therapy Plans Component
+        function TherapyPlans({ token }) {
+            const [therapyPlans, setTherapyPlans] = useState([]);
+            const [selectedPlan, setSelectedPlan] = useState(null);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetchTherapyPlans();
+            }, []);
+
+            const fetchTherapyPlans = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/therapy-plans`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setTherapyPlans(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching therapy plans:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const viewPlanDetails = async (planId) => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/therapy-plans/${planId}`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setSelectedPlan(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching plan details:', err);
+                }
+            };
+
+            if (loading) {
+                return <div className="loading">Loading therapy plans...</div>;
+            }
+
+            if (therapyPlans.length === 0) {
+                return (
+                    <div className="empty-state">
+                        <h3>No Therapy Plans Yet</h3>
+                        <p>Complete an assessment to receive personalized therapy recommendations</p>
+                    </div>
+                );
+            }
+
+            if (selectedPlan) {
+                return (
+                    <div>
+                        <button 
+                            onClick={() => setSelectedPlan(null)}
+                            style={{
+                                marginBottom: '20px',
+                                padding: '10px 20px',
+                                background: '#f1f5f9',
+                                border: 'none',
+                                borderRadius: '8px',
+                                cursor: 'pointer'
+                            }}
+                        >
+                            ← Back to Plans
+                        </button>
+
+                        <h2 style={{marginBottom: '20px', color: '#334155'}}>Therapy Plan Details</h2>
+
+                        <div className="info-card">
+                            <h4>Plan Information</h4>
+                            <div className="info-row">
+                                <span className="info-label">Status</span>
+                                <span className="info-value">{selectedPlan.status}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Clinic</span>
+                                <span className="info-value">{selectedPlan.clinic_name}</span>
+                            </div>
+                            {selectedPlan.start_date && (
+                                <div className="info-row">
+                                    <span className="info-label">Start Date</span>
+                                    <span className="info-value">{selectedPlan.start_date}</span>
+                                </div>
+                            )}
+                        </div>
+
+                        <h3 style={{margin: '30px 0 15px', color: '#334155'}}>Recommended Therapies</h3>
+
+                        {selectedPlan.items && selectedPlan.items.map(item => (
+                            <div key={item.item_id} className="therapy-item">
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'start', marginBottom: '10px'}}>
+                                    <h5>{item.therapy_name}</h5>
+                                    <span className={`priority-badge priority-${item.priority_level.toLowerCase()}`}>
+                                        {item.priority_level}
+                                    </span>
+                                </div>
+                                {item.description && <p>{item.description}</p>}
+                                <p><strong>Frequency:</strong> {item.frequency}</p>
+                                <p><strong>Duration:</strong> {item.duration}</p>
+                                <p><strong>Status:</strong> {item.status}</p>
+                            </div>
+                        ))}
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <h2 style={{marginBottom: '20px', color: '#334155'}}>My Therapy Plans</h2>
+
+                    {therapyPlans.map(plan => {
+                        const progress = plan.total_items > 0 
+                            ? Math.round((plan.completed_items / plan.total_items) * 100)
+                            : 0;
+
+                        return (
+                            <div key={plan.therapy_plan_id} className="info-card" style={{cursor: 'pointer'}}
+                                 onClick={() => viewPlanDetails(plan.therapy_plan_id)}>
+                                <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '15px'}}>
+                                    <h4>Therapy Plan - {plan.clinic_name}</h4>
+                                    <span className={`status-badge ${plan.status === 'APPROVED' ? 'status-completed' : 'status-scheduled'}`}>
+                                        {plan.status}
+                                    </span>
+                                </div>
+
+                                <div className="info-row">
+                                    <span className="info-label">Created</span>
+                                    <span className="info-value">
+                                        {new Date(plan.created_at).toLocaleDateString()}
+                                    </span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Total Sessions</span>
+                                    <span className="info-value">{plan.total_items}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Completed</span>
+                                    <span className="info-value">{plan.completed_items}</span>
+                                </div>
+
+                                <div className="progress-bar" style={{marginTop: '15px'}}>
+                                    <div className="progress-fill" style={{width: `${progress}%`}}>
+                                        {progress}%
+                                    </div>
+                                </div>
+                            </div>
+                        );
+                    })}
+                </div>
+            );
+        }
+
+        // Appointments Component
+        function Appointments({ token }) {
+            const [appointments, setAppointments] = useState([]);
+            const [loading, setLoading] = useState(true);
+
+            useEffect(() => {
+                fetchAppointments();
+            }, []);
+
+            const fetchAppointments = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/appointments`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setAppointments(data);
+                    }
+                } catch (err) {
+                    console.error('Error fetching appointments:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (loading) {
+                return <div className="loading">Loading appointments...</div>;
+            }
+
+            if (appointments.length === 0) {
+                return (
+                    <div className="empty-state">
+                        <h3>No Appointments</h3>
+                        <p>Contact your clinic to schedule an appointment</p>
+                    </div>
+                );
+            }
+
+            return (
+                <div>
+                    <h2 style={{marginBottom: '20px', color: '#334155'}}>My Appointments</h2>
+
+                    {appointments.map(appointment => (
+                        <div key={appointment.appointment_id} className="appointment-card">
+                            <div className="appointment-header">
+                                <div className="appointment-type">{appointment.appointment_type}</div>
+                                <span className={`status-badge status-${appointment.status.toLowerCase()}`}>
+                                    {appointment.status}
+                                </span>
+                            </div>
+
+                            <div className="info-row">
+                                <span className="info-label">Date</span>
+                                <span className="info-value">{appointment.appointment_date}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Time</span>
+                                <span className="info-value">{appointment.appointment_time}</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Duration</span>
+                                <span className="info-value">{appointment.duration_minutes} minutes</span>
+                            </div>
+                            <div className="info-row">
+                                <span className="info-label">Clinic</span>
+                                <span className="info-value">{appointment.clinic_name}</span>
+                            </div>
+                            {appointment.address && (
+                                <div className="info-row">
+                                    <span className="info-label">Address</span>
+                                    <span className="info-value">
+                                        {appointment.address}, {appointment.city}
+                                    </span>
+                                </div>
+                            )}
+                            {appointment.clinic_phone && (
+                                <div className="info-row">
+                                    <span className="info-label">Phone</span>
+                                    <span className="info-value">{appointment.clinic_phone}</span>
+                                </div>
+                            )}
+                            {appointment.notes && (
+                                <div style={{marginTop: '15px', padding: '10px', background: '#f8fafc', borderRadius: '6px'}}>
+                                    <p style={{fontSize: '14px', color: '#64748b'}}>{appointment.notes}</p>
+                                </div>
+                            )}
+                        </div>
+                    ))}
+                </div>
+            );
+        }
+
+        // Profile Component
+        function Profile({ token }) {
+            const [profile, setProfile] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [editing, setEditing] = useState(false);
+            const [formData, setFormData] = useState({});
+            const [message, setMessage] = useState('');
+
+            useEffect(() => {
+                fetchProfile();
+            }, []);
+
+            const fetchProfile = async () => {
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/profile`, {
+                        headers: {
+                            'Authorization': `Bearer ${token}`
+                        }
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        setProfile(data);
+                        setFormData({
+                            phone: data.phone,
+                            address: data.address,
+                            city: data.city,
+                            postcode: data.postcode,
+                            emergency_contact_name: data.emergency_contact_name || '',
+                            emergency_contact_phone: data.emergency_contact_phone || ''
+                        });
+                    }
+                } catch (err) {
+                    console.error('Error fetching profile:', err);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleUpdate = async (e) => {
+                e.preventDefault();
+                setMessage('');
+
+                try {
+                    const response = await fetch(`${API_BASE_URL}/patient/profile`, {
+                        method: 'PUT',
+                        headers: {
+                            'Authorization': `Bearer ${token}`,
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify(formData)
+                    });
+
+                    if (response.ok) {
+                        setMessage('Profile updated successfully!');
+                        setEditing(false);
+                        fetchProfile();
+                    } else {
+                        setMessage('Failed to update profile');
+                    }
+                } catch (err) {
+                    setMessage('Error updating profile');
+                }
+            };
+
+            if (loading) {
+                return <div className="loading">Loading profile...</div>;
+            }
+
+            if (!profile) {
+                return <div className="empty-state"><h3>Unable to load profile</h3></div>;
+            }
+
+            return (
+                <div>
+                    <div style={{display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px'}}>
+                        <h2 style={{color: '#334155'}}>My Profile</h2>
+                        <button 
+                            onClick={() => setEditing(!editing)}
+                            className="btn-nav btn-profile"
+                        >
+                            {editing ? '✕ Cancel' : '✏️ Edit Profile'}
+                        </button>
+                    </div>
+
+                    {message && (
+                        <div style={{
+                            padding: '12px',
+                            background: message.includes('success') ? '#d1fae5' : '#fee2e2',
+                            color: message.includes('success') ? '#065f46' : '#991b1b',
+                            borderRadius: '8px',
+                            marginBottom: '20px'
+                        }}>
+                            {message}
+                        </div>
+                    )}
+
+                    {!editing ? (
+                        <>
+                            <div className="info-card">
+                                <h4>Personal Information</h4>
+                                <div className="info-row">
+                                    <span className="info-label">Name</span>
+                                    <span className="info-value">
+                                        {profile.first_name} {profile.last_name}
+                                    </span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Date of Birth</span>
+                                    <span className="info-value">{profile.date_of_birth}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Gender</span>
+                                    <span className="info-value">{profile.gender}</span>
+                                </div>
+                                {profile.nhs_number && (
+                                    <div className="info-row">
+                                        <span className="info-label">NHS Number</span>
+                                        <span className="info-value">{profile.nhs_number}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="info-card">
+                                <h4>Contact Information</h4>
+                                <div className="info-row">
+                                    <span className="info-label">Email</span>
+                                    <span className="info-value">{profile.email}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Phone</span>
+                                    <span className="info-value">{profile.phone}</span>
+                                </div>
+                                <div className="info-row">
+                                    <span className="info-label">Address</span>
+                                    <span className="info-value">
+                                        {profile.address}, {profile.city}, {profile.postcode}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {(profile.emergency_contact_name || profile.emergency_contact_phone) && (
+                                <div className="info-card">
+                                    <h4>Emergency Contact</h4>
+                                    {profile.emergency_contact_name && (
+                                        <div className="info-row">
+                                            <span className="info-label">Name</span>
+                                            <span className="info-value">{profile.emergency_contact_name}</span>
+                                        </div>
+                                    )}
+                                    {profile.emergency_contact_phone && (
+                                        <div className="info-row">
+                                            <span className="info-label">Phone</span>
+                                            <span className="info-value">{profile.emergency_contact_phone}</span>
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                        <form onSubmit={handleUpdate}>
+                            <div className="info-card">
+                                <h4>Update Contact Information</h4>
+                                
+                                <div className="form-group">
+                                    <label>Phone</label>
+                                    <input
+                                        type="tel"
+                                        value={formData.phone}
+                                        onChange={(e) => setFormData({...formData, phone: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Address</label>
+                                    <input
+                                        type="text"
+                                        value={formData.address}
+                                        onChange={(e) => setFormData({...formData, address: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>City</label>
+                                    <input
+                                        type="text"
+                                        value={formData.city}
+                                        onChange={(e) => setFormData({...formData, city: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Postcode</label>
+                                    <input
+                                        type="text"
+                                        value={formData.postcode}
+                                        onChange={(e) => setFormData({...formData, postcode: e.target.value})}
+                                        required
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Emergency Contact Name</label>
+                                    <input
+                                        type="text"
+                                        value={formData.emergency_contact_name}
+                                        onChange={(e) => setFormData({...formData, emergency_contact_name: e.target.value})}
+                                    />
+                                </div>
+
+                                <div className="form-group">
+                                    <label>Emergency Contact Phone</label>
+                                    <input
+                                        type="tel"
+                                        value={formData.emergency_contact_phone}
+                                        onChange={(e) => setFormData({...formData, emergency_contact_phone: e.target.value})}
+                                    />
+                                </div>
+
+                                <button type="submit" className="btn-login" style={{marginTop: '10px'}}>
+                                    💾 Save Changes
+                                </button>
+                            </div>
+                        </form>
+                    )}
+                </div>
+            );
+        }
+
+        // Render the app
+        ReactDOM.render(<PatientPortal />, document.getElementById('root'));
+    </script>
+</body>
+</html>

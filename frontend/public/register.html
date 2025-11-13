@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Complete Your Registration - Celloxen Health Portal</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        
+        .container {
+            max-width: 800px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        
+        .header h1 { font-size: 32px; margin-bottom: 10px; }
+        .header p { opacity: 0.9; font-size: 16px; }
+        .content { padding: 40px; }
+        
+        .progress-bar {
+            background: #e0e0e0;
+            height: 8px;
+            border-radius: 4px;
+            margin-bottom: 30px;
+            overflow: hidden;
+        }
+        
+        .progress-fill {
+            background: linear-gradient(90deg, #667eea, #764ba2);
+            height: 100%;
+            transition: width 0.3s ease;
+        }
+        
+        .question-card {
+            margin-bottom: 30px;
+            padding: 30px;
+            background: #f8f9fa;
+            border-radius: 12px;
+            border-left: 4px solid #667eea;
+        }
+        
+        .domain-badge {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 15px;
+        }
+        
+        .question-text {
+            font-size: 20px;
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 25px;
+        }
+        
+        .options { display: flex; flex-direction: column; gap: 12px; }
+        
+        .option-btn {
+            padding: 18px 24px;
+            background: white;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: left;
+            transition: all 0.2s;
+        }
+        
+        .option-btn:hover {
+            border-color: #667eea;
+            background: #f0f4ff;
+            transform: translateX(4px);
+        }
+        
+        .option-btn.selected {
+            border-color: #667eea;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn {
+            padding: 16px 32px;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+        
+        .input-group { margin-bottom: 24px; }
+        .input-group label { display: block; margin-bottom: 8px; font-weight: 600; }
+        
+        .input-group input {
+            width: 100%;
+            padding: 14px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+        }
+        
+        .input-group input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .loading { text-align: center; padding: 60px 20px; }
+        
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .score-card {
+            background: linear-gradient(135deg, #f0f4ff 0%, #faf0ff 100%);
+            padding: 30px;
+            border-radius: 16px;
+            margin: 30px 0;
+        }
+        
+        .score-big {
+            font-size: 64px;
+            font-weight: bold;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        
+        .error {
+            background: #fee;
+            border: 2px solid #fcc;
+            color: #c33;
+            padding: 16px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+        
+        .info-card {
+            background: linear-gradient(135deg, #f0f4ff 0%, #faf0ff 100%);
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            border-left: 4px solid #667eea;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        const API_BASE = 'http://217.154.36.97:5000/api/v1';
+        
+        function RegistrationApp() {
+            const [stage, setStage] = useState('loading');
+            const [token, setToken] = useState('');
+            const [patientInfo, setPatientInfo] = useState(null);
+            const [questions, setQuestions] = useState({});
+            const [currentDomain, setCurrentDomain] = useState(0);
+            const [currentQuestion, setCurrentQuestion] = useState(0);
+            const [answers, setAnswers] = useState({});
+            const [personalData, setPersonalData] = useState({
+                password: '', confirmPassword: '', dateOfBirth: '', mobilePhone: ''
+            });
+            const [error, setError] = useState('');
+            const [loading, setLoading] = useState(false);
+            const [scores, setScores] = useState(null);
+            
+            useEffect(() => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const urlToken = urlParams.get('token');
+                
+                if (urlToken) {
+                    setToken(urlToken);
+                    validateToken(urlToken);
+                } else {
+                    setError('Invalid registration link');
+                    setStage('error');
+                }
+            }, []);
+            
+            const validateToken = async (tkn) => {
+                try {
+                    const res = await fetch(`${API_BASE}/register/validate/${tkn}`);
+                    const data = await res.json();
+                    
+                    if (data.valid) {
+                        setPatientInfo(data);
+                        const qRes = await fetch(`${API_BASE}/register/questions`);
+                        const qData = await qRes.json();
+                        setQuestions(qData.domains);
+                        setStage('personal');
+                    } else {
+                        setError('This registration link is invalid or has expired');
+                        setStage('error');
+                    }
+                } catch (err) {
+                    setError('Failed to validate registration link');
+                    setStage('error');
+                }
+            };
+            
+            const domains = Object.keys(questions);
+            const currentDomainKey = domains[currentDomain];
+            const domainQuestions = questions[currentDomainKey] || [];
+            const currentQ = domainQuestions[currentQuestion];
+            const totalQuestions = Object.values(questions).reduce((sum, q) => sum + q.length, 0);
+            const answeredCount = Object.keys(answers).length;
+            const progress = (answeredCount / totalQuestions) * 100;
+            
+            const handleAnswer = (answerIndex) => {
+                setAnswers({...answers, [currentQ.id]: answerIndex});
+                
+                setTimeout(() => {
+                    if (currentQuestion < domainQuestions.length - 1) {
+                        setCurrentQuestion(currentQuestion + 1);
+                    } else if (currentDomain < domains.length - 1) {
+                        setCurrentDomain(currentDomain + 1);
+                        setCurrentQuestion(0);
+                    } else {
+                        setStage('review');
+                    }
+                }, 300);
+            };
+            
+            const handleSubmit = async () => {
+                if (!personalData.password || personalData.password.length < 8) {
+                    setError('Password must be at least 8 characters');
+                    return;
+                }
+                
+                if (personalData.password !== personalData.confirmPassword) {
+                    setError('Passwords do not match');
+                    return;
+                }
+                
+                setLoading(true);
+                setError('');
+                
+                try {
+                    const res = await fetch(`${API_BASE}/register/complete`, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({
+                            token: token,
+                            password: personalData.password,
+                            date_of_birth: personalData.dateOfBirth,
+                            mobile_phone: personalData.mobilePhone,
+                            chatbot_answers: answers
+                        })
+                    });
+                    
+                    const data = await res.json();
+                    
+                    if (data.success) {
+                        setScores(data.wellness_scores);
+                        setStage('complete');
+                    } else {
+                        setError(data.detail || 'Registration failed');
+                    }
+                } catch (err) {
+                    setError('Failed to complete registration: ' + err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+            
+            if (stage === 'loading') {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>🏥 Celloxen Health Portal</h1>
+                            <p>Patient Registration</p>
+                        </div>
+                        <div className="loading">
+                            <div className="spinner"></div>
+                            <p>Validating your registration link...</p>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (stage === 'error') {
+                return (
+                    <div className="container">
+                        <div className="header"><h1>🏥 Celloxen Health Portal</h1></div>
+                        <div className="content">
+                            <div className="error">{error}</div>
+                            <p>Please contact us at health@celloxen.com if you need assistance.</p>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (stage === 'personal') {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>Welcome, {patientInfo?.first_name}! 👋</h1>
+                            <p>Complete your wellness profile registration</p>
+                        </div>
+                        <div className="content">
+                            {error && <div className="error">{error}</div>}
+                            
+                            <div className="info-card">
+                                <h3>📋 Step 1: Account Setup</h3>
+                                <p style={{fontSize: '14px', marginTop: '8px'}}>Create your secure account</p>
+                            </div>
+                            
+                            <div className="input-group">
+                                <label>Email</label>
+                                <input type="email" value={patientInfo?.email} disabled />
+                            </div>
+                            
+                            <div className="input-group">
+                                <label>Password *</label>
+                                <input 
+                                    type="password" 
+                                    value={personalData.password}
+                                    onChange={(e) => setPersonalData({...personalData, password: e.target.value})}
+                                    placeholder="Minimum 8 characters"
+                                />
+                            </div>
+                            
+                            <div className="input-group">
+                                <label>Confirm Password *</label>
+                                <input 
+                                    type="password" 
+                                    value={personalData.confirmPassword}
+                                    onChange={(e) => setPersonalData({...personalData, confirmPassword: e.target.value})}
+                                />
+                            </div>
+                            
+                            <div className="input-group">
+                                <label>Date of Birth *</label>
+                                <input 
+                                    type="date" 
+                                    value={personalData.dateOfBirth}
+                                    onChange={(e) => setPersonalData({...personalData, dateOfBirth: e.target.value})}
+                                />
+                            </div>
+                            
+                            <div className="input-group">
+                                <label>Mobile Phone *</label>
+                                <input 
+                                    type="tel" 
+                                    value={personalData.mobilePhone}
+                                    onChange={(e) => setPersonalData({...personalData, mobilePhone: e.target.value})}
+                                    placeholder="07700 123456"
+                                />
+                            </div>
+                            
+                            <button 
+                                className="btn btn-primary" 
+                                style={{width: '100%'}}
+                                onClick={() => {
+                                    if (personalData.password && personalData.password === personalData.confirmPassword && personalData.dateOfBirth && personalData.mobilePhone) {
+                                        setStage('chatbot');
+                                        setError('');
+                                    } else {
+                                        setError('Please fill in all fields correctly');
+                                    }
+                                }}
+                            >
+                                Continue to Wellness Questionnaire →
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (stage === 'chatbot' && currentQ) {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>Wellness Questionnaire</h1>
+                            <p>Question {answeredCount + 1} of {totalQuestions}</p>
+                        </div>
+                        <div className="content">
+                            <div className="progress-bar">
+                                <div className="progress-fill" style={{width: `${progress}%`}}></div>
+                            </div>
+                            
+                            <div className="question-card">
+                                <span className="domain-badge">{currentDomainKey.replace(/_/g, ' ')}</span>
+                                <div className="question-text">{currentQ.question}</div>
+                                
+                                <div className="options">
+                                    {currentQ.options.map((option, idx) => (
+                                        <button
+                                            key={idx}
+                                            className={`option-btn ${answers[currentQ.id] === idx ? 'selected' : ''}`}
+                                            onClick={() => handleAnswer(idx)}
+                                        >
+                                            {option}
+                                        </button>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (stage === 'review') {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>Review & Submit</h1>
+                            <p>You're almost done!</p>
+                        </div>
+                        <div className="content">
+                            {error && <div className="error">{error}</div>}
+                            
+                            <div className="info-card">
+                                <h3>✅ Registration Summary</h3>
+                                <p>• {answeredCount} questions answered</p>
+                            </div>
+                            
+                            <button 
+                                className="btn btn-primary" 
+                                style={{width: '100%'}}
+                                onClick={handleSubmit}
+                                disabled={loading}
+                            >
+                                {loading ? 'Processing...' : 'Complete Registration'}
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+            
+            if (stage === 'complete') {
+                return (
+                    <div className="container">
+                        <div className="header">
+                            <h1>🎉 Registration Complete!</h1>
+                        </div>
+                        <div className="content" style={{textAlign: 'center'}}>
+                            <h2>Welcome to Celloxen!</h2>
+                            
+                            {scores && (
+                                <div className="score-card">
+                                    <h3>Your Wellness Score</h3>
+                                    <div className="score-big">{scores.overall_score}</div>
+                                    <p>Out of 100</p>
+                                </div>
+                            )}
+                            
+                            <p style={{marginTop: '20px'}}>A detailed report has been sent to your email.</p>
+                            
+                            <button 
+                                className="btn btn-primary" 
+                                style={{marginTop: '30px'}}
+                                onClick={() => window.location.href = 'https://celloxen.com/patient-portal'}
+                            >
+                                Login to Patient Portal →
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+            
+            return null;
+        }
+        
+        ReactDOM.render(<RegistrationApp />, document.getElementById('root'));
+    </script>
+</body>
+</html>

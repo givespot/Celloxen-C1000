@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+env/
+
+# Database
+*.db
+*.sqlite
+
+# Sensitive
+DATABASE_CREDENTIALS.txt
+*.log
+*.backup*
+*_backup_*
+nohup.out
+
+# Node modules
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
