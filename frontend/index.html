@@ -21,8 +21,6 @@
     <div id="root"></div>
     <script type="text/babel">
         const { useState, useEffect, useContext, createContext, useRef } = React;
-    <script type="text/babel">
-        const { useState, useEffect, useContext, createContext } = React;
         
         const AuthContext = createContext();
         const AuthProvider = ({ children }) => {
@@ -1210,12 +1208,22 @@
                 setLoading(true);
                 try {
                     const token = localStorage.getItem('celloxen_token');
-                    const response = await fetch(`/api/v1/patients/search?query=${searchTerm}`, {
+                    const response = await fetch('/api/v1/clinic/patients', {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
                     if (response.ok) {
-                        const data = await response.json();
-                        setPatients(data.patients || []);
+                        let data = await response.json();
+                        // Filter patients client-side if searchTerm exists
+                        if (searchTerm && searchTerm.trim()) {
+                            const search = searchTerm.toLowerCase();
+                            data = data.filter(p => 
+                                p.first_name?.toLowerCase().includes(search) ||
+                                p.last_name?.toLowerCase().includes(search) ||
+                                p.patient_number?.toLowerCase().includes(search) ||
+                                p.email?.toLowerCase().includes(search)
+                            );
+                        }
+                        setPatients(data || []);
                     }
                 } catch (error) {
                     console.error('Error fetching patients:', error);

@@ -372,7 +372,23 @@ def calculate_assessment_score(domain, responses):
     for question in questions:
         q_id = question["id"]
         if q_id in responses:
-            response_index = int(responses[q_id])
+            response_value = responses[q_id]
+            
+            # Handle both numeric index and text answer
+            if isinstance(response_value, (int, float)):
+                # Already numeric index
+                response_index = int(response_value)
+            elif isinstance(response_value, str) and response_value.isdigit():
+                # String number like "0", "1", "2"
+                response_index = int(response_value)
+            else:
+                # Text answer - find it in options
+                try:
+                    response_index = question["options"].index(response_value)
+                except (ValueError, AttributeError):
+                    # Answer not found, skip this question
+                    continue
+            
             score = question["weights"][response_index]
             total_score += score
             answered += 1

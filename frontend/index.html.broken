@@ -1,0 +1,295 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celloxen Health Portal</title>
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        .sidebar {
+            width: 260px;
+            background: rgba(255, 255, 255, 0.95);
+            box-shadow: 4px 0 20px rgba(0, 0, 0, 0.1);
+            display: flex;
+            flex-direction: column;
+        }
+
+        .sidebar-header {
+            padding: 24px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .logo {
+            font-size: 20px;
+            font-weight: 700;
+        }
+
+        .nav-menu {
+            flex: 1;
+            padding: 16px;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding: 14px 16px;
+            margin-bottom: 8px;
+            border-radius: 12px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            color: #4a5568;
+            font-weight: 500;
+        }
+
+        .nav-item:hover, .nav-item.active {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .main-content {
+            flex: 1;
+            padding: 32px;
+        }
+
+        .dashboard-header {
+            margin-bottom: 32px;
+        }
+
+        .dashboard-title {
+            font-size: 32px;
+            font-weight: 700;
+            color: white;
+            margin-bottom: 8px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 24px;
+            margin-bottom: 32px;
+        }
+
+        .stat-card {
+            background: white;
+            border-radius: 20px;
+            padding: 28px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.1);
+        }
+
+        .stat-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 4px;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+        }
+
+        .stat-icon {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            margin-bottom: 16px;
+        }
+
+        .stat-value {
+            font-size: 42px;
+            font-weight: 700;
+            color: #2d3748;
+            margin-bottom: 8px;
+        }
+
+        .stat-label {
+            color: #718096;
+            font-size: 14px;
+            font-weight: 500;
+        }
+
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 400px;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        function Dashboard() {
+            const [stats, setStats] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+
+            useEffect(() => {
+                loadData();
+            }, []);
+
+            const loadData = async () => {
+                try {
+                    console.log('Fetching stats...');
+                    const response = await fetch('/api/v1/patients/stats/overview');
+                    
+                    if (!response.ok) {
+                        throw new Error('Failed to fetch stats');
+                    }
+                    
+                    const data = await response.json();
+                    console.log('Stats loaded:', data);
+                    setStats(data);
+                    setError(null);
+                } catch (err) {
+                    console.error('Error loading stats:', err);
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="loading">
+                        <div style={{textAlign: 'center'}}>
+                            <div style={{fontSize: '24px', marginBottom: '16px'}}>Loading...</div>
+                            <div>Please wait</div>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (error) {
+                return (
+                    <div className="loading">
+                        <div style={{textAlign: 'center', background: 'white', padding: '32px', borderRadius: '20px', color: '#e53e3e'}}>
+                            <div style={{fontSize: '24px', marginBottom: '16px'}}>Error</div>
+                            <div>{error}</div>
+                            <button onClick={loadData} style={{marginTop: '16px', padding: '12px 24px', background: '#667eea', color: 'white', border: 'none', borderRadius: '8px', cursor: 'pointer'}}>
+                                Retry
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="app-container">
+                    <aside className="sidebar">
+                        <div className="sidebar-header">
+                            <div className="logo">Celloxen Health Portal</div>
+                        </div>
+
+                        <nav className="nav-menu">
+                            <div className="nav-item active">
+                                <i data-lucide="layout-dashboard"></i>
+                                Dashboard
+                            </div>
+                            <div className="nav-item">
+                                <i data-lucide="users"></i>
+                                Patients
+                            </div>
+                            <div className="nav-item">
+                                <i data-lucide="clipboard-list"></i>
+                                Assessments
+                            </div>
+                            <div className="nav-item">
+                                <i data-lucide="calendar"></i>
+                                Appointments
+                            </div>
+                            <div className="nav-item">
+                                <i data-lucide="heart-pulse"></i>
+                                Therapy Plans
+                            </div>
+                            <div className="nav-item">
+                                <i data-lucide="bar-chart-2"></i>
+                                Reports
+                            </div>
+                        </nav>
+                    </aside>
+
+                    <main className="main-content">
+                        <div className="dashboard-header">
+                            <h1 className="dashboard-title">Clinic Dashboard</h1>
+                            <p style={{color: 'rgba(255,255,255,0.9)'}}>Aberdeen Wellness Centre</p>
+                        </div>
+
+                        <div className="stats-grid">
+                            <div className="stat-card">
+                                <div className="stat-icon" style={{background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)', color: 'white'}}>
+                                    <i data-lucide="users"></i>
+                                </div>
+                                <div className="stat-value">{stats?.total_patients || 0}</div>
+                                <div className="stat-label">Total Patients</div>
+                            </div>
+
+                            <div className="stat-card">
+                                <div className="stat-icon" style={{background: 'linear-gradient(135deg, #11998e 0%, #38ef7d 100%)', color: 'white'}}>
+                                    <i data-lucide="user-check"></i>
+                                </div>
+                                <div className="stat-value">{stats?.active_patients || 0}</div>
+                                <div className="stat-label">Active Patients</div>
+                            </div>
+
+                            <div className="stat-card">
+                                <div className="stat-icon" style={{background: 'linear-gradient(135deg, #f093fb 0%, #f5576c 100%)', color: 'white'}}>
+                                    <i data-lucide="trending-up"></i>
+                                </div>
+                                <div className="stat-value">{stats?.new_this_month || 0}</div>
+                                <div className="stat-label">New This Month</div>
+                            </div>
+
+                            <div className="stat-card">
+                                <div className="stat-icon" style={{background: 'linear-gradient(135deg, #fa709a 0%, #fee140 100%)', color: 'white'}}>
+                                    <i data-lucide="clipboard-check"></i>
+                                </div>
+                                <div className="stat-value">{stats?.assessments_completed || 0}</div>
+                                <div className="stat-label">Assessments Completed</div>
+                            </div>
+                        </div>
+                    </main>
+                </div>
+            );
+        }
+
+        ReactDOM.render(<Dashboard />, document.getElementById('root'));
+
+        // Initialize Lucide icons
+        lucide.createIcons();
+        
+        const observer = new MutationObserver(() => {
+            lucide.createIcons();
+        });
+        observer.observe(document.body, { childList: true, subtree: true });
+    </script>
+</body>
+</html>

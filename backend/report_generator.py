@@ -1,250 +1,263 @@
-# PDF Report Generator for Comprehensive Assessments
+"""
+CELLOXEN HEALTH PORTAL - REPORT GENERATOR
+Generates comprehensive wellness assessment PDF reports
+Created: November 14, 2025
+"""
 
 from reportlab.lib.pagesizes import letter, A4
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.units import inch
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle, PageBreak, Image
 from reportlab.lib import colors
-from reportlab.lib.enums import TA_CENTER, TA_LEFT
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.pdfgen import canvas
 from datetime import datetime
-import io
+import asyncpg
 import json
 
-class AssessmentReportGenerator:
-    def __init__(self):
-        self.styles = getSampleStyleSheet()
-        self._setup_custom_styles()
+async def generate_wellness_report(assessment_id: int) -> str:
+    """
+    Generate comprehensive wellness report PDF
+    Returns: path to generated PDF file
+    """
     
-    def _setup_custom_styles(self):
-        """Create custom paragraph styles"""
-        self.styles.add(ParagraphStyle(
-            name='CustomTitle',
-            parent=self.styles['Heading1'],
-            fontSize=24,
-            textColor=colors.HexColor('#4F46E5'),
-            spaceAfter=30,
-            alignment=TA_CENTER
-        ))
-        
-        self.styles.add(ParagraphStyle(
-            name='SectionHeader',
-            parent=self.styles['Heading2'],
-            fontSize=16,
-            
-            spaceBefore=20,
-            spaceAfter=10,
-            textColor=colors.HexColor('#4F46E5')
-        ))
-        
-        self.styles.add(ParagraphStyle(
-            name='SubSection',
-            parent=self.styles['Heading3'],
-            fontSize=12,
-            textColor=colors.HexColor('#374151'),
-            spaceBefore=10,
-            spaceAfter=5
-        ))
+    # Connect to database and fetch all data
+    conn = await asyncpg.connect(
+        host="localhost", port=5432, user="celloxen_user",
+        password="CelloxenSecure2025", database="celloxen_portal"
+    )
     
-    def generate_comprehensive_report(self, assessment_data: dict, patient_data: dict, iridology_data: dict = None) -> io.BytesIO:
-        """Generate comprehensive assessment PDF report"""
+    # Get assessment data with patient info
+    assessment = await conn.fetchrow("""
+        SELECT 
+            a.*,
+            p.first_name, p.last_name, p.email, p.date_of_birth,
+            p.patient_number
+        FROM comprehensive_assessments a
+        JOIN patients p ON a.patient_id = p.id
+        WHERE a.id = $1
+    """, assessment_id)
+    
+    await conn.close()
+    
+    if not assessment:
+        raise Exception(f"Assessment {assessment_id} not found")
+    
+    # Create PDF
+    filename = f"/var/www/celloxen-portal/reports/wellness_report_{assessment_id}_{datetime.now().strftime('%Y%m%d')}.pdf"
+    doc = SimpleDocTemplate(filename, pagesize=A4)
+    
+    # Container for PDF elements
+    story = []
+    
+    # Styles
+    styles = getSampleStyleSheet()
+    title_style = ParagraphStyle(
+        'CustomTitle',
+        parent=styles['Heading1'],
+        fontSize=24,
+        textColor=colors.HexColor('#7C3AED'),
+        spaceAfter=30,
+        alignment=TA_CENTER
+    )
+    
+    heading_style = ParagraphStyle(
+        'CustomHeading',
+        parent=styles['Heading2'],
+        fontSize=16,
+        textColor=colors.HexColor('#7C3AED'),
+        spaceAfter=12,
+        spaceBefore=20
+    )
+    
+    # PAGE 1: COVER & EXECUTIVE SUMMARY
+    story.append(Spacer(1, 1*inch))
+    story.append(Paragraph("Comprehensive Wellness Assessment Report", title_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Patient Information
+    patient_info = f"""
+    <b>Patient:</b> {assessment['first_name']} {assessment['last_name']}<br/>
+    <b>Patient ID:</b> {assessment['patient_number']}<br/>
+    <b>Assessment Date:</b> {assessment['assessment_date'].strftime('%B %d, %Y')}<br/>
+    <b>Report Generated:</b> {datetime.now().strftime('%B %d, %Y')}
+    """
+    story.append(Paragraph(patient_info, styles['Normal']))
+    story.append(Spacer(1, 0.5*inch))
+    
+    # Overall Wellness Score - Big Number
+    score_table_data = [[
+        Paragraph(f"<font size=48 color='#7C3AED'><b>{assessment['overall_wellness_score']}%</b></font>", styles['Normal'])
+    ]]
+    score_table = Table(score_table_data, colWidths=[6*inch])
+    score_table.setStyle(TableStyle([
+        ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+        ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+        ('BOX', (0, 0), (-1, -1), 2, colors.HexColor('#7C3AED')),
+        ('BACKGROUND', (0, 0), (-1, -1), colors.HexColor('#F3E8FF')),
+        ('TOPPADDING', (0, 0), (-1, -1), 20),
+        ('BOTTOMPADDING', (0, 0), (-1, -1), 20),
+    ]))
+    story.append(score_table)
+    story.append(Paragraph("<b>Overall Wellness Score</b>", styles['Normal']))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Key Findings Summary
+    story.append(Paragraph("Executive Summary", heading_style))
+    
+    scores = json.loads(assessment['questionnaire_scores']) if assessment['questionnaire_scores'] else {}
+    
+    # Determine priority areas (lowest scores)
+    sorted_domains = sorted(scores.items(), key=lambda x: x[1]['score'])
+    
+    summary_text = f"""
+    This comprehensive wellness assessment evaluated {assessment['first_name']}'s health across five key wellness domains. 
+    The overall wellness score of <b>{assessment['overall_wellness_score']}%</b> indicates areas where targeted support may be beneficial.
+    <br/><br/>
+    <b>Priority Areas for Attention:</b><br/>
+    """
+    
+    for domain_key, domain_data in sorted_domains[:3]:  # Top 3 priority areas
+        summary_text += f"• {domain_data['domain_name']}: {domain_data['score']}%<br/>"
+    
+    story.append(Paragraph(summary_text, styles['Normal']))
+    
+    # PAGE 2: DOMAIN SCORES DETAILED
+    story.append(PageBreak())
+    story.append(Paragraph("Wellness Domain Analysis", title_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    # Create table for domain scores
+    domain_table_data = [['Domain', 'Therapy Code', 'Score', 'Status']]
+    
+    for domain_key, domain_data in scores.items():
+        score = domain_data['score']
         
-        buffer = io.BytesIO()
-        doc = SimpleDocTemplate(buffer, pagesize=letter, topMargin=0.5*inch, bottomMargin=0.5*inch)
-        story = []
+        # Determine status
+        if score >= 75:
+            status = "Good"
+            status_color = colors.green
+        elif score >= 50:
+            status = "Moderate"
+            status_color = colors.orange
+        else:
+            status = "Needs Support"
+            status_color = colors.red
         
-        # Header with logo placeholder
-        story.append(Paragraph("CELLOXEN HEALTH PORTAL", self.styles['CustomTitle']))
-        story.append(Paragraph("Comprehensive Wellness Assessment Report", self.styles['Normal']))
+        domain_table_data.append([
+            domain_data['domain_name'],
+            domain_data['therapy_code'],
+            f"{score}%",
+            status
+        ])
+    
+    domain_table = Table(domain_table_data, colWidths=[2.5*inch, 1*inch, 0.8*inch, 1.5*inch])
+    domain_table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#7C3AED')),
+        ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+        ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTSIZE', (0, 0), (-1, 0), 12),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
+        ('GRID', (0, 0), (-1, -1), 1, colors.grey),
+        ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')])
+    ]))
+    story.append(domain_table)
+    
+    # PAGE 3: IRIDOLOGY ANALYSIS (if available)
+    if assessment['iridology_completed']:
+        story.append(PageBreak())
+        story.append(Paragraph("Iridology Analysis", title_style))
         story.append(Spacer(1, 0.3*inch))
         
-        # Patient Information Section
-        story.append(Paragraph("Patient Information", self.styles['SectionHeader']))
+        iridology_data = json.loads(assessment['iridology_data']) if assessment['iridology_data'] else {}
         
-        patient_info_data = [
-            ["Patient Name:", f"{patient_data.get('first_name', '')} {patient_data.get('last_name', '')}"],
-            ["Patient ID:", patient_data.get('patient_number', 'N/A')],
-            ["Date of Birth:", str(patient_data.get('date_of_birth', 'N/A'))],
-            ["Assessment Date:", datetime.now().strftime("%d %B %Y")],
-            ["Assessment ID:", f"ASS-{assessment_data.get('id', 'N/A')}"]
-        ]
+        iridology_text = f"""
+        <b>Constitutional Type:</b> {assessment['constitutional_type']}<br/>
+        <b>Constitutional Strength:</b> {assessment['constitutional_strength']}<br/><br/>
+        <b>Findings:</b><br/>
+        """
         
-        patient_table = Table(patient_info_data, colWidths=[2*inch, 4*inch])
-        patient_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
-            ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
-            ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
-            ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-            ('FONTSIZE', (0, 0), (-1, -1), 10),
-            ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-            ('TOPPADDING', (0, 0), (-1, -1), 8),
-            ('BOTTOMPADDING', (0, 0), (-1, -1), 8)
-        ]))
+        if 'findings' in iridology_data:
+            for system, finding in iridology_data['findings'].items():
+                iridology_text += f"• {system.replace('_', ' ').title()}: {finding}<br/>"
         
-        story.append(patient_table)
-        story.append(Spacer(1, 0.3*inch))
+        if 'recommendations' in iridology_data:
+            iridology_text += "<br/><b>AI Recommendations:</b><br/>"
+            for rec in iridology_data['recommendations']:
+                iridology_text += f"• {rec}<br/>"
         
-        # Overall Wellness Score
-        overall_score = assessment_data.get('overall_wellness_score', 0)
-        story.append(Paragraph("Overall Wellness Score", self.styles['SectionHeader']))
-        story.append(Paragraph(
-            f"<font size=16 color='#4F46E5'><b>{overall_score:.1f}%</b></font>",
-            self.styles['Normal']
-        ))
-        story.append(Spacer(1, 0.2*inch))
-        
-        # Questionnaire Results
-        story.append(Paragraph("Wellness Questionnaire Results", self.styles['SectionHeader']))
-        story.append(Paragraph(
-            "Assessment across 5 Celloxen therapy domains (35 comprehensive questions)",
-            self.styles['Normal']
-        ))
-        story.append(Spacer(1, 0.1*inch))
-        
-        # Domain scores table
-        questionnaire_scores = assessment_data.get('questionnaire_scores', {})
-        if questionnaire_scores:
-            scores_data = [["Therapy Domain", "Score", "Status", "Priority"]]
+        story.append(Paragraph(iridology_text, styles['Normal']))
+    
+    # PAGE 4: THERAPY RECOMMENDATIONS
+    story.append(PageBreak())
+    story.append(Paragraph("Recommended Wellness Support", title_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    recommendations_text = """
+    Based on your wellness assessment scores, the following Celloxen therapies are recommended to support your holistic health:
+    <br/><br/>
+    """
+    
+    # Recommend therapies based on low scores
+    for domain_key, domain_data in sorted_domains:
+        if domain_data['score'] < 60:  # Below 60% needs support
+            therapy_code = domain_data['therapy_code']
+            domain_name = domain_data['domain_name']
             
-            for domain_key, domain_info in questionnaire_scores.items():
-                if isinstance(domain_info, dict):
-                    domain_name = domain_info.get('domain_name', domain_key)
-                    score = domain_info.get('score', 0)
-                    status = domain_info.get('wellness_status', 'N/A')
-                    priority = domain_info.get('priority_level', 'N/A')
-                    
-                    scores_data.append([
-                        domain_name,
-                        f"{score:.1f}%",
-                        status,
-                        priority
-                    ])
+            # Suggest session count based on score
+            if domain_data['score'] < 40:
+                sessions = "20-24 sessions"
+            elif domain_data['score'] < 50:
+                sessions = "16-20 sessions"
+            else:
+                sessions = "12-16 sessions"
             
-            scores_table = Table(scores_data, colWidths=[2.5*inch, 1*inch, 1.5*inch, 1*inch])
-            scores_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#4F46E5')),
-                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
-                ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, 0), 11),
-                ('BOTTOMPADDING', (0, 0), (-1, 0), 12),
-                ('TOPPADDING', (0, 0), (-1, 0), 12),
-                ('GRID', (0, 0), (-1, -1), 1, colors.grey),
-                ('ROWBACKGROUNDS', (0, 1), (-1, -1), [colors.white, colors.HexColor('#F9FAFB')])
-            ]))
-            
-            story.append(scores_table)
-            story.append(Spacer(1, 0.3*inch))
-        
-        # Iridology Results (if available)
-        if iridology_data:
-            story.append(PageBreak())
-            story.append(Paragraph("Iridology Analysis Results", self.styles['SectionHeader']))
-            story.append(Paragraph(
-                "Professional iris image analysis for constitutional typing and system assessment",
-                self.styles['Normal']
-            ))
-            story.append(Spacer(1, 0.1*inch))
-            
-            irid_info = [
-                ["Constitutional Type:", iridology_data.get('constitutional_type', 'N/A')],
-                ["Constitutional Strength:", iridology_data.get('constitutional_strength', 'N/A')],
-                ["Digestive System:", iridology_data.get('digestive_system_condition', 'N/A')],
-                ["Circulatory System:", iridology_data.get('circulatory_system_condition', 'N/A')],
-                ["Nervous System:", iridology_data.get('nervous_system_condition', 'N/A')],
-                ["Musculoskeletal System:", iridology_data.get('musculoskeletal_system_condition', 'N/A')],
-                ["Endocrine System:", iridology_data.get('endocrine_system_condition', 'N/A')]
-            ]
-            
-            irid_table = Table(irid_info, colWidths=[2.5*inch, 3.5*inch])
-            irid_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#F3F4F6')),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 8),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 8)
-            ]))
-            
-            story.append(irid_table)
-            story.append(Spacer(1, 0.2*inch))
-            
-            # Primary concerns from iridology
-            primary_concerns = iridology_data.get('primary_concerns', [])
-            if primary_concerns and isinstance(primary_concerns, list) and len(primary_concerns) > 0:
-                story.append(Paragraph("Primary Wellness Concerns Identified:", self.styles['SubSection']))
-                for concern in primary_concerns:
-                    story.append(Paragraph(f"• {concern}", self.styles['Normal']))
-                story.append(Spacer(1, 0.2*inch))
-        
-        # Therapy Recommendations
-        story.append(PageBreak())
-        story.append(Paragraph("Recommended Therapy Plan", self.styles['SectionHeader']))
-        story.append(Paragraph(
-            "Personalized Celloxen therapy recommendations based on your comprehensive assessment",
-            self.styles['Normal']
-        ))
-        story.append(Spacer(1, 0.2*inch))
-        
-        recommendations = assessment_data.get('recommendations', [])
-        for idx, rec in enumerate(recommendations, 1):
-            # Therapy header
-            story.append(Paragraph(
-                f"<b>{idx}. {rec.get('therapy_name', 'N/A')}</b>",
-                self.styles['SubSection']
-            ))
-            
-            # Details table
-            rec_details = [
-                ["Priority Level:", rec.get('priority_level', 'N/A')],
-                ["Recommended Sessions:", str(rec.get('recommended_sessions', 'N/A'))],
-                ["Session Frequency:", rec.get('session_frequency', 'N/A')],
-                ["Session Duration:", rec.get('session_duration', 'N/A')],
-                ["Estimated Duration:", rec.get('estimated_duration', 'N/A')]
-            ]
-            
-            rec_table = Table(rec_details, colWidths=[2*inch, 4*inch])
-            rec_table.setStyle(TableStyle([
-                ('BACKGROUND', (0, 0), (0, -1), colors.HexColor('#EEF2FF')),
-                ('FONTNAME', (0, 0), (0, -1), 'Helvetica-Bold'),
-                ('FONTSIZE', (0, 0), (-1, -1), 9),
-                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
-                ('TOPPADDING', (0, 0), (-1, -1), 6),
-                ('BOTTOMPADDING', (0, 0), (-1, -1), 6)
-            ]))
-            
-            story.append(rec_table)
-            story.append(Spacer(1, 0.1*inch))
-            
-            # Rationale
-            story.append(Paragraph("<b>Rationale:</b>", self.styles['Normal']))
-            story.append(Paragraph(rec.get('rationale', 'N/A'), self.styles['Normal']))
-            story.append(Spacer(1, 0.1*inch))
-            
-            # Key Benefits
-            key_benefits = rec.get('key_benefits', [])
-            if key_benefits:
-                story.append(Paragraph("<b>Key Benefits:</b>", self.styles['Normal']))
-                for benefit in key_benefits:
-                    story.append(Paragraph(f"• {benefit}", self.styles['Normal']))
-            
-            story.append(Spacer(1, 0.2*inch))
-        
-        # Footer / Disclaimer
-        story.append(PageBreak())
-        story.append(Paragraph("Important Notice", self.styles['SectionHeader']))
-        story.append(Paragraph(
-            "This assessment is for wellness and educational purposes only. It is not intended to diagnose, "
-            "treat, cure, or prevent any disease. Celloxen therapies are complementary wellness approaches. "
-            "Always consult with qualified healthcare professionals regarding your health concerns.",
-            self.styles['Normal']
-        ))
-        story.append(Spacer(1, 0.2*inch))
-        story.append(Paragraph(
-            f"Report Generated: {datetime.now().strftime('%d %B %Y at %H:%M')}",
-            self.styles['Normal']
-        ))
-        story.append(Paragraph("Celloxen Health Portal - Comprehensive Wellness Solutions", self.styles['Normal']))
-        
-        # Build PDF
-        doc.build(story)
-        buffer.seek(0)
-        return buffer
+            recommendations_text += f"""
+            <b>{therapy_code} - {domain_name}</b><br/>
+            Recommended Course: {sessions}<br/>
+            Your Score: {domain_data['score']}%<br/><br/>
+            """
+    
+    story.append(Paragraph(recommendations_text, styles['Normal']))
+    
+    # PAGE 5: IMPORTANT INFORMATION & DISCLAIMER
+    story.append(PageBreak())
+    story.append(Paragraph("Important Information", title_style))
+    story.append(Spacer(1, 0.3*inch))
+    
+    disclaimer_text = """
+    <b>HOLISTIC WELLNESS DISCLAIMER</b><br/><br/>
+    
+    This assessment provides holistic wellness guidance and does NOT constitute medical diagnosis or treatment. 
+    Celloxen therapies are complementary wellness interventions designed to support overall health and wellbeing.<br/><br/>
+    
+    <b>Important Notes:</b><br/>
+    • This is NOT a medical diagnosis<br/>
+    • Results are for wellness guidance only<br/>
+    • Please consult your GP for any medical concerns<br/>
+    • Celloxen therapies complement, not replace, medical care<br/><br/>
+    
+    <b>Next Steps:</b><br/>
+    1. Review these findings with your practitioner<br/>
+    2. Discuss recommended therapies<br/>
+    3. Create a personalized wellness plan<br/>
+    4. Schedule therapy sessions<br/><br/>
+    
+    <b>Contact Information:</b><br/>
+    For questions or to book sessions, please contact your clinic directly.
+    """
+    
+    story.append(Paragraph(disclaimer_text, styles['Normal']))
+    
+    # Build PDF
+    doc.build(story)
+    
+    return filename
+
+# Test function
+if __name__ == "__main__":
+    import asyncio
+    # Test with assessment ID 1
+    result = asyncio.run(generate_wellness_report(1))
+    print(f"Report generated: {result}")

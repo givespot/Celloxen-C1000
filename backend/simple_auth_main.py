@@ -1,5 +1,6 @@
 import bcrypt
 from fastapi import FastAPI, HTTPException, Depends, Header
+from models import AppointmentCreate, PatientCreate, PatientUpdate, AssessmentCreate, AssessmentUpdate, TherapyPlanCreate, TherapyPlanUpdate
 from enhanced_chatbot import router as chatbot_router
 from patient_portal_endpoints import router as patient_router
 from fastapi.middleware.cors import CORSMiddleware
@@ -9,7 +10,7 @@ import json
 from contextlib import asynccontextmanager
 import os
 from ai_iridology_analyzer import AIIridologyAnalyzer
-from report_generator import AssessmentReportGenerator
+from new_assessment_module import router as new_assessment_router
 from fastapi.responses import StreamingResponse
 
 # Assessment Module Imports
@@ -24,7 +25,6 @@ from celloxen_assessment_system import (
 # Initialize AI analyzer and report generator
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
-report_generator = AssessmentReportGenerator()
 
 # Database connection context manager
 @asynccontextmanager
@@ -48,6 +48,7 @@ app = FastAPI()
 
 # Include patient portal router
 app.include_router(patient_router)
+app.include_router(new_assessment_router)
 
 app.add_middleware(
     CORSMiddleware,
@@ -60,7 +61,6 @@ app.add_middleware(
 # Initialize AI analyzer and report generator
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
-report_generator = AssessmentReportGenerator()
 
 # Database connection context manager
 @app.post("/api/v1/auth/login")
@@ -100,6 +100,10 @@ async def login(user_credentials: dict):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/auth/me")
@@ -144,50 +148,52 @@ async def get_clinic_patients():
         return []
 
 @app.post("/api/v1/clinic/patients")
-async def create_patient(patient_data: dict):
+async def create_patient(patient: PatientCreate):
+    """Create a new patient - Now with automatic validation!"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
+            host="localhost", port=5432, user="celloxen_user",
             password="CelloxenSecure2025", database="celloxen_portal"
         )
         
         # Generate patient number
-        next_number = await conn.fetchval("SELECT COUNT(*) + 1 FROM patients")
-        patient_number = f"CLX-ABD-{next_number:05d}"
+        count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", patient.clinic_id)
+        patient_number = f"CLX-ABD-{str(count + 1).zfill(5)}"
         
-        # Convert date string to date object
-        date_str = patient_data.get('date_of_birth')
-        if date_str:
-            birth_date = datetime.strptime(date_str, '%Y-%m-%d').date()
-        else:
-            raise HTTPException(status_code=400, detail="Date of birth is required")
+        # Parse date of birth
+        from datetime import datetime
+        dob = datetime.strptime(patient.date_of_birth, "%Y-%m-%d").date()
         
-        patient_id = await conn.fetchval("""
-            INSERT INTO patients (
-                patient_number, clinic_id, first_name, last_name, 
-                email, mobile_phone, date_of_birth, address,
-                emergency_contact, emergency_phone, medical_conditions,
-                medications, allergies, insurance_details, notes,
+        # Insert patient - All types already validated by Pydantic!
+        patient_id = await conn.fetchval(
+            """INSERT INTO patients (
+                patient_number, clinic_id, first_name, last_name, email, mobile_phone,
+                date_of_birth, address, emergency_contact, emergency_phone,
+                medical_conditions, medications, allergies, insurance_details, notes,
                 status, portal_access, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18)
-            RETURNING id
-        """, 
-        patient_number, 1,
-        patient_data.get('first_name'), patient_data.get('last_name'),
-        patient_data.get('email'), patient_data.get('mobile_phone'),
-        birth_date, patient_data.get('address'),
-        patient_data.get('emergency_contact'), patient_data.get('emergency_phone'),
-        patient_data.get('medical_conditions'), patient_data.get('medications'),
-        patient_data.get('allergies'), patient_data.get('insurance_details'),
-        patient_data.get('notes'), 'active', True, datetime.now()
+            ) VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
+                'active', false, NOW()
+            ) RETURNING id""",
+            patient_number, patient.clinic_id, patient.first_name, patient.last_name,
+            patient.email, patient.mobile_phone, dob, patient.address,
+            patient.emergency_contact, patient.emergency_phone,
+            patient.medical_conditions, patient.medications, patient.allergies,
+            patient.insurance_details, patient.notes
         )
         
         await conn.close()
-        return {"success": True, "patient_id": patient_id, "patient_number": patient_number}
         
-    except HTTPException:
-        raise
+        return {
+            "success": True,
+            "message": "Patient created successfully",
+            "patient_id": patient_id,
+            "patient_number": patient_number
+        }
     except Exception as e:
+        print(f"❌ ERROR creating patient: {str(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/v1/clinic/patients/{patient_id}")
@@ -225,6 +231,10 @@ async def update_patient(patient_id: int, patient_data: dict):
         return {"success": True}
         
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/api/v1/clinic/patients/{patient_id}")
@@ -240,6 +250,10 @@ async def delete_patient(patient_id: int):
         return {"success": True}
         
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/clinic/patients/{patient_id}")
@@ -266,6 +280,10 @@ async def get_patient(patient_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -298,10 +316,11 @@ async def get_domain_questions(domain: str):
     }
 
 @app.post("/api/v1/assessments/comprehensive")
-async def create_comprehensive_assessment(assessment_data: dict):
+async def create_comprehensive_assessment(assessment_data: dict):  # TODO: Convert to AssessmentCreate model
     """Create a comprehensive assessment with questionnaire and optional iridology"""
     try:
-        patient_id = assessment_data.get("patient_id")
+        # Convert patient_id to int (Pydantic will handle this automatically in future)
+        patient_id = int(assessment_data.get("patient_id")) if assessment_data.get("patient_id") else None
         questionnaire_responses = assessment_data.get("questionnaire_responses", {})
         iris_images = assessment_data.get("iris_images", {})
         
@@ -441,6 +460,10 @@ async def get_patient_assessments(patient_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/assessments/{assessment_id}")
@@ -503,6 +526,10 @@ async def get_assessment_details(assessment_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -543,6 +570,10 @@ async def get_appointments_stats():
             "completed_appointments": completed
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -597,52 +628,53 @@ async def get_appointments(
             "appointments": [dict(a) for a in appointments]
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/v1/appointments")
-async def create_appointment(appointment_data: dict):
-    """Create a new appointment"""
+async def create_appointment(appointment: AppointmentCreate):
+    """Create a new appointment - Now with automatic type validation!"""
     try:
         conn = await asyncpg.connect(
             host="localhost", port=5432, user="celloxen_user",
             password="CelloxenSecure2025", database="celloxen_portal"
         )
-        
+
         # Generate appointment number
         from datetime import datetime
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         appointment_number = f"APT-{timestamp}"
-        
-        # Insert appointment
-        from datetime import datetime, date, time
-        
-        # Convert date string to date object
-        appt_date = datetime.strptime(appointment_data["appointment_date"], "%Y-%m-%d").date()
-        # Convert time string to time object
-        appt_time = datetime.strptime(appointment_data["appointment_time"], "%H:%M").time()
-        
+
+        # Convert date and time strings
+        appt_date = datetime.strptime(appointment.appointment_date, "%Y-%m-%d").date()
+        appt_time = datetime.strptime(appointment.appointment_time, "%H:%M").time()
+
+        # Insert appointment - Pydantic already validated and converted types!
         appointment_id = await conn.fetchval(
             """INSERT INTO appointments (
                 appointment_number, clinic_id, patient_id, appointment_type,
                 appointment_date, appointment_time, duration_minutes,
                 practitioner_id, status, booking_notes, created_at
-            ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, NOW())
+            ) VALUES ($1, $2, $3, $4::appointmenttype, $5, $6, $7, $8, $9::appointmentstatus, $10, NOW())
             RETURNING id""",
             appointment_number,
-            appointment_data.get("clinic_id", 1),
-            appointment_data["patient_id"],
-            appointment_data["appointment_type"],
+            appointment.clinic_id,
+            appointment.patient_id,  # Already converted to int by Pydantic!
+            appointment.appointment_type,  # Already converted to enum format by Pydantic!
             appt_date,
             appt_time,
-            appointment_data.get("duration_minutes", 60),
-            appointment_data.get("practitioner_id"),
+            appointment.duration_minutes,
+            appointment.practitioner_id,
             'SCHEDULED',
-            appointment_data.get("booking_notes")
+            appointment.booking_notes
         )
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Appointment created successfully",
@@ -650,6 +682,10 @@ async def create_appointment(appointment_data: dict):
             "appointment_number": appointment_number
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -688,6 +724,10 @@ async def get_appointment(appointment_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -744,6 +784,10 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -778,6 +822,10 @@ async def delete_appointment(appointment_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -809,6 +857,10 @@ async def cancel_appointment(appointment_id: int, cancel_data: dict):
             "message": "Appointment cancelled successfully"
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -846,6 +898,10 @@ async def get_calendar_appointments(year: int, month: int):
             "appointments": [dict(a) for a in appointments]
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -884,6 +940,10 @@ async def get_therapy_plans_stats():
             "in_progress_plans": in_progress
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -930,6 +990,10 @@ async def get_therapy_plans(status: str = None, patient_id: int = None):
             "therapy_plans": [dict(p) for p in plans]
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -983,6 +1047,10 @@ async def get_therapy_plan(plan_id: int):
     except HTTPException:
         raise
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1001,7 +1069,7 @@ async def create_therapy_plan(plan_data: dict):
         timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
         plan_number = f"TP-{timestamp}"
         
-        # Insert therapy plan
+        # Insert therapy plan - Convert IDs to integers
         plan_id = await conn.fetchval(
             """INSERT INTO therapy_plans (
                 plan_number, clinic_id, patient_id, assessment_id,
@@ -1009,10 +1077,10 @@ async def create_therapy_plan(plan_data: dict):
             ) VALUES ($1, $2, $3, $4, $5, $6, $7, NOW())
             RETURNING id""",
             plan_number,
-            plan_data.get("clinic_id", 1),
-            plan_data["patient_id"],
-            plan_data["assessment_id"],
-            plan_data.get("recommended_by", 1),
+            int(plan_data.get("clinic_id", 1)),
+            int(plan_data["patient_id"]),
+            int(plan_data["assessment_id"]),
+            int(plan_data.get("recommended_by", 1)),
             "PENDING_APPROVAL",
             plan_data.get("notes")
         )
@@ -1047,6 +1115,10 @@ async def create_therapy_plan(plan_data: dict):
             "plan_number": plan_number
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1074,6 +1146,10 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
             "message": "Status updated successfully"
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1157,6 +1233,10 @@ async def get_reports_overview():
             }
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1197,6 +1277,10 @@ async def get_patient_activity():
             "patient_activity": [dict(row) for row in activity]
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1229,6 +1313,10 @@ async def get_wellness_trends():
             "wellness_trends": [dict(row) for row in trends]
         }
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1359,6 +1447,10 @@ async def get_patient_assessment_overview(patient_id: int, authorization: str = 
         }
         
     except Exception as e:
+        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR type: {type(e)}")
+        import traceback
+        traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
 
@@ -1580,3 +1672,47 @@ async def generate_assessment_report(assessment_id: int):
         traceback.print_exc()
         return {"success": False, "error": str(e)}
 
+
+# Import iridology module
+from ai_iridology_module import router as iridology_router
+app.include_router(iridology_router)
+
+# Import report generator
+from report_generator import generate_wellness_report
+
+@app.post("/api/v1/reports/generate/{assessment_id}")
+async def generate_report_endpoint(assessment_id: int):
+    """Generate wellness report PDF"""
+    try:
+        pdf_path = await generate_wellness_report(assessment_id)
+        
+        # Return download link
+        filename = pdf_path.split('/')[-1]
+        return {
+            "success": True,
+            "assessment_id": assessment_id,
+            "report_path": pdf_path,
+            "download_url": f"/reports/{filename}"
+        }
+    except Exception as e:
+        import traceback
+        print(f"ERROR generating report: {str(e)}")
+        print(traceback.format_exc())
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/reports/{filename}")
+async def download_report(filename: str):
+    """Download generated report"""
+    from fastapi.responses import FileResponse
+    import os
+    
+    file_path = f"/var/www/celloxen-portal/reports/{filename}"
+    
+    if not os.path.exists(file_path):
+        raise HTTPException(status_code=404, detail="Report not found")
+    
+    return FileResponse(
+        file_path,
+        media_type='application/pdf',
+        filename=filename
+    )
