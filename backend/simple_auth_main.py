@@ -1,5 +1,5 @@
 import bcrypt
-from fastapi import FastAPI, HTTPException, Depends, Header
+from fastapi import FastAPI, HTTPException, Depends, Request, Header
 from models import AppointmentCreate, PatientCreate, PatientUpdate, AssessmentCreate, AssessmentUpdate, TherapyPlanCreate, TherapyPlanUpdate
 from enhanced_chatbot import router as chatbot_router
 from patient_portal_endpoints import router as patient_router
@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 import os
 from ai_iridology_analyzer import AIIridologyAnalyzer
 from new_assessment_module import router as new_assessment_router
+from enhanced_dashboard_api import router as dashboard_router
 from fastapi.responses import StreamingResponse
 
 # Assessment Module Imports
@@ -48,6 +49,7 @@ app = FastAPI()
 
 # Include patient portal router
 app.include_router(patient_router)
+app.include_router(dashboard_router)
 app.include_router(new_assessment_router)
 
 app.add_middleware(
@@ -147,39 +149,251 @@ async def get_clinic_patients():
     except Exception as e:
         return []
 
-@app.post("/api/v1/clinic/patients")
-async def create_patient(patient: PatientCreate):
-    """Create a new patient - Now with automatic validation!"""
+
+@app.get("/api/v1/clinic/patients/{patient_id}")
+async def get_patient(patient_id: int):
+    """Get a single patient with all details"""
     try:
         conn = await asyncpg.connect(
             host="localhost", port=5432, user="celloxen_user",
             password="CelloxenSecure2025", database="celloxen_portal"
         )
         
+        # Get patient data
+        patient = await conn.fetchrow("""
+            SELECT p.*, c.name as clinic_name 
+            FROM patients p 
+            LEFT JOIN clinics c ON p.clinic_id = c.id
+            WHERE p.id = $1
+        """, patient_id)
+        
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        # Get assessment count
+        assessment_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM assessments WHERE patient_id = $1", patient_id
+        )
+        
+        # Get appointment count
+        appointment_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM appointments WHERE patient_id = $1", patient_id
+        )
+        
+        # Get therapy plan count
+        therapy_count = await conn.fetchval(
+            "SELECT COUNT(*) FROM therapy_plans WHERE patient_id = $1", patient_id
+        )
+        
+        # Get latest assessment
+        latest_assessment = await conn.fetchrow("""
+            SELECT assessment_number, overall_wellness_score, created_at
+            FROM assessments 
+            WHERE patient_id = $1 
+            ORDER BY created_at DESC 
+            LIMIT 1
+        """, patient_id)
+        
+        # Get upcoming appointment
+        upcoming_appointment = await conn.fetchrow("""
+            SELECT appointment_number, appointment_date, appointment_time, status
+            FROM appointments 
+            WHERE patient_id = $1 AND appointment_date >= CURRENT_DATE
+            ORDER BY appointment_date, appointment_time 
+            LIMIT 1
+        """, patient_id)
+        
+        await conn.close()
+        
+        return {
+            "patient": dict(patient),
+            "stats": {
+                "assessment_count": assessment_count,
+                "appointment_count": appointment_count,
+                "therapy_count": therapy_count
+            },
+            "latest_assessment": dict(latest_assessment) if latest_assessment else None,
+            "upcoming_appointment": dict(upcoming_appointment) if upcoming_appointment else None
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR getting patient: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.put("/api/v1/clinic/patients/{patient_id}")
+async def update_patient(patient_id: int, patient_data: dict):
+    """Update a patient's information"""
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        # Parse date of birth if provided
+        dob = None
+        if patient_data.get('date_of_birth'):
+            from datetime import datetime
+            dob = datetime.strptime(patient_data.get('date_of_birth'), "%Y-%m-%d").date()
+        
+        # Update patient
+        await conn.execute("""
+            UPDATE patients SET
+                first_name = COALESCE($1, first_name),
+                last_name = COALESCE($2, last_name),
+                email = COALESCE($3, email),
+                mobile_phone = COALESCE($4, mobile_phone),
+                date_of_birth = COALESCE($5, date_of_birth),
+                gender = COALESCE($6, gender),
+                address_line1 = COALESCE($7, address_line1),
+                address_line2 = COALESCE($8, address_line2),
+                city = COALESCE($9, city),
+                county = COALESCE($10, county),
+                postcode = COALESCE($11, postcode),
+                emergency_contact = COALESCE($12, emergency_contact),
+                emergency_phone = COALESCE($13, emergency_phone),
+                emergency_relationship = COALESCE($14, emergency_relationship),
+                medical_conditions = COALESCE($15, medical_conditions),
+                medications = COALESCE($16, medications),
+                allergies = COALESCE($17, allergies),
+                insurance_details = COALESCE($18, insurance_details),
+                notes = COALESCE($19, notes),
+                status = COALESCE($20, status)
+            WHERE id = $21
+        """,
+            patient_data.get('first_name'),
+            patient_data.get('last_name'),
+            patient_data.get('email'),
+            patient_data.get('mobile_phone'),
+            dob,
+            patient_data.get('gender'),
+            patient_data.get('address_line1'),
+            patient_data.get('address_line2'),
+            patient_data.get('city'),
+            patient_data.get('county'),
+            patient_data.get('postcode'),
+            patient_data.get('emergency_contact'),
+            patient_data.get('emergency_phone'),
+            patient_data.get('emergency_relationship'),
+            patient_data.get('medical_conditions'),
+            patient_data.get('medications'),
+            patient_data.get('allergies'),
+            patient_data.get('insurance_details'),
+            patient_data.get('notes'),
+            patient_data.get('status'),
+            patient_id
+        )
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Patient updated successfully",
+            "patient_id": patient_id
+        }
+        
+    except Exception as e:
+        print(f"❌ ERROR updating patient: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.delete("/api/v1/clinic/patients/{patient_id}")
+async def delete_patient(patient_id: int):
+    """Delete a patient (soft delete by setting status to deleted)"""
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        # Check if patient exists
+        patient = await conn.fetchrow("SELECT * FROM patients WHERE id = $1", patient_id)
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        # Soft delete - set status to 'deleted'
+        await conn.execute(
+            "UPDATE patients SET status = 'deleted' WHERE id = $1",
+            patient_id
+        )
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Patient deleted successfully",
+            "patient_id": patient_id
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR deleting patient: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/clinic/patients")
+async def create_patient(patient_data: dict):
+    """Create a new patient with UK address fields"""
+    print("🔍 DEBUG: Received patient_data:", patient_data)
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        # Get clinic_id (default to 1 if not provided)
+        clinic_id = patient_data.get('clinic_id', 1)
+        
         # Generate patient number
-        count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", patient.clinic_id)
+        count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id)
         patient_number = f"CLX-ABD-{str(count + 1).zfill(5)}"
         
-        # Parse date of birth
+        # Parse date of birth (already in YYYY-MM-DD format from frontend)
         from datetime import datetime
-        dob = datetime.strptime(patient.date_of_birth, "%Y-%m-%d").date()
+        dob = datetime.strptime(patient_data.get('date_of_birth'), "%Y-%m-%d").date()
         
-        # Insert patient - All types already validated by Pydantic!
+        # Insert patient with all new UK address fields
         patient_id = await conn.fetchval(
             """INSERT INTO patients (
                 patient_number, clinic_id, first_name, last_name, email, mobile_phone,
-                date_of_birth, address, emergency_contact, emergency_phone,
+                date_of_birth, gender, address_line1, address_line2, city, county, postcode,
+                emergency_contact, emergency_phone, emergency_relationship,
                 medical_conditions, medications, allergies, insurance_details, notes,
                 status, portal_access, created_at
             ) VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15,
-                'active', false, NOW()
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16,
+                $17, $18, $19, $20, $21, 'active', false, NOW()
             ) RETURNING id""",
-            patient_number, patient.clinic_id, patient.first_name, patient.last_name,
-            patient.email, patient.mobile_phone, dob, patient.address,
-            patient.emergency_contact, patient.emergency_phone,
-            patient.medical_conditions, patient.medications, patient.allergies,
-            patient.insurance_details, patient.notes
+            patient_number, 
+            clinic_id,
+            patient_data.get('first_name'),
+            patient_data.get('last_name'),
+            patient_data.get('email'),
+            patient_data.get('mobile_phone'),
+            dob,
+            patient_data.get('gender', ''),
+            patient_data.get('address_line1', ''),
+            patient_data.get('address_line2', ''),
+            patient_data.get('city', ''),
+            patient_data.get('county', ''),
+            patient_data.get('postcode', ''),
+            patient_data.get('emergency_contact', ''),
+            patient_data.get('emergency_phone', ''),
+            patient_data.get('emergency_relationship', ''),
+            patient_data.get('medical_conditions', ''),
+            patient_data.get('medications', ''),
+            patient_data.get('allergies', ''),
+            patient_data.get('insurance_details', ''),
+            patient_data.get('notes', '')
         )
         
         await conn.close()
@@ -190,6 +404,7 @@ async def create_patient(patient: PatientCreate):
             "patient_id": patient_id,
             "patient_number": patient_number
         }
+        
     except Exception as e:
         print(f"❌ ERROR creating patient: {str(e)}")
         import traceback
@@ -1679,6 +1894,7 @@ app.include_router(iridology_router)
 
 # Import report generator
 from report_generator import generate_wellness_report
+from iridology_pdf_generator import generate_iridology_pdf
 
 @app.post("/api/v1/reports/generate/{assessment_id}")
 async def generate_report_endpoint(assessment_id: int):
@@ -1716,3 +1932,640 @@ async def download_report(filename: str):
         media_type='application/pdf',
         filename=filename
     )
+
+# ==================== NEW ASSESSMENT DASHBOARD ENDPOINT ====================
+
+# ==================== ASSESSMENT DASHBOARD ENDPOINT ====================
+@app.get("/api/v1/assessments/patient/{patient_id}/dashboard")
+async def get_patient_assessment_dashboard(
+    patient_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get complete assessment dashboard data for a patient"""
+    try:
+        conn = await asyncpg.connect(
+            host="localhost",
+            port=5432,
+            user="celloxen_user",
+            password="CelloxenSecure2025",
+            database="celloxen_portal"
+        )
+        
+        # Get patient info
+        patient = await conn.fetchrow("""
+            SELECT id, patient_number, first_name, last_name, email, date_of_birth
+            FROM patients WHERE id = $1
+        """, patient_id)
+        
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+        
+        # Get latest assessment
+        assessment = await conn.fetchrow("""
+            SELECT * FROM comprehensive_assessments 
+            WHERE patient_id = $1 
+            ORDER BY created_at DESC LIMIT 1
+        """, patient_id)
+        
+        await conn.close()
+        
+        # Calculate progress
+        progress = 0
+        modules = {"questionnaire": False, "iridology": False, "analysis": False, "report": False}
+        
+        if assessment:
+            if assessment.get('questionnaire_completed'):
+                modules["questionnaire"] = True
+                progress = 25
+            if assessment.get('iridology_completed'):
+                modules["iridology"] = True
+                modules["analysis"] = True
+                progress = 75
+            if assessment.get('comprehensive_report'):
+                modules["report"] = True
+                progress = 100
+        
+        # Parse domain scores - handle both old and new field names
+        domain_scores = {"energy": 0, "comfort": 0, "circulation": 0, "stress": 0, "metabolic": 0}
+        
+        if assessment and assessment.get("questionnaire_scores"):
+            import json
+            scores = assessment["questionnaire_scores"]
+            if isinstance(scores, str):
+                scores = json.loads(scores)
+            
+            # Handle both formats: old (vitality_energy) and new (c102_vitality_energy)
+            def get_score(scores, old_key, new_key):
+                if old_key in scores and isinstance(scores[old_key], dict):
+                    return scores[old_key].get("score", 0)
+                elif new_key in scores:
+                    return scores.get(new_key, 0)
+                return 0
+            
+            # Convert percentage scores to 0-7 scale for dials
+            domain_scores = {
+                "energy": round(get_score(scores, "vitality_energy", "c102_vitality_energy") / 100 * 7, 2),
+                "comfort": round(get_score(scores, "comfort_mobility", "c104_comfort_mobility") / 100 * 7, 2),
+                "circulation": round(get_score(scores, "circulation_heart", "c105_circulation_heart") / 100 * 7, 2),
+                "stress": round(get_score(scores, "stress_relaxation", "c107_stress_relaxation") / 100 * 7, 2),
+                "metabolic": round(get_score(scores, "immune_digestive", "c108_metabolic_balance") / 100 * 7, 2)
+            }
+        
+        return {
+            "success": True,
+            "patient": {
+                "id": patient['id'],
+                "patient_number": patient['patient_number'],
+                "name": f"{patient['first_name']} {patient['last_name']}",
+                "email": patient['email']
+            },
+            "assessment": {
+                "id": assessment['id'] if assessment else None,
+                "overall_score": float(assessment['overall_wellness_score']) if assessment and assessment.get('overall_wellness_score') else 0,
+                "progress": progress,
+                "modules_completed": modules
+            },
+            "domain_scores": domain_scores,
+            "has_iridology": assessment.get('iridology_completed') if assessment else False
+        }
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+# ==================== SIMPLE ASSESSMENT MODULE ====================
+from simple_assessment_api import router as assessment_router
+app.include_router(assessment_router)
+print("✅ Simple Assessment API loaded successfully")
+
+# ============================================
+
+# ============================================
+# IRIDOLOGY MODULE API ENDPOINTS (FIXED)
+# ============================================
+
+from iridology_analyzer import IridologyAnalyzer
+import asyncpg
+
+# Initialize analyzer (will use ANTHROPIC_API_KEY from environment)
+iridology_analyzer = IridologyAnalyzer()
+
+@app.post("/api/v1/iridology/start")
+async def start_iridology_analysis(
+    patient_id: int,
+    disclaimer_accepted: bool,
+    current_user: dict = Depends(get_current_user)
+):
+    """Start new iridology analysis session"""
+    
+    if not disclaimer_accepted:
+        raise HTTPException(status_code=400, detail="Disclaimer must be accepted")
+    
+    try:
+        # Create database connection
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        try:
+            # Get patient details
+            patient = await conn.fetchrow(
+                "SELECT * FROM patients WHERE id = $1",
+                patient_id
+            )
+            
+            if not patient:
+                raise HTTPException(status_code=404, detail="Patient not found")
+            
+            # Create analysis record
+            analysis_id = await conn.fetchval(
+                """
+                INSERT INTO iridology_analyses (
+                    patient_id, practitioner_id, clinic_id,
+                    disclaimer_accepted, disclaimer_accepted_at,
+                    disclaimer_text, status,
+                    left_eye_image, right_eye_image, capture_method
+                ) VALUES ($1, $2, $3, $4, NOW(), $5, 'pending', '', '', 'upload')
+                RETURNING id
+                """,
+                patient_id,
+                current_user["id"],
+                1,
+                disclaimer_accepted,
+                """This iridology analysis is a holistic wellness assessment tool and is NOT intended as medical diagnosis. 
+                The iris analysis provides insights into potential wellness patterns and areas that may benefit from lifestyle support. 
+                This analysis does NOT diagnose medical conditions, replace medical consultation, or prescribe treatments. 
+                If the analysis identifies patterns that may indicate health concerns, we strongly recommend consulting your GP."""
+            )
+            
+            return {
+                "success": True,
+                "analysis_id": analysis_id,
+                "patient": {
+                    "id": patient["id"],
+                    "first_name": patient["first_name"],
+                    "last_name": patient["last_name"],
+                    "patient_number": patient["patient_number"],
+                    "date_of_birth": patient["date_of_birth"].isoformat() if patient.get("date_of_birth") else None
+                }
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/iridology/{analysis_id}/upload-images")
+async def upload_iris_images(
+    analysis_id: int,
+    request: Request,
+    current_user: dict = Depends(get_current_user)
+):
+    """Upload iris images for analysis"""
+    
+    # Get JSON body
+    body = await request.json()
+    left_eye_image = body.get('left_eye_image')
+    right_eye_image = body.get('right_eye_image')
+    capture_method = body.get('capture_method')
+    
+    if capture_method not in ["camera", "upload"]:
+        raise HTTPException(status_code=400, detail="Invalid capture method")
+    
+    if not left_eye_image or not right_eye_image:
+        raise HTTPException(status_code=400, detail="Both eye images required")
+    
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        try:
+            # Update analysis with images
+            await conn.execute(
+                """
+                UPDATE iridology_analyses 
+                SET left_eye_image = $1, 
+                    right_eye_image = $2,
+                    capture_method = $3,
+                    status = 'pending',
+                    updated_at = NOW()
+                WHERE id = $4 AND practitioner_id = $5
+                """,
+                left_eye_image,
+                right_eye_image,
+                capture_method,
+                analysis_id,
+                current_user["id"]
+            )
+            
+            return {
+                "success": True,
+                "message": "Images uploaded successfully",
+                "analysis_id": analysis_id
+            }
+            
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/iridology/{analysis_id}/analyse")
+async def analyse_iris_images(
+    analysis_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Trigger Claude AI analysis of iris images"""
+    
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        try:
+            # Get analysis record
+            analysis = await conn.fetchrow(
+                """
+                SELECT ia.*, p.first_name, p.last_name, p.date_of_birth, p.gender
+                FROM iridology_analyses ia
+                JOIN patients p ON ia.patient_id = p.id
+                WHERE ia.id = $1 AND ia.practitioner_id = $2
+                """,
+                analysis_id,
+                current_user["id"]
+            )
+            
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+            
+            if not analysis["left_eye_image"] or not analysis["right_eye_image"]:
+                raise HTTPException(status_code=400, detail="Images not uploaded")
+            
+            # Update status to processing
+            await conn.execute(
+                """
+                UPDATE iridology_analyses 
+                SET status = 'processing', 
+                    processing_started_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $1
+                """,
+                analysis_id
+            )
+            
+            # Prepare patient info
+            from datetime import date
+            age = None
+            if analysis["date_of_birth"]:
+                age = (date.today() - analysis["date_of_birth"]).days // 365
+            
+            patient_info = {
+                "name": f"{analysis['first_name']} {analysis['last_name']}",
+                "age": age,
+                "gender": analysis.get("gender", "Unknown")
+            }
+            
+            # Run AI analysis
+            result = await iridology_analyzer.analyse_bilateral(
+                analysis["left_eye_image"],
+                analysis["right_eye_image"],
+                patient_info
+            )
+            
+            if not result["success"]:
+                # Mark as failed
+                await conn.execute(
+                    """
+                    UPDATE iridology_analyses 
+                    SET status = 'failed',
+                        error_message = $1,
+                        updated_at = NOW()
+                    WHERE id = $2
+                    """,
+                    result.get("error", "Analysis failed"),
+                    analysis_id
+                )
+                raise HTTPException(status_code=500, detail=result.get("error", "Analysis failed"))
+            
+            # Extract results
+            combined = result.get("combined_analysis", {})
+            const_type = combined.get("constitutional_type", "Unknown")
+            const_strength = combined.get("constitutional_strength", "Unknown")
+            
+            # Update analysis with results
+            await conn.execute(
+                """
+                UPDATE iridology_analyses 
+                SET status = 'completed',
+                    constitutional_type = $1,
+                    constitutional_strength = $2,
+                    ai_confidence_score = $3,
+                    left_eye_analysis = $4,
+                    right_eye_analysis = $5,
+                    combined_analysis = $6,
+                    processing_completed_at = NOW(),
+                    updated_at = NOW()
+                WHERE id = $7
+                """,
+                const_type,
+                const_strength,
+                result.get("confidence_score", 0),
+                json.dumps(result.get("left_eye_analysis", {})),
+                json.dumps(result.get("right_eye_analysis", {})),
+                json.dumps(combined),
+                analysis_id
+            )
+            
+            # Store therapy recommendations
+            therapy_priorities = combined.get("therapy_priorities", [])
+            for therapy in therapy_priorities:
+                await conn.execute(
+                    """
+                    INSERT INTO iridology_therapy_recommendations (
+                        analysis_id, therapy_code, therapy_name, priority_level,
+                        recommendation_reason, expected_benefits,
+                        diabetes_specific
+                    ) VALUES ($1, $2, $3, $4, $5, $6, $7)
+                    """,
+                    analysis_id,
+                    therapy.get("code", ""),
+                    therapy.get("name", ""),
+                    therapy.get("priority", 5),
+                    therapy.get("reason", ""),
+                    therapy.get("expected_benefits", ""),
+                    therapy.get("diabetes_specific", False)
+                )
+            
+            # Check if GP consultation recommended
+            gp_summary = combined.get("gp_consultation_summary", {})
+            if gp_summary.get("recommended"):
+                await conn.execute(
+                    """
+                    UPDATE iridology_analyses 
+                    SET gp_referral_recommended = true,
+                        gp_referral_reason = $1
+                    WHERE id = $2
+                    """,
+                    ", ".join(gp_summary.get("reasons", [])),
+                    analysis_id
+                )
+            
+            return {
+                "success": True,
+                "analysis_id": analysis_id,
+                "constitutional_type": const_type,
+                "constitutional_strength": const_strength,
+                "confidence_score": result.get("confidence_score", 0),
+                "gp_consultation_recommended": gp_summary.get("recommended", False)
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        # Mark as failed
+        try:
+            conn2 = await asyncpg.connect(
+                host="localhost", port=5432, user="celloxen_user",
+                password="CelloxenSecure2025", database="celloxen_portal"
+            )
+            await conn2.execute(
+                """
+                UPDATE iridology_analyses 
+                SET status = 'failed',
+                    error_message = $1,
+                    updated_at = NOW()
+                WHERE id = $2
+                """,
+                str(e),
+                analysis_id
+            )
+            await conn2.close()
+        except:
+            pass
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/iridology/{analysis_id}/results")
+async def get_iridology_results(
+    analysis_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get complete iridology analysis results"""
+    
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        try:
+            # Get analysis
+            analysis = await conn.fetchrow(
+                """
+                SELECT ia.*, p.first_name, p.last_name, p.patient_number
+                FROM iridology_analyses ia
+                JOIN patients p ON ia.patient_id = p.id
+                WHERE ia.id = $1 AND ia.practitioner_id = $2
+                """,
+                analysis_id,
+                current_user["id"]
+            )
+            
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+            
+            # Get therapy recommendations
+            therapies = await conn.fetch(
+                """
+                SELECT * FROM iridology_therapy_recommendations
+                WHERE analysis_id = $1
+                ORDER BY priority_level
+                """,
+                analysis_id
+            )
+            
+            return {
+                "success": True,
+                "analysis": {
+                    "id": analysis["id"],
+                    "analysis_number": analysis["analysis_number"],
+                    "patient": {
+                        "first_name": analysis["first_name"],
+                        "last_name": analysis["last_name"],
+                        "patient_number": analysis["patient_number"]
+                    },
+                    "constitutional_type": analysis["constitutional_type"],
+                    "constitutional_strength": analysis["constitutional_strength"],
+                    "confidence_score": float(analysis["ai_confidence_score"]) if analysis["ai_confidence_score"] else 0,
+                    "status": analysis["status"],
+                    "combined_analysis": json.loads(analysis["combined_analysis"]) if analysis["combined_analysis"] else {},
+                    "gp_referral_recommended": analysis["gp_referral_recommended"],
+                    "gp_referral_reason": analysis["gp_referral_reason"],
+                    "created_at": analysis["created_at"].isoformat()
+                },
+                "therapy_recommendations": [
+                    {
+                        "code": t["therapy_code"],
+                        "name": t["therapy_name"],
+                        "priority": t["priority_level"],
+                        "reason": t["recommendation_reason"],
+                        "expected_benefits": t["expected_benefits"],
+                        "diabetes_specific": t["diabetes_specific"]
+                    }
+                    for t in therapies
+                ]
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/iridology/{analysis_id}/download-pdf")
+async def download_iridology_pdf(
+    analysis_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Download iridology analysis as PDF report"""
+    try:
+        from fastapi.responses import Response
+        
+        # Generate PDF
+        pdf_bytes = await generate_iridology_pdf(analysis_id)
+        
+        # Return as downloadable file
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f"attachment; filename=iridology_report_{analysis_id}.pdf"
+            }
+        )
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/iridology/{analysis_id}/report")
+async def view_iridology_report(
+    analysis_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """View iridology analysis report in browser"""
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+        
+        try:
+            # Get analysis with patient info
+            analysis = await conn.fetchrow("""
+                SELECT
+                    ia.*,
+                    p.first_name, p.last_name, p.patient_number, p.date_of_birth
+                FROM iridology_analyses ia
+                JOIN patients p ON ia.patient_id = p.id
+                WHERE ia.id = $1 AND ia.practitioner_id = $2
+            """, analysis_id, current_user["id"])
+            
+            if not analysis:
+                raise HTTPException(status_code=404, detail="Analysis not found")
+            
+            # Return report data
+            return {
+                "success": True,
+                "patient": {
+                    "name": f"{analysis['first_name']} {analysis['last_name']}",
+                    "patient_number": analysis['patient_number'],
+                    "date_of_birth": str(analysis['date_of_birth']) if analysis['date_of_birth'] else None
+                },
+                "analysis": {
+                    "id": analysis['id'],
+                    "analysis_number": analysis['analysis_number'],
+                    "date": analysis['created_at'].strftime('%d %B %Y'),
+                    "constitutional_type": analysis['constitutional_type'],
+                    "constitutional_strength": analysis['constitutional_strength'],
+                    "confidence_score": float(analysis['ai_confidence_score']) if analysis['ai_confidence_score'] else 0,
+                    "gp_referral_recommended": analysis['gp_referral_recommended'],
+                    "gp_referral_reason": analysis['gp_referral_reason']
+                },
+                "report_text": json.loads(analysis["combined_analysis"]).get("raw_text", "") if analysis["combined_analysis"] else ""
+            }
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+# Recent Iridology Analyses Endpoint
+@app.get("/api/v1/iridology/recent")
+async def get_recent_iridology_analyses(
+    limit: int = 5,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get recent iridology analyses for current practitioner"""
+    try:
+        conn = await asyncpg.connect(
+            host="localhost", port=5432, user="celloxen_user",
+            password="CelloxenSecure2025", database="celloxen_portal"
+        )
+
+        try:
+            analyses = await conn.fetch(
+                """
+                SELECT 
+                    ia.id,
+                    ia.analysis_number,
+                    ia.status,
+                    ia.created_at,
+                    p.first_name || ' ' || p.last_name as patient_name,
+                    p.patient_number
+                FROM iridology_analyses ia
+                JOIN patients p ON ia.patient_id = p.id
+                WHERE ia.practitioner_id = $1
+                ORDER BY ia.created_at DESC
+                LIMIT $2
+                """,
+                current_user["id"],
+                limit
+            )
+
+            return {
+                "success": True,
+                "analyses": [
+                    {
+                        "id": a["id"],
+                        "analysis_number": a["analysis_number"],
+                        "patient_name": a["patient_name"],
+                        "patient_number": a["patient_number"],
+                        "status": a["status"],
+                        "created_at": a["created_at"].strftime("%d %b %Y %H:%M")
+                    }
+                    for a in analyses
+                ]
+            }
+        finally:
+            await conn.close()
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

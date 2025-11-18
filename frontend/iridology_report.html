@@ -1,0 +1,347 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Iridology Report - Celloxen Health Portal</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            line-height: 1.6;
+            color: #1f2937;
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 50%, #2563eb 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 16px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            overflow: hidden;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }
+
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 10px;
+        }
+
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+
+        .patient-info {
+            background: #f3f4f6;
+            padding: 20px 30px;
+            border-bottom: 2px solid #e5e7eb;
+        }
+
+        .patient-info h2 {
+            color: #1e3a8a;
+            font-size: 20px;
+            margin-bottom: 15px;
+        }
+
+        .info-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+        }
+
+        .info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .info-label {
+            font-size: 12px;
+            color: #6b7280;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 4px;
+        }
+
+        .info-value {
+            font-size: 16px;
+            color: #1f2937;
+            font-weight: 500;
+        }
+
+        .report-content {
+            padding: 40px 30px;
+            max-width: 800px;
+            margin: 0 auto;
+        }
+
+        .report-content h1 {
+            color: #1e3a8a;
+            font-size: 24px;
+            margin: 30px 0 15px 0;
+            padding-bottom: 10px;
+            border-bottom: 3px solid #2563eb;
+        }
+
+        .report-content h2 {
+            color: #1e40af;
+            font-size: 20px;
+            margin: 25px 0 12px 0;
+        }
+
+        .report-content h3 {
+            color: #3b82f6;
+            font-size: 17px;
+            margin: 20px 0 10px 0;
+        }
+
+        .report-content p {
+            margin: 12px 0;
+            text-align: justify;
+        }
+
+        .report-content strong {
+            color: #1e3a8a;
+        }
+
+        .report-content ul, .report-content ol {
+            margin: 15px 0 15px 30px;
+        }
+
+        .report-content li {
+            margin: 8px 0;
+        }
+
+        .alert {
+            background: #fef3c7;
+            border-left: 4px solid #f59e0b;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }
+
+        .alert.urgent {
+            background: #fee2e2;
+            border-left-color: #dc2626;
+        }
+
+        .actions {
+            padding: 30px;
+            background: #f9fafb;
+            border-top: 2px solid #e5e7eb;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            border: none;
+            font-size: 15px;
+            transition: all 0.3s;
+            text-decoration: none;
+            display: inline-block;
+        }
+
+        .btn-primary {
+            background: #1e3a8a;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1e40af;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(30, 58, 138, 0.3);
+        }
+
+        .btn-secondary {
+            background: #6b7280;
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            background: #4b5563;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 60px 20px;
+        }
+
+        .spinner {
+            border: 4px solid #f3f4f6;
+            border-top: 4px solid #1e3a8a;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            margin: 0 auto 20px;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        @media print {
+            body {
+                background: white;
+                padding: 0;
+            }
+            .actions, .header {
+                display: none;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>📊 Iridology Analysis Report</h1>
+            <p>Celloxen Health Portal - Professional Wellness Insights</p>
+        </div>
+
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <p>Loading report...</p>
+        </div>
+
+        <div id="reportContainer" style="display: none;">
+            <div class="patient-info">
+                <h2>Patient Information</h2>
+                <div class="info-grid">
+                    <div class="info-item">
+                        <span class="info-label">Patient Name</span>
+                        <span class="info-value" id="patientName">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Patient Number</span>
+                        <span class="info-value" id="patientNumber">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Analysis Date</span>
+                        <span class="info-value" id="analysisDate">-</span>
+                    </div>
+                    <div class="info-item">
+                        <span class="info-label">Analysis Number</span>
+                        <span class="info-value" id="analysisNumber">-</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="report-content" id="reportContent">
+                <!-- Report will be inserted here -->
+            </div>
+
+            <div class="actions">
+                <button onclick="window.print()" class="btn btn-primary">
+                    🖨️ Print Report
+                </button>
+                </button>
+                <a href="/" class="btn btn-secondary">
+                    ← Back to Dashboard
+                </a>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Get analysis ID from URL
+        const urlParams = new URLSearchParams(window.location.search);
+        const analysisId = urlParams.get('id');
+
+        if (!analysisId) {
+            document.getElementById('loading').innerHTML = 
+                '<p style="color: #dc2626;">❌ No analysis ID provided</p>';
+        } else {
+            loadReport();
+        }
+
+        async function loadReport() {
+            try {
+                const response = await fetch(`/api/v1/iridology/${analysisId}/report`);
+
+                if (!response.ok) {
+                    throw new Error(`Failed to load report: ${response.status}`);
+                }
+
+                const data = await response.json();
+                console.log("Report data received:", data);
+
+                if (data.success) {
+                    displayReport(data);
+                } else {
+                    throw new Error("Report not found");
+                }
+            } catch (error) {
+                console.error("Report loading error:", error);
+                document.getElementById("loading").innerHTML =
+                    `<p style="color: #dc2626;">❌ Error loading report: ${error.message}</p>`;
+            }
+        }
+
+        function displayReport(data) {
+            // Fill patient info
+            document.getElementById('patientName').textContent = data.patient.name;
+            document.getElementById('patientNumber').textContent = data.patient.patient_number;
+            document.getElementById('analysisDate').textContent = data.analysis.date;
+            document.getElementById('analysisNumber').textContent = data.analysis.analysis_number;
+
+            // Convert markdown-style report to HTML
+            const reportHtml = convertMarkdownToHtml(data.report_text);
+            document.getElementById('reportContent').innerHTML = reportHtml;
+
+            // Hide loading, show report
+            document.getElementById('loading').style.display = 'none';
+            document.getElementById('reportContainer').style.display = 'block';
+        }
+
+        function convertMarkdownToHtml(markdown) {
+            let html = markdown;
+
+            // Headers
+            html = html.replace(/^# (.+)$/gm, '<h1>$1</h1>');
+            html = html.replace(/^## (.+)$/gm, '<h2>$1</h2>');
+            html = html.replace(/^### (.+)$/gm, '<h3>$1</h3>');
+
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+            // Lists
+            html = html.replace(/^- (.+)$/gm, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>\n?)+/g, '<ul>$&</ul>');
+
+            // Paragraphs
+            html = html.split('\n\n').map(para => {
+                if (para.trim() && !para.startsWith('<')) {
+                    return `<p>${para}</p>`;
+                }
+                return para;
+            }).join('\n');
+
+            // Horizontal rules
+            html = html.replace(/^---$/gm, '<hr style="margin: 30px 0; border: none; border-top: 2px solid #e5e7eb;">');
+
+            // Highlight urgent/priority items
+            html = html.replace(/(URGENT:|HIGH PRIORITY:)/g, '<span style="color: #dc2626; font-weight: bold;">$1</span>');
+
+            return html;
+        }
+

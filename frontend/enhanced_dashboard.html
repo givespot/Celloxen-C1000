@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celloxen Enhanced Dashboard</title>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+</head>
+<body>
+    <div id="root"></div>
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+        
+        const EnhancedDashboard = () => {
+            const [currentTime, setCurrentTime] = useState(new Date());
+            const [stats, setStats] = useState(null);
+            const [loading, setLoading] = useState(true);
+            const [activities, setActivities] = useState([]);
+            const [appointments, setAppointments] = useState([]);
+            const [alerts, setAlerts] = useState([]);
+
+            useEffect(() => {
+                const timer = setInterval(() => setCurrentTime(new Date()), 1000);
+                return () => clearInterval(timer);
+            }, []);
+
+            useEffect(() => {
+                fetchDashboardData();
+                const refreshInterval = setInterval(fetchDashboardData, 30000);
+                return () => clearInterval(refreshInterval);
+            }, []);
+
+            const fetchDashboardData = async () => {
+                try {
+                    const responses = await Promise.all([
+                        fetch('/api/v1/dashboard/stats'),
+                        fetch('/api/v1/dashboard/activities'),
+                        fetch('/api/v1/dashboard/appointments/upcoming'),
+                        fetch('/api/v1/dashboard/alerts')
+                    ]);
+                    
+                    const [statsData, activitiesData, appointmentsData, alertsData] = await Promise.all(
+                        responses.map(r => r.json())
+                    );
+                    
+                    setStats(statsData);
+                    setActivities(activitiesData);
+                    setAppointments(appointmentsData);
+                    setAlerts(alertsData);
+                    setLoading(false);
+                } catch (error) {
+                    console.error('Error:', error);
+                    setLoading(false);
+                }
+            };
+
+            const formatDate = (date) => {
+                return date.toLocaleDateString('en-GB', { 
+                    weekday: 'long', 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+            };
+
+            const formatTime = (date) => {
+                return date.toLocaleTimeString('en-GB', { 
+                    hour: '2-digit', 
+                    minute: '2-digit', 
+                    second: '2-digit' 
+                });
+            };
+
+            const getScoreColor = (score) => {
+                if (score >= 70) return 'text-green-600';
+                if (score >= 40) return 'text-yellow-600';
+                return 'text-red-600';
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center h-screen bg-gray-50">
+                        <div className="text-center">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto"></div>
+                            <p className="mt-4 text-gray-600">Loading dashboard...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="min-h-screen bg-gray-50">
+                    <div className="bg-white shadow-sm">
+                        <div className="px-6 py-4">
+                            <div className="flex justify-between items-center">
+                                <div>
+                                    <h1 className="text-3xl font-bold text-gray-900">Clinic Dashboard</h1>
+                                    <p className="text-gray-600 mt-1">Aberdeen Wellness Centre</p>
+                                </div>
+                                <div className="text-right">
+                                    <div className="text-3xl font-bold text-indigo-600">{formatTime(currentTime)}</div>
+                                    <div className="text-sm text-gray-600">{formatDate(currentTime)}</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className="p-6">
+                        <div className="grid grid-cols-4 gap-4 mb-6">
+                            <button className="bg-indigo-600 text-white py-3 px-4 rounded-lg hover:bg-indigo-700 flex items-center justify-center">
+                                <i className="fas fa-user-plus mr-2"></i>New Patient
+                            </button>
+                            <button className="bg-green-600 text-white py-3 px-4 rounded-lg hover:bg-green-700 flex items-center justify-center">
+                                <i className="fas fa-calendar-plus mr-2"></i>Book Appointment
+                            </button>
+                            <button className="bg-purple-600 text-white py-3 px-4 rounded-lg hover:bg-purple-700 flex items-center justify-center">
+                                <i className="fas fa-clipboard-list mr-2"></i>Start Assessment
+                            </button>
+                            <button className="bg-orange-600 text-white py-3 px-4 rounded-lg hover:bg-orange-700 flex items-center justify-center">
+                                <i className="fas fa-file-medical mr-2"></i>Generate Report
+                            </button>
+                        </div>
+
+                        {alerts.length > 0 && (
+                            <div className="mb-6 space-y-2">
+                                {alerts.map(alert => (
+                                    <div key={alert.id} className={`p-4 rounded-lg flex items-center ${
+                                        alert.type === 'critical' ? 'bg-red-50 border-l-4 border-red-500' :
+                                        'bg-yellow-50 border-l-4 border-yellow-500'
+                                    }`}>
+                                        <i className={`fas fa-exclamation-triangle mr-3 ${
+                                            alert.type === 'critical' ? 'text-red-500' : 'text-yellow-500'
+                                        }`}></i>
+                                        <span>{alert.message}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {stats && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div className="bg-white rounded-xl shadow-sm p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 bg-blue-100 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-users text-blue-600 text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-gray-600 text-sm">Total Patients</h3>
+                                    <p className="text-3xl font-bold text-gray-900 mt-1">{stats.totalPatients}</p>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-sm p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 bg-green-100 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-calendar-check text-green-600 text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-gray-600 text-sm">Today's Appointments</h3>
+                                    <p className="text-3xl font-bold text-gray-900 mt-1">{stats.todayAppointments}</p>
+                                    <p className="text-sm text-gray-600 mt-2">{stats.weekAppointments} this week</p>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-sm p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 bg-purple-100 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-heart text-purple-600 text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-gray-600 text-sm">Avg Wellness Score</h3>
+                                    <p className={`text-3xl font-bold mt-1 ${getScoreColor(stats.averageWellnessScore)}`}>
+                                        {stats.averageWellnessScore.toFixed(1)}%
+                                    </p>
+                                </div>
+
+                                <div className="bg-white rounded-xl shadow-sm p-6">
+                                    <div className="flex items-center justify-between mb-4">
+                                        <div className="w-12 h-12 bg-yellow-100 rounded-lg flex items-center justify-center">
+                                            <i className="fas fa-pound-sign text-yellow-600 text-xl"></i>
+                                        </div>
+                                    </div>
+                                    <h3 className="text-gray-600 text-sm">Today's Revenue</h3>
+                                    <p className="text-3xl font-bold text-gray-900 mt-1">£{stats.revenue.today}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                            <div className="bg-white rounded-xl shadow-sm p-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Recent Activities</h2>
+                                <div className="space-y-3">
+                                    {activities.map(activity => (
+                                        <div key={activity.id} className="flex items-start space-x-3">
+                                            <span className="text-2xl">{activity.icon}</span>
+                                            <div>
+                                                <p className="text-sm">
+                                                    <span className="font-medium">{activity.patient}</span> {activity.action}
+                                                </p>
+                                                <p className="text-xs text-gray-500">{activity.time}</p>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+
+                            <div className="bg-white rounded-xl shadow-sm p-6">
+                                <h2 className="text-lg font-semibold text-gray-900 mb-4">Today's Appointments</h2>
+                                <div className="space-y-3">
+                                    {appointments.map(apt => (
+                                        <div key={apt.id} className="border-l-4 border-indigo-500 pl-4 py-2">
+                                            <p className="font-medium">{apt.patient}</p>
+                                            <p className="text-sm text-gray-600">
+                                                <i className="fas fa-clock mr-1"></i>{apt.time} • {apt.type}
+                                            </p>
+                                            <p className="text-xs text-gray-500">
+                                                <i className="fas fa-user-md mr-1"></i>{apt.practitioner}
+                                            </p>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.render(<EnhancedDashboard />, document.getElementById('root'));
+    </script>
+</body>
+</html>

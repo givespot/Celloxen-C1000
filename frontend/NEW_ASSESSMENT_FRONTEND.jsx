@@ -1,6 +1,3 @@
-// NEW ASSESSMENT MODULE - CLEAN FRONTEND
-// One question at a time, no skipping, clear scoring
-
 const { useState, useEffect } = React;
 
 function NewAssessmentModule() {
@@ -9,48 +6,88 @@ function NewAssessmentModule() {
     const [selectedPatient, setSelectedPatient] = useState(null);
     const [assessmentId, setAssessmentId] = useState(null);
     const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-    const [allQuestions, setAllQuestions] = useState([]);
+    const [questions, setQuestions] = useState([]);
     const [selectedAnswer, setSelectedAnswer] = useState(null);
-    const [loading, setLoading] = useState(false);
+    const [answers, setAnswers] = useState({});
     const [results, setResults] = useState(null);
-    const [iridologyResults, setIridologyResults] = useState(null);
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState(null);
 
     useEffect(() => {
+        console.log('Component mounted, loading data...');
         loadPatients();
         loadQuestions();
     }, []);
 
     const loadPatients = async () => {
+        console.log('Loading patients...');
         try {
-            const response = await fetch('/api/v1/clinic/patients');
+            const token = localStorage.getItem('token');
+            console.log('Token exists:', !!token);
+            
+            if (!token) {
+                setError('Not authenticated. Please login first.');
+                window.location.href = '/';
+                return;
+            }
+
+            const response = await fetch('/api/v1/clinic/patients', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            console.log('Patients API response status:', response.status);
+
+            if (!response.ok) {
+                if (response.status === 401) {
+                    setError('Session expired. Please login again.');
+                    setTimeout(() => window.location.href = '/', 2000);
+                    return;
+                }
+                throw new Error(`Failed to load patients: ${response.status}`);
+            }
+
             const data = await response.json();
-            // Handle both array and object formats
-            setPatients(Array.isArray(data) ? data : (data.patients || []));
+            console.log('Patients data received:', data);
+            
+            const patientList = data.patients || data || [];
+            console.log('Patient list:', patientList);
+            
+            if (Array.isArray(patientList)) {
+                setPatients(patientList);
+                console.log(`Loaded ${patientList.length} patients`);
+            } else {
+                console.error('Patients data is not an array:', patientList);
+                setError('Invalid patient data received');
+            }
         } catch (error) {
             console.error('Error loading patients:', error);
+            setError(`Failed to load patients: ${error.message}`);
         }
     };
 
     const loadQuestions = async () => {
+        console.log('Loading questions...');
         try {
             const response = await fetch('/api/v1/new-assessment/questions');
+            console.log('Questions API response status:', response.status);
+
+            if (!response.ok) {
+                throw new Error(`Failed to load questions: ${response.status}`);
+            }
+
             const data = await response.json();
+            console.log('Questions data received:', data);
             
-            const questionArray = [];
-            Object.entries(data.domains).forEach(([domainKey, domainData]) => {
-                domainData.questions.forEach(q => {
-                    questionArray.push({
-                        ...q,
-                        domain: domainKey,
-                        domain_name: domainData.domain_name,
-                        therapy_code: domainData.therapy_code
-                    });
-                });
-            });
-            
-            setAllQuestions(questionArray);
+            const questionList = data.questions || [];
+            setQuestions(questionList);
+            console.log(`Loaded ${questionList.length} questions`);
         } catch (error) {
             console.error('Error loading questions:', error);
+            setError(`Failed to load questions: ${error.message}`);
         }
     };
 
@@ -61,21 +98,40 @@ function NewAssessmentModule() {
         }
 
         setLoading(true);
+        setError(null);
         try {
+            const token = localStorage.getItem('token');
+            const userStr = localStorage.getItem('user');
+            
+            if (!token || !userStr) {
+                setError('Not authenticated.');
+                setTimeout(() => window.location.href = '/', 2000);
+                return;
+            }
+
+            const user = JSON.parse(userStr);
             const response = await fetch('/api/v1/new-assessment/start', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     patient_id: selectedPatient.id,
-                    clinic_id: 1
+                    practitioner_id: user.user_id,
+                    clinic_id: user.clinic_id
                 })
             });
 
+            if (!response.ok) throw new Error('Failed to start');
             const data = await response.json();
+            
             setAssessmentId(data.assessment_id);
             setStep('questions');
+            setCurrentQuestionIndex(0);
+            setSelectedAnswer(null);
         } catch (error) {
-            alert('Error starting assessment: ' + error.message);
+            alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -87,30 +143,40 @@ function NewAssessmentModule() {
             return;
         }
 
-        const currentQuestion = allQuestions[currentQuestionIndex];
-        setLoading(true);
+        const question = questions[currentQuestionIndex];
+        const answerText = question.options[selectedAnswer];
+        const answerScore = question.scores[selectedAnswer];
 
+        setLoading(true);
         try {
+            const token = localStorage.getItem('token');
             await fetch('/api/v1/new-assessment/answer', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
                 body: JSON.stringify({
                     assessment_id: assessmentId,
-                    question_id: currentQuestion.id,
-                    answer_text: currentQuestion.options[selectedAnswer],
-                    answer_score: currentQuestion.scores[selectedAnswer]
+                    question_id: question.id,
+                    answer_text: answerText,
+                    answer_score: answerScore
                 })
             });
 
-            if (currentQuestionIndex < allQuestions.length - 1) {
+            setAnswers(prev => ({
+                ...prev,
+                [question.id]: { text: answerText, score: answerScore }
+            }));
+
+            if (currentQuestionIndex < questions.length - 1) {
                 setCurrentQuestionIndex(currentQuestionIndex + 1);
                 setSelectedAnswer(null);
             } else {
-                // All questions answered, move to iridology
-                setStep('iridology');
+                completeAssessment();
             }
         } catch (error) {
-            alert('Error submitting answer: ' + error.message);
+            alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
         }
@@ -119,236 +185,186 @@ function NewAssessmentModule() {
     const completeAssessment = async () => {
         setLoading(true);
         try {
-            const response = await fetch(`/api/v1/new-assessment/complete?assessment_id=${assessmentId}`, {
-                method: 'POST'
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/v1/new-assessment/complete', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${token}`
+                },
+                body: JSON.stringify({ assessment_id: assessmentId })
             });
 
             const data = await response.json();
             setResults(data);
             setStep('results');
         } catch (error) {
-            alert('Error completing assessment: ' + error.message);
+            alert(`Error: ${error.message}`);
         } finally {
             setLoading(false);
         }
     };
-    
-    const handleIridologyComplete = (iridologyData) => {
-        setIridologyResults(iridologyData);
-        // After iridology, complete the assessment
-        completeAssessment();
-    };
-    
-    const skipIridology = () => {
-        // Skip iridology and go straight to results
-        completeAssessment();
+
+    const getDomainName = (d) => {
+        const n = {
+            'vitality_energy': 'Vitality & Energy',
+            'comfort_mobility': 'Comfort & Mobility',
+            'circulation_heart': 'Circulation & Heart',
+            'stress_relaxation': 'Stress & Relaxation',
+            'immune_digestive': 'Immune & Digestive'
+        };
+        return n[d] || d;
     };
 
-    const currentQuestion = allQuestions[currentQuestionIndex];
-    const progress = ((currentQuestionIndex + 1) / allQuestions.length) * 100;
+    const getScoreColor = (s) => s >= 75 ? 'text-green-600' : s >= 50 ? 'text-yellow-600' : 'text-red-600';
+    const getProgressColor = (s) => s >= 75 ? 'bg-green-500' : s >= 50 ? 'bg-yellow-500' : 'bg-red-500';
 
     if (step === 'start') {
-        return React.createElement('div', { className: 'max-w-4xl mx-auto p-6' },
+        return React.createElement('div', { className: 'max-w-2xl mx-auto p-6' },
             React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-8' },
-                React.createElement('h1', { className: 'text-3xl font-bold text-gray-800 mb-2' }, 'New Health Assessment'),
-                React.createElement('p', { className: 'text-gray-600 mb-8' }, '35 questions across 5 wellness domains'),
-                
+                React.createElement('h1', { className: 'text-3xl font-bold mb-6' }, 'New Wellness Assessment'),
+                React.createElement('p', { className: 'text-gray-600 mb-6' }, 'Complete a 35-question wellness assessment'),
+                error && React.createElement('div', { className: 'mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700' }, error),
                 React.createElement('div', { className: 'mb-6' },
-                    React.createElement('label', { className: 'block text-sm font-medium text-gray-700 mb-2' }, 'Select Patient'),
-                    React.createElement('select', {
-                        className: 'w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-purple-500',
-                        value: selectedPatient?.id || '',
-                        onChange: (e) => {
-                            const patient = patients.find(p => p.id === parseInt(e.target.value));
-                            setSelectedPatient(patient);
-                        }
-                    },
-                        React.createElement('option', { value: '' }, 'Choose a patient...'),
-                        patients.map(patient =>
-                            React.createElement('option', { key: patient.id, value: patient.id },
-                                `${patient.first_name} ${patient.last_name} - ${patient.patient_number}`
+                    React.createElement('label', { className: 'block text-sm font-medium mb-2' }, 'Select Patient'),
+                    patients.length === 0 ? 
+                        React.createElement('div', { className: 'p-4 bg-blue-50 border rounded' },
+                            React.createElement('p', null, 'Loading patients...')
+                        ) :
+                        React.createElement('select', {
+                            value: selectedPatient?.id || '',
+                            onChange: (e) => setSelectedPatient(patients.find(p => p.id === parseInt(e.target.value))),
+                            className: 'w-full px-4 py-2 border rounded focus:ring-2 focus:ring-purple-500'
+                        },
+                            React.createElement('option', { value: '' }, 'Choose a patient...'),
+                            patients.map(p => 
+                                React.createElement('option', { key: p.id, value: p.id }, 
+                                    `${p.first_name} ${p.last_name} - ${p.patient_number}`
+                                )
                             )
-                        )
+                        ),
+                    React.createElement('p', { className: 'mt-2 text-sm text-gray-500' }, 
+                        `${patients.length} patient${patients.length !== 1 ? 's' : ''} available`
                     )
                 ),
-                
-                selectedPatient && React.createElement('div', { className: 'bg-purple-50 border border-purple-200 rounded-lg p-4 mb-6' },
-                    React.createElement('h3', { className: 'font-semibold text-purple-900 mb-2' }, 'Selected Patient:'),
-                    React.createElement('p', { className: 'text-purple-800' }, `${selectedPatient.first_name} ${selectedPatient.last_name}`),
-                    React.createElement('p', { className: 'text-sm text-purple-600' }, `${selectedPatient.patient_number} • ${selectedPatient.email}`)
-                ),
-                
                 React.createElement('button', {
                     onClick: startAssessment,
                     disabled: !selectedPatient || loading,
-                    className: 'w-full bg-purple-600 text-white py-4 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors'
+                    className: 'w-full bg-purple-600 text-white py-3 rounded hover:bg-purple-700 disabled:opacity-50'
                 }, loading ? 'Starting...' : 'Start Assessment')
             )
         );
     }
 
-    if (step === 'iridology') {
-        return React.createElement('div', { className: 'min-h-screen bg-gray-50 py-8' },
-            React.createElement('div', { className: 'max-w-6xl mx-auto' },
-                React.createElement(window.IridologyCaptureComponent, {
-                    assessmentId: assessmentId,
-                    onComplete: handleIridologyComplete
-                }),
-                
-                // Skip button
-                React.createElement('div', { className: 'text-center mt-6' },
-                    React.createElement('button', {
-                        onClick: skipIridology,
-                        className: 'px-6 py-3 text-gray-600 hover:text-gray-800 hover:underline'
-                    }, 'Skip Iridology Analysis and View Results →')
-                )
-            )
-        );
-    }
-    
-    if (step === 'questions' && currentQuestion) {
-        return React.createElement('div', { className: 'max-w-4xl mx-auto p-6' },
+    if (step === 'questions' && questions.length > 0) {
+        const q = questions[currentQuestionIndex];
+        const prog = ((currentQuestionIndex + 1) / questions.length) * 100;
+
+        return React.createElement('div', { className: 'max-w-3xl mx-auto p-6' },
             React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-8' },
                 React.createElement('div', { className: 'mb-6' },
-                    React.createElement('div', { className: 'flex justify-between text-sm text-gray-600 mb-2' },
-                        React.createElement('span', null, `Question ${currentQuestionIndex + 1} of ${allQuestions.length}`),
-                        React.createElement('span', null, `${Math.round(progress)}% Complete`)
+                    React.createElement('div', { className: 'flex justify-between text-sm mb-2' },
+                        React.createElement('span', null, `Question ${currentQuestionIndex + 1} of ${questions.length}`),
+                        React.createElement('span', null, `${Math.round(prog)}% Complete`)
                     ),
-                    React.createElement('div', { className: 'w-full bg-gray-200 rounded-full h-3' },
+                    React.createElement('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
                         React.createElement('div', {
-                            className: 'bg-purple-600 h-3 rounded-full transition-all duration-300',
-                            style: { width: `${progress}%` }
+                            className: 'bg-purple-600 h-2 rounded-full',
+                            style: { width: `${prog}%` }
                         })
                     )
                 ),
-                
-                React.createElement('div', { className: 'inline-block bg-purple-100 text-purple-700 px-4 py-2 rounded-full text-sm font-medium mb-4' },
-                    `${currentQuestion.domain_name} (${currentQuestion.therapy_code})`
+                React.createElement('span', { className: 'inline-block bg-purple-100 text-purple-800 text-xs px-3 py-1 rounded-full mb-4' },
+                    getDomainName(q.domain)
                 ),
-                
-                React.createElement('h2', { className: 'text-2xl font-bold text-gray-800 mb-8' }, currentQuestion.text),
-                
+                React.createElement('h2', { className: 'text-2xl font-bold mb-6' }, q.text),
                 React.createElement('div', { className: 'space-y-3 mb-8' },
-                    currentQuestion.options.map((option, index) =>
+                    q.options.map((opt, idx) =>
                         React.createElement('button', {
-                            key: index,
-                            onClick: () => setSelectedAnswer(index),
-                            className: `w-full text-left px-6 py-4 rounded-lg border-2 transition-all ${
-                                selectedAnswer === index
-                                    ? 'border-purple-600 bg-purple-50 text-purple-900 font-semibold'
-                                    : 'border-gray-300 hover:border-purple-400 hover:bg-gray-50'
-                            }`
+                            key: idx,
+                            onClick: () => setSelectedAnswer(idx),
+                            className: `w-full text-left p-4 rounded border-2 ${selectedAnswer === idx ? 'border-purple-600 bg-purple-50' : 'border-gray-200'}`
                         },
                             React.createElement('div', { className: 'flex items-center' },
                                 React.createElement('div', {
-                                    className: `w-5 h-5 rounded-full border-2 mr-4 flex items-center justify-center ${
-                                        selectedAnswer === index ? 'border-purple-600 bg-purple-600' : 'border-gray-400'
-                                    }`
+                                    className: `w-6 h-6 rounded-full border-2 mr-3 flex items-center justify-center ${selectedAnswer === idx ? 'border-purple-600 bg-purple-600' : 'border-gray-300'}`
                                 },
-                                    selectedAnswer === index && React.createElement('div', { className: 'w-2 h-2 bg-white rounded-full' })
+                                    selectedAnswer === idx && React.createElement('div', { className: 'w-2 h-2 bg-white rounded-full' })
                                 ),
-                                React.createElement('span', { className: 'text-lg' }, option)
+                                React.createElement('span', null, opt)
                             )
                         )
                     )
                 ),
-                
-                React.createElement('div', { className: 'flex gap-4' },
-                    currentQuestionIndex > 0 && React.createElement('button', {
-                        onClick: () => {
-                            setCurrentQuestionIndex(currentQuestionIndex - 1);
-                            setSelectedAnswer(null);
-                        },
-                        className: 'px-6 py-3 border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors'
-                    }, '← Previous'),
-                    
+                React.createElement('div', { className: 'flex justify-between' },
+                    React.createElement('button', {
+                        onClick: () => { setCurrentQuestionIndex(currentQuestionIndex - 1); setSelectedAnswer(null); },
+                        disabled: currentQuestionIndex === 0,
+                        className: 'px-6 py-2 border rounded disabled:opacity-50'
+                    }, 'Previous'),
                     React.createElement('button', {
                         onClick: submitAnswer,
                         disabled: selectedAnswer === null || loading,
-                        className: 'flex-1 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors'
-                    }, loading ? 'Saving...' : currentQuestionIndex === allQuestions.length - 1 ? 'Complete Assessment' : 'Next Question →')
+                        className: 'px-8 py-2 bg-purple-600 text-white rounded disabled:opacity-50'
+                    }, loading ? 'Saving...' : (currentQuestionIndex === questions.length - 1 ? 'Complete' : 'Next'))
                 )
             )
         );
     }
 
     if (step === 'results' && results) {
-        return React.createElement('div', { className: 'max-w-6xl mx-auto p-6' },
+        return React.createElement('div', { className: 'max-w-4xl mx-auto p-6' },
             React.createElement('div', { className: 'bg-white rounded-lg shadow-lg p-8' },
-                React.createElement('div', { className: 'text-center mb-8' },
-                    React.createElement('h1', { className: 'text-3xl font-bold text-gray-800 mb-2' }, 'Assessment Complete!'),
-                    React.createElement('p', { className: 'text-gray-600' }, `${selectedPatient?.first_name} ${selectedPatient?.last_name}`)
+                React.createElement('h1', { className: 'text-3xl font-bold mb-2' }, 'Assessment Complete!'),
+                React.createElement('p', { className: 'text-gray-600 mb-8' }, 
+                    `Assessment for ${selectedPatient?.first_name} ${selectedPatient?.last_name}`
                 ),
-                
-                React.createElement('div', { className: 'bg-gradient-to-r from-purple-500 to-purple-600 text-white rounded-lg p-8 mb-8 text-center' },
-                    React.createElement('h2', { className: 'text-xl font-semibold mb-2' }, 'Overall Wellness Score'),
-                    React.createElement('div', { className: 'text-6xl font-bold' }, `${results.overall_wellness_score}%`)
+                React.createElement('div', { className: 'bg-gradient-to-r from-purple-500 to-purple-700 text-white rounded p-8 mb-8 text-center' },
+                    React.createElement('h2', { className: 'text-lg mb-2' }, 'Overall Wellness Score'),
+                    React.createElement('div', { className: 'text-6xl font-bold' }, `${results.overall_score}%`)
                 ),
-                
-                // Iridology Results (if available)
-                iridologyResults && React.createElement('div', { className: 'bg-gradient-to-r from-blue-50 to-indigo-50 rounded-lg p-6 mb-8 border-2 border-blue-200' },
-                    React.createElement('h3', { className: 'text-2xl font-bold text-gray-800 mb-4' }, '🔬 Iridology Analysis'),
-                    React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-4' },
-                        React.createElement('div', { className: 'bg-white rounded-lg p-4' },
-                            React.createElement('p', { className: 'text-sm text-gray-600 mb-1' }, 'Constitutional Type'),
-                            React.createElement('p', { className: 'text-xl font-bold text-blue-600' }, iridologyResults.constitutional_type)
-                        ),
-                        React.createElement('div', { className: 'bg-white rounded-lg p-4' },
-                            React.createElement('p', { className: 'text-sm text-gray-600 mb-1' }, 'Constitutional Strength'),
-                            React.createElement('p', { className: 'text-xl font-bold text-blue-600' }, iridologyResults.constitutional_strength)
-                        )
-                    ),
-                    iridologyResults.recommendations && React.createElement('div', { className: 'mt-4' },
-                        React.createElement('p', { className: 'font-semibold mb-2' }, 'AI Recommendations:'),
-                        React.createElement('ul', { className: 'list-disc list-inside space-y-1 text-gray-700' },
-                            iridologyResults.recommendations.map((rec, idx) =>
-                                React.createElement('li', { key: idx }, rec)
-                            )
-                        )
-                    )
-                ),
-                
-                React.createElement('h3', { className: 'text-2xl font-bold text-gray-800 mb-4' }, 'Domain Scores'),
-                React.createElement('div', { className: 'grid grid-cols-1 md:grid-cols-2 gap-6 mb-8' },
-                    Object.entries(results.domain_scores).map(([key, domain]) =>
-                        React.createElement('div', { key: key, className: 'border rounded-lg p-6' },
-                            React.createElement('div', { className: 'flex justify-between items-start mb-3' },
-                                React.createElement('div', null,
-                                    React.createElement('h4', { className: 'font-semibold text-lg' }, domain.domain_name),
-                                    React.createElement('p', { className: 'text-sm text-gray-600' }, domain.therapy_code)
-                                ),
-                                React.createElement('span', { className: 'text-3xl font-bold text-purple-600' }, `${domain.score}%`)
+                React.createElement('h3', { className: 'text-xl font-bold mb-4' }, 'Domain Scores'),
+                React.createElement('div', { className: 'space-y-4' },
+                    Object.entries(results.domain_scores).map(([d, s]) =>
+                        React.createElement('div', { key: d, className: 'border rounded p-4' },
+                            React.createElement('div', { className: 'flex justify-between mb-2' },
+                                React.createElement('span', { className: 'font-semibold' }, getDomainName(d)),
+                                React.createElement('span', { className: `text-2xl font-bold ${getScoreColor(s)}` }, `${s}%`)
                             ),
-                            React.createElement('div', { className: 'w-full bg-gray-200 rounded-full h-2' },
+                            React.createElement('div', { className: 'w-full bg-gray-200 rounded-full h-3' },
                                 React.createElement('div', {
-                                    className: 'bg-purple-600 h-2 rounded-full',
-                                    style: { width: `${domain.score}%` }
+                                    className: `h-3 rounded-full ${getProgressColor(s)}`,
+                                    style: { width: `${s}%` }
                                 })
-                            ),
-                            React.createElement('p', { className: 'text-sm text-gray-600 mt-2' },
-                                `${domain.questions_answered} of ${domain.total_questions} questions answered`
                             )
                         )
                     )
                 ),
-                
-                React.createElement('div', { className: 'flex gap-4' },
+                React.createElement('div', { className: 'mt-8 flex gap-4' },
                     React.createElement('button', {
-                        onClick: () => window.location.reload(),
-                        className: 'flex-1 bg-purple-600 text-white py-3 rounded-lg font-semibold hover:bg-purple-700'
-                    React.createElement('button', {                        onClick: async () => {                            const btn = event.target;                            btn.disabled = true;                            btn.textContent = 'Generating...';                            try {                                const response = await fetch(`/api/v1/reports/generate/${assessmentId}`, { method: 'POST' });                                const data = await response.json();                                if (data.success) {                                    window.open(`https://celloxen.com${data.download_url}`, '_blank');                                    btn.textContent = '📄 Download PDF Report';                                } else {                                    alert('Failed to generate report');                                }                            } catch (error) {                                console.error('Error:', error);                                alert('Error generating report');                            } finally {                                btn.disabled = false;                                btn.textContent = '📄 Download PDF Report';                            }                        },                        className: 'flex-1 bg-green-600 text-white py-3 rounded-lg font-semibold hover:bg-green-700'                    }, '📄 Download PDF Report'),
+                        onClick: () => {
+                            setStep('start');
+                            setSelectedPatient(null);
+                            setAssessmentId(null);
+                            setResults(null);
+                        },
+                        className: 'flex-1 bg-purple-600 text-white py-3 rounded'
                     }, 'New Assessment'),
                     React.createElement('button', {
-                        onClick: () => window.location.href = '/assessments',
-                        className: 'flex-1 border border-purple-600 text-purple-600 py-3 rounded-lg font-semibold hover:bg-purple-50'
-                    }, 'View All Assessments')
+                        onClick: () => window.location.href = '/',
+                        className: 'flex-1 border border-purple-600 text-purple-600 py-3 rounded'
+                    }, 'Back to Portal')
                 )
             )
         );
     }
 
-    return React.createElement('div', null, 'Loading...');
+    return React.createElement('div', { className: 'flex items-center justify-center h-screen' },
+        React.createElement('div', { className: 'text-center' },
+            React.createElement('div', { className: 'animate-spin rounded-full h-16 w-16 border-b-2 border-purple-600 mx-auto mb-4' }),
+            React.createElement('p', null, 'Loading...')
+        )
+    );
 }
 
-const root = ReactDOM.createRoot(document.getElementById('assessment-root'));
-root.render(React.createElement(NewAssessmentModule));
+ReactDOM.render(React.createElement(NewAssessmentModule), document.getElementById('assessment-root'));

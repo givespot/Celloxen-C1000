@@ -10,6 +10,8 @@ from typing import Optional
 import asyncpg
 import json
 import os
+from dotenv import load_dotenv
+load_dotenv()
 import anthropic
 
 router = APIRouter(prefix="/api/v1/iridology", tags=["Iridology"])
