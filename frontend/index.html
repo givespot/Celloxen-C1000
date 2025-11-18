@@ -2669,8 +2669,9 @@ const IridologyNew = () => {
                                                 canvas.height = video.videoHeight;
                                                 canvas.getContext('2d').drawImage(video, 0, 0);
                                                 setLeftEyeImage(canvas.toDataURL('image/jpeg', 0.9));
-                                                stream.getTracks().forEach(t => t.stop(););
+                                                stream.getTracks().forEach(t => t.stop());
                                                 document.body.removeChild(modal);
+                    }
                 } catch (error) {
                         console.error("Capture failed:", error);
                         alert("Capture failed. Please try again.");
@@ -2681,12 +2682,9 @@ const IridologyNew = () => {
                                             cancelBtn.textContent = '❌ Cancel';
                                             cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
                                             cancelBtn.onclick = () => {
-                                                stream.getTracks().forEach(t => t.stop(););
+                                                stream.getTracks().forEach(t => t.stop());
                                                 document.body.removeChild(modal);
-                } catch (error) {
-                        console.error("Capture failed:", error);
-                        alert("Capture failed. Please try again.");
-                    }
+                                            };
                                             };
                                             
                                             buttons.appendChild(captureBtn);
@@ -2779,7 +2777,7 @@ const IridologyNew = () => {
                                                 canvas.height = video.videoHeight;
                                                 canvas.getContext('2d').drawImage(video, 0, 0);
                                                 setRightEyeImage(canvas.toDataURL('image/jpeg', 0.9));
-                                                stream.getTracks().forEach(t => t.stop(););
+                                                stream.getTracks().forEach(t => t.stop());
                                                 document.body.removeChild(modal);
                 } catch (error) {
                         console.error("Capture failed:", error);
@@ -2791,12 +2789,9 @@ const IridologyNew = () => {
                                             cancelBtn.textContent = '❌ Cancel';
                                             cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
                                             cancelBtn.onclick = () => {
-                                                stream.getTracks().forEach(t => t.stop(););
+                                                stream.getTracks().forEach(t => t.stop());
                                                 document.body.removeChild(modal);
-                } catch (error) {
-                        console.error("Capture failed:", error);
-                        alert("Capture failed. Please try again.");
-                    }
+                                            };
                                             };
                                             
                                             buttons.appendChild(captureBtn);
@@ -3655,7 +3650,7 @@ const IridologyModule = () => {
                                                     canvas.height = video.videoHeight;
                                                     canvas.getContext('2d').drawImage(video, 0, 0);
                                                     setLeftEyeImage(canvas.toDataURL('image/jpeg', 0.9));
-                                                    stream.getTracks().forEach(t => t.stop(););
+                                                    stream.getTracks().forEach(t => t.stop());
                                                     document.body.removeChild(modal);
                 } catch (error) {
                         console.error("Capture failed:", error);
@@ -3666,12 +3661,9 @@ const IridologyModule = () => {
                                                 cancelBtn.textContent = '❌ Cancel';
                                                 cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
                                                 cancelBtn.onclick = () => {
-                                                    stream.getTracks().forEach(t => t.stop(););
+                                                    stream.getTracks().forEach(t => t.stop());
                                                     document.body.removeChild(modal);
-                } catch (error) {
-                        console.error("Capture failed:", error);
-                        alert("Capture failed. Please try again.");
-                    }
+                                            };
                                                 };
                                                 buttons.appendChild(captureBtn);
                                                 buttons.appendChild(cancelBtn);
@@ -3740,7 +3732,7 @@ const IridologyModule = () => {
                                                     canvas.height = video.videoHeight;
                                                     canvas.getContext('2d').drawImage(video, 0, 0);
                                                     setRightEyeImage(canvas.toDataURL('image/jpeg', 0.9));
-                                                    stream.getTracks().forEach(t => t.stop(););
+                                                    stream.getTracks().forEach(t => t.stop());
                                                     document.body.removeChild(modal);
                 } catch (error) {
                         console.error("Capture failed:", error);
@@ -3751,12 +3743,9 @@ const IridologyModule = () => {
                                                 cancelBtn.textContent = '❌ Cancel';
                                                 cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
                                                 cancelBtn.onclick = () => {
-                                                    stream.getTracks().forEach(t => t.stop(););
+                                                    stream.getTracks().forEach(t => t.stop());
                                                     document.body.removeChild(modal);
-                } catch (error) {
-                        console.error("Capture failed:", error);
-                        alert("Capture failed. Please try again.");
-                    }
+                                            };
                                                 };
                                                 buttons.appendChild(captureBtn);
                                                 buttons.appendChild(cancelBtn);
