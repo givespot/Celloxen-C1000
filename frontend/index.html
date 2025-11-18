@@ -1857,7 +1857,7 @@
                     console.error('Error generating report:', error);
                     alert('Failed to generate PDF report. Please try again.');
                 }
-            };
+                                            };
 
             const startNewAssessment = () => {
                 setCurrentStep('patient-selection');
@@ -2671,8 +2671,7 @@ const IridologyNew = () => {
                                                 setLeftEyeImage(canvas.toDataURL('image/jpeg', 0.9));
                                                 stream.getTracks().forEach(t => t.stop());
                                                 document.body.removeChild(modal);
-                    }
-                } catch (error) {
+                    } catch (error) {
                         console.error("Capture failed:", error);
                         alert("Capture failed. Please try again.");
                     }
@@ -3656,7 +3655,7 @@ const IridologyModule = () => {
                         console.error("Capture failed:", error);
                         alert("Capture failed. Please try again.");
                     }
-                                                };
+                                            };
                                                 const cancelBtn = document.createElement('button');
                                                 cancelBtn.textContent = '❌ Cancel';
                                                 cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
@@ -3738,7 +3737,7 @@ const IridologyModule = () => {
                         console.error("Capture failed:", error);
                         alert("Capture failed. Please try again.");
                     }
-                                                };
+                                            };
                                                 const cancelBtn = document.createElement('button');
                                                 cancelBtn.textContent = '❌ Cancel';
                                                 cancelBtn.style.cssText = 'padding:15px 30px;background:#ef4444;color:white;border:none;border-radius:8px;font-size:18px;cursor:pointer;';
