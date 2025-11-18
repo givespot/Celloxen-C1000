@@ -276,10 +276,10 @@
 
         async function loadReport() {
             try {
-                const response = await fetch(`/api/v1/iridology/${analysisId}/report`);
+                const response = await fetch(`/api/v1/iridology/${analysisId}/report");
 
                 if (!response.ok) {
-                    throw new Error(`Failed to load report: ${response.status}`);
+                    throw new Error(`Failed to load report: ${response.status}");
                 }
 
                 const data = await response.json();
