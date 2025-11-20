@@ -177,6 +177,11 @@
         const { useState, useEffect } = React;
         
         const IridologyReport = () => {
+            const [loading, setLoading] = useState(true);
+            const [error, setError] = useState(null);
+            const [reportData, setReportData] = useState(null);
+
+            useEffect(() => {
             // Helper function to extract constitutional data from combined_analysis
             const extractConstitutionalData = (combinedAnalysis) => {
                 try {
@@ -200,11 +205,6 @@
                 }
             };
 
-            const [loading, setLoading] = useState(true);
-            const [error, setError] = useState(null);
-            const [reportData, setReportData] = useState(null);
-
-            useEffect(() => {
                 loadReportData();
             }, []);
 
@@ -341,7 +341,7 @@
                 if (extracted.strength) constitutionalStrength = extracted.strength;
             }
             const createdAt = reportData.created_at;
-            const fullReport = reportData.analysis?.combined_analysis?.raw_text || reportData.full_report || null;
+            const fullReport = reportData.full_report || null;
             const practitioner = reportData.practitioner || null;
 
             return (
@@ -403,9 +403,44 @@
                                 </div>
                                 <div className="stat-card bg-gray-50 rounded-lg p-4">
                                     <div className="text-sm font-semibold text-gray-600 uppercase mb-2">Date of Birth</div>
-                                    <div className="text-lg font-bold navy-text">{patient.date_of_birth ? formatDate(patient.date_of_birth) : '-'}</div>
+                                    <div className="text-lg font-bold navy-text">{formatDate(reportData.patient?.date_of_birth || patient?.date_of_birth)}</div>
                                 </div>
                             </div>
+                        </div>
+
+                        {/* Analysis Details */}
+                        <div className="bg-white rounded-xl shadow-md border border-gray-200 p-8 mb-6 avoid-break">
+                            <h2 className="text-2xl font-bold navy-text mb-6 pb-3 border-b-2 border-blue-600">
+                                Analysis Details
+                            </h2>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-6">
+                                <div className="stat-card bg-blue-50 rounded-lg p-5 border border-blue-200">
+                                    <div className="text-xs font-bold text-blue-700 uppercase mb-2">Analysis Number</div>
+                                    <div className="text-xl font-bold text-blue-900">{analysisNumber}</div>
+                                </div>
+                                <div className="stat-card bg-blue-50 rounded-lg p-5 border border-blue-200">
+                                    <div className="text-xs font-bold text-blue-700 uppercase mb-2">Constitutional Type</div>
+                                    <div className="text-xl font-bold text-blue-900">{constitutionalType}</div>
+                                </div>
+                                <div className="stat-card bg-blue-50 rounded-lg p-5 border border-blue-200">
+                                    <div className="text-xs font-bold text-blue-700 uppercase mb-2">Strength</div>
+                                    <div className="text-xl font-bold text-blue-900">{constitutionalStrength}</div>
+                                </div>
+                                <div className="stat-card bg-blue-50 rounded-lg p-5 border border-blue-200">
+                                    <div className="text-xs font-bold text-blue-700 uppercase mb-2">Analysis Date</div>
+                                    <div className="text-xl font-bold text-blue-900">{formatDate(createdAt)}</div>
+                                </div>
+                            </div>
+                            
+                            {practitioner && (
+                                <div className="bg-gray-50 rounded-lg p-5 border border-gray-200">
+                                    <div className="text-sm font-semibold text-gray-600 uppercase mb-2">Analysed By</div>
+                                    <div className="text-lg font-bold navy-text">
+                                        {practitioner.first_name} {practitioner.last_name}
+                                        {practitioner.credentials && <span className="text-gray-600 font-normal"> ({practitioner.credentials})</span>}
+                                    </div>
+                                </div>
+                            )}
                         </div>
 
                         {/* Full Report */}

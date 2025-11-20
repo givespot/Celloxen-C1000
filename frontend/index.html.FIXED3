@@ -6,6 +6,29 @@
     <title>Celloxen Health Portal</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js">
 // Fetch and display patient data for iridology analysis
+// Helper function to extract constitutional data from combined_analysis
+function extractConstitutionalData(combinedAnalysis) {
+    try {
+        if (!combinedAnalysis || !combinedAnalysis.raw_text) return { type: null, strength: null };
+        const text = combinedAnalysis.raw_text;
+        const leftMatch = text.match(/Left Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        const rightMatch = text.match(/Right Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        if (leftMatch && rightMatch) {
+            const leftType = leftMatch[1].trim();
+            const rightType = rightMatch[1].trim();
+            const strength = leftMatch[2].trim();
+            return { 
+                type: (leftType === rightType) ? leftType : leftType + '/' + rightType,
+                strength: strength 
+            };
+        }
+        return { type: null, strength: null };
+    } catch (error) {
+        console.error('Error extracting constitutional data:', error);
+        return { type: null, strength: null };
+    }
+}
+
 async function displayIridologyWithPatient(analysis) {
     console.log('📊 Displaying iridology analysis:', analysis);
     currentAnalysis = analysis;
@@ -43,10 +66,18 @@ async function displayIridologyWithPatient(analysis) {
     if (analysisNumberEl) analysisNumberEl.textContent = analysis.analysis_number || 'N/A';
     
     const constitutionalTypeEl = document.getElementById('constitutionalType');
-    if (constitutionalTypeEl) constitutionalTypeEl.textContent = analysis.constitutional_type || 'Unknown';
+    // Extract constitutional data with fallback
+    let constitutionalType = analysis.constitutional_type || 'Unknown';
+    let constitutionalStrength = analysis.constitutional_strength || 'Unknown';
+    if ((constitutionalType === 'Unknown' || !constitutionalType) && analysis.combined_analysis) {
+        const extracted = extractConstitutionalData(analysis.combined_analysis);
+        if (extracted.type) constitutionalType = extracted.type;
+        if (extracted.strength) constitutionalStrength = extracted.strength;
+    }
+    if (constitutionalTypeEl) constitutionalTypeEl.textContent = constitutionalType;
     
     const strengthEl = document.getElementById('organStrength') || document.getElementById('constitutionalStrength');
-    if (strengthEl) strengthEl.textContent = analysis.constitutional_strength || 'Unknown';
+    if (strengthEl) strengthEl.textContent = constitutionalStrength;
 }
 
     </script>

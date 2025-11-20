@@ -6,6 +6,50 @@
     <title>Celloxen Health Portal</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js">
 // Fetch and display patient data for iridology analysis
+
+// Helper function to extract constitutional data from combined_analysis
+function extractConstitutionalData(combinedAnalysis) {
+    try {
+        if (!combinedAnalysis || !combinedAnalysis.raw_text) {
+            return { type: null, strength: null, analysisDate: null };
+        }
+        
+        const text = combinedAnalysis.raw_text;
+        let constitutionalType = null;
+        let constitutionalStrength = null;
+        
+        // Extract from "Left Eye: [Type] Constitution ([Strength])" and "Right Eye: [Type] Constitution ([Strength])"
+        const leftMatch = text.match(/Left Eye:\s*([^C]+)Constitution\s*\(([^)]+)\)/i);
+        const rightMatch = text.match(/Right Eye:\s*([^C]+)Constitution\s*\(([^)]+)\)/i);
+        
+        if (leftMatch && rightMatch) {
+            const leftType = leftMatch[1].trim();
+            const rightType = rightMatch[1].trim();
+            const leftStrength = leftMatch[2].trim();
+            const rightStrength = rightMatch[2].trim();
+            
+            // Combine the types
+            if (leftType === rightType) {
+                constitutionalType = leftType;
+            } else {
+                constitutionalType = `${leftType}/${rightType}`;
+            }
+            
+            // Use the strength (they should be the same or similar)
+            constitutionalStrength = leftStrength;
+        }
+        
+        return { 
+            type: constitutionalType, 
+            strength: constitutionalStrength 
+        };
+    } catch (error) {
+        console.error('Error extracting constitutional data:', error);
+        return { type: null, strength: null };
+    }
+}
+
+
 async function displayIridologyWithPatient(analysis) {
     console.log('📊 Displaying iridology analysis:', analysis);
     currentAnalysis = analysis;

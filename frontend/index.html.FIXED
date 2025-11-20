@@ -6,6 +6,47 @@
     <title>Celloxen Health Portal</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js">
 // Fetch and display patient data for iridology analysis
+
+// ============================================================================
+// CONSTITUTIONAL DATA EXTRACTION HELPER
+// Safely extracts constitutional type and strength from combined_analysis
+// ============================================================================
+function extractConstitutionalData(combinedAnalysis) {
+    try {
+        if (!combinedAnalysis || !combinedAnalysis.raw_text) {
+            return { type: null, strength: null };
+        }
+        
+        const text = combinedAnalysis.raw_text;
+        let constitutionalType = null;
+        let constitutionalStrength = null;
+        
+        // Extract from "Left Eye: [Type] Constitution ([Strength])" pattern
+        const leftMatch = text.match(/Left Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        const rightMatch = text.match(/Right Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        
+        if (leftMatch && rightMatch) {
+            const leftType = leftMatch[1].trim();
+            const rightType = rightMatch[1].trim();
+            const strength = leftMatch[2].trim();
+            
+            // Combine types if different
+            if (leftType === rightType) {
+                constitutionalType = leftType;
+            } else {
+                constitutionalType = leftType + '/' + rightType;
+            }
+            constitutionalStrength = strength;
+        }
+        
+        return { type: constitutionalType, strength: constitutionalStrength };
+    } catch (error) {
+        console.error('Error extracting constitutional data:', error);
+        return { type: null, strength: null };
+    }
+}
+
+
 async function displayIridologyWithPatient(analysis) {
     console.log('📊 Displaying iridology analysis:', analysis);
     currentAnalysis = analysis;
@@ -43,10 +84,10 @@ async function displayIridologyWithPatient(analysis) {
     if (analysisNumberEl) analysisNumberEl.textContent = analysis.analysis_number || 'N/A';
     
     const constitutionalTypeEl = document.getElementById('constitutionalType');
-    if (constitutionalTypeEl) constitutionalTypeEl.textContent = analysis.constitutional_type || 'Unknown';
+    if (constitutionalTypeEl) constitutionalTypeEl.textContent = constitutionalType;
     
     const strengthEl = document.getElementById('organStrength') || document.getElementById('constitutionalStrength');
-    if (strengthEl) strengthEl.textContent = analysis.constitutional_strength || 'Unknown';
+    if (strengthEl) strengthEl.textContent = constitutionalStrength;
 }
 
     </script>

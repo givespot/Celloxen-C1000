@@ -6,6 +6,29 @@
     <title>Celloxen Health Portal</title>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js">
 // Fetch and display patient data for iridology analysis
+// Helper function to extract constitutional data from combined_analysis
+function extractConstitutionalData(combinedAnalysis) {
+    try {
+        if (!combinedAnalysis || !combinedAnalysis.raw_text) return { type: null, strength: null };
+        const text = combinedAnalysis.raw_text;
+        const leftMatch = text.match(/Left Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        const rightMatch = text.match(/Right Eye:\s*([^C]+?)\s*Constitution\s*\(([^)]+)\)/i);
+        if (leftMatch && rightMatch) {
+            const leftType = leftMatch[1].trim();
+            const rightType = rightMatch[1].trim();
+            const strength = leftMatch[2].trim();
+            return { 
+                type: (leftType === rightType) ? leftType : leftType + '/' + rightType,
+                strength: strength 
+            };
+        }
+        return { type: null, strength: null };
+    } catch (error) {
+        console.error('Error extracting constitutional data:', error);
+        return { type: null, strength: null };
+    }
+}
+
 async function displayIridologyWithPatient(analysis) {
     console.log('📊 Displaying iridology analysis:', analysis);
     currentAnalysis = analysis;
@@ -43,17 +66,1002 @@ async function displayIridologyWithPatient(analysis) {
     if (analysisNumberEl) analysisNumberEl.textContent = analysis.analysis_number || 'N/A';
     
     const constitutionalTypeEl = document.getElementById('constitutionalType');
-    if (constitutionalTypeEl) constitutionalTypeEl.textContent = analysis.constitutional_type || 'Unknown';
+    // Extract constitutional data with fallback
+    let constitutionalType = analysis.constitutional_type || 'Unknown';
+    let constitutionalStrength = analysis.constitutional_strength || 'Unknown';
+    if ((constitutionalType === 'Unknown' || !constitutionalType) && analysis.combined_analysis) {
+        const extracted = extractConstitutionalData(analysis.combined_analysis);
+        if (extracted.type) constitutionalType = extracted.type;
+        if (extracted.strength) constitutionalStrength = extracted.strength;
+    }
+    if (constitutionalTypeEl) constitutionalTypeEl.textContent = constitutionalType;
     
     const strengthEl = document.getElementById('organStrength') || document.getElementById('constitutionalStrength');
-    if (strengthEl) strengthEl.textContent = analysis.constitutional_strength || 'Unknown';
+    if (strengthEl) strengthEl.textContent = constitutionalStrength;
 }
 
+    
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}
+
+                            `
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
     </script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://unpkg.com/lucide@latest"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js">
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js">
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+    <script src="https://cdn.tailwindcss.com">
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
+    <script src="https://unpkg.com/lucide@latest">
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
+    </script>
     <style>
         /* Navy Blue Theme - NO PURPLE! */
         .navy-gradient {
@@ -124,6 +1132,241 @@ async function displayIridologyWithPatient(analysis) {
             background: #10b981;
             color: white;
         }
+    
+        /* Pending appointments badge */
+        .pending-badge {
+            background: #fef3c7;
+            color: #92400e;
+            padding: 0.25rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            display: inline-block;
+            margin-left: 0.5rem;
+        }
+
+        .action-buttons {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+        }
+
+        .btn-confirm {
+            background: #10b981;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex: 1;
+        }
+
+        .btn-decline {
+            background: #ef4444;
+            color: white;
+            padding: 0.5rem 1rem;
+            border: none;
+            border-radius: 6px;
+            font-size: 0.875rem;
+            font-weight: 600;
+            cursor: pointer;
+            flex: 1;
+        }
+
+    
+        /* Super Admin Styles */
+        .superadmin-header {
+            background: linear-gradient(135deg, #7c3aed 0%, #5b21b6 100%);
+            color: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+        }
+
+        .stat-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 1.5rem;
+            border-radius: 12px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            border-left: 4px solid #1e3a5f;
+        }
+
+        .stat-card.purple {
+            border-left-color: #7c3aed;
+        }
+
+        .stat-card.green {
+            border-left-color: #10b981;
+        }
+
+        .stat-card.blue {
+            border-left-color: #3b82f6;
+        }
+
+        .stat-card.orange {
+            border-left-color: #f59e0b;
+        }
+
+        .stat-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: #1e3a5f;
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            color: #64748b;
+            font-size: 0.875rem;
+            text-transform: uppercase;
+            font-weight: 600;
+            letter-spacing: 0.05em;
+        }
+
+        .clinic-card {
+            background: white;
+            border: 1px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 1.5rem;
+            margin-bottom: 1rem;
+            transition: all 0.3s;
+        }
+
+        .clinic-card:hover {
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+            transform: translateY(-2px);
+        }
+
+        .clinic-status {
+            display: inline-block;
+            padding: 0.375rem 0.75rem;
+            border-radius: 12px;
+            font-size: 0.75rem;
+            font-weight: 700;
+            text-transform: uppercase;
+        }
+
+        .clinic-status.active {
+            background: #d1fae5;
+            color: #065f46;
+        }
+
+        .clinic-status.pending {
+            background: #fef3c7;
+            color: #92400e;
+        }
+
+        .clinic-status.inactive {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+
+        .btn-purple {
+            background: #7c3aed;
+            color: white;
+        }
+
+        .btn-purple:hover {
+            background: #6d28d9;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+        }
+
+        .clinic-actions {
+            display: flex;
+            gap: 0.5rem;
+            margin-top: 1rem;
+            flex-wrap: wrap;
+        }
+
+        .clinic-actions button {
+            padding: 0.5rem 1rem;
+            border-radius: 6px;
+            border: none;
+            font-weight: 600;
+            font-size: 0.875rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .btn-activate {
+            background: #10b981;
+            color: white;
+        }
+
+        .btn-deactivate {
+            background: #ef4444;
+            color: white;
+        }
+
+        .btn-view {
+            background: #3b82f6;
+            color: white;
+        }
+
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0, 0, 0, 0.5);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 2rem;
+            max-width: 800px;
+            width: 90%;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 1.5rem;
+            padding-bottom: 1rem;
+            border-bottom: 2px solid #e2e8f0;
+        }
+
+        .modal-title {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #1e3a5f;
+        }
+
+        .close-btn {
+            background: none;
+            border: none;
+            font-size: 1.5rem;
+            cursor: pointer;
+            color: #64748b;
+            padding: 0.5rem;
+        }
+
+        .close-btn:hover {
+            color: #1e3a5f;
+        }
+
     </style>
 </head>
 <body>
@@ -897,7 +2140,8 @@ async function displayIridologyWithPatient(analysis) {
                 total_patients: 0,
                 active_patients: 0,
                 new_this_month: 0,
-                assessments_completed: 0
+                assessments_completed: 0,
+                appointments_today: 0
             });
             const [loading, setLoading] = useState(true);
 
@@ -907,10 +2151,19 @@ async function displayIridologyWithPatient(analysis) {
 
             const fetchStats = async () => {
                 try {
-                    const response = await fetch('/api/v1/patients/stats/overview');
-                    if (response.ok) {
-                        const data = await response.json();
-                        setStats(data);
+                    const [patientsRes, appointmentsRes] = await Promise.all([
+                        fetch('/api/v1/patients/stats/overview'),
+                        fetch('/api/v1/appointments/stats/overview')
+                    ]);
+                    
+                    if (patientsRes.ok && appointmentsRes.ok) {
+                        const patientsData = await patientsRes.json();
+                        const appointmentsData = await appointmentsRes.json();
+                        
+                        setStats({
+                            ...patientsData,
+                            appointments_today: appointmentsData.stats?.today || 0
+                        });
                     }
                 } catch (error) {
                     console.error('Error fetching stats:', error);
@@ -974,7 +2227,7 @@ async function displayIridologyWithPatient(analysis) {
                                 </div>
                             </div>
                             <h3 className="text-gray-600 text-sm font-semibold mb-1">Appointments</h3>
-                            <p className="text-3xl font-bold navy-text">0</p>
+                            <p className="text-3xl font-bold navy-text">{stats.appointments_today}</p>
                             <p className="text-sm text-gray-500 mt-2">Scheduled today</p>
                         </div>
                     </div>
@@ -4027,6 +5280,10 @@ const IridologyModule = () => {
         const App = () => {
             const { user, logout, loading } = useAuth();
             const [currentPage, setCurrentPage] = useState('dashboard');
+
+
+        
+
             const [selectedPatientId, setSelectedPatientId] = useState(null);
 
             if (loading) {
@@ -4143,50 +5400,8 @@ const IridologyModule = () => {
                                     </svg>
                                     <span>Appointments</span>
                                 </button>
-                            </nav>
-                        </div>
 
-                        <div className="flex-1">
-                            {currentPage === 'dashboard' && <Dashboard onNavigate={setCurrentPage} />}
-                            {currentPage === 'patients' && (
-                                <PatientsList 
-                                    onNavigate={setCurrentPage}
-                                    onViewPatient={(patientId) => {
-                                        setSelectedPatientId(patientId);
-                                        setCurrentPage('patient-profile');
-                                    }}
-                                />
-                            )}
-                            {currentPage === 'patient-registration' && (
-                                <PatientRegistration 
-                                    onBack={() => setCurrentPage('patients')} 
-                                    onSuccess={handlePatientSuccess}
-                                />
-                            )}
-                        {currentPage === 'assessments' && <AssessmentModule />}
-{currentPage === 'iridology' && <IridologyModule />}
-                        {currentPage === 'iridology-new' && <IridologyNew />}
-                            {currentPage === 'appointments' && <AppointmentsModule />}
-                            {currentPage === 'patient-profile' && selectedPatientId && (
-                                <PatientProfile 
-                                    patientId={selectedPatientId} 
-                                    onBack={() => setCurrentPage('patients')}
-                                />
-                            )}
-                        </div>
-                    </div>
-                </div>
-            );
-        };
-
-        
-        // ============================================
-        // APPOINTMENTS MODULE COMPONENT
-        // ============================================
-        const AppointmentsModule = () => {
-            const [appointments, setAppointments] = React.useState([]);
-            const [loading, setLoading] = React.useState(true);
-            const [stats, setStats] = React.useState({});
+                            ;
             const [showForm, setShowForm] = React.useState(false);
             const [patients, setPatients] = React.useState([]);
             const [formData, setFormData] = React.useState({
@@ -4477,6 +5692,201 @@ const IridologyModule = () => {
                 <App />
             </AuthProvider>
         );
+    
+        // Add this function to handle appointment confirmation
+        
+        // Load and display pending appointments
+        async function loadPendingAppointments() {
+            try {
+                const response = await fetch('/api/v1/appointments?status=PENDING', {
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                const pendingAppointments = data.appointments?.filter(apt => apt.status === 'PENDING') || [];
+                
+                // Update count badge
+                const countBadge = document.getElementById('pendingCount');
+                if (countBadge) {
+                    countBadge.textContent = pendingAppointments.length;
+                    countBadge.style.display = pendingAppointments.length > 0 ? 'inline-block' : 'none';
+                }
+                
+                // Show/hide section
+                const section = document.getElementById('pendingAppointmentsSection');
+                if (section) {
+                    section.style.display = pendingAppointments.length > 0 ? 'block' : 'none';
+                }
+                
+                // Render pending appointments
+                const listDiv = document.getElementById('pendingAppointmentsList');
+                if (listDiv && pendingAppointments.length > 0) {
+                    listDiv.innerHTML = pendingAppointments.map(apt => `
+                        <div style="background: white; border: 2px solid #f59e0b; border-radius: 12px; padding: 1.25rem; margin-bottom: 1rem;">
+                            <div style="display: flex; justify-content: space-between; align-items: start; margin-bottom: 0.75rem;">
+                                <div>
+                                    <h4 style="margin: 0 0 0.5rem 0; color: #1e3a5f; font-size: 1rem;">
+                                        ${apt.patient_name || 'Unknown Patient'}
+                                    </h4>
+                                    <p style="margin: 0; color: #64748b; font-size: 0.875rem;">
+                                        Patient #: ${apt.patient_number || 'N/A'}
+                                    </p>
+                                </div>
+                                <span style="background: #fef3c7; color: #92400e; padding: 0.375rem 0.75rem; border-radius: 12px; font-size: 0.75rem; font-weight: 700;">
+                                    PENDING
+                                </span>
+                            </div>
+                            
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 0.75rem; margin-bottom: 1rem; padding: 1rem; background: #f8fafc; border-radius: 8px;">
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Date</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📅 ${new Date(apt.appointment_date).toLocaleDateString('en-GB', {weekday: 'short', day: '2-digit', month: 'short', year: 'numeric'})}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Time</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        🕐 ${apt.appointment_time}
+                                    </p>
+                                </div>
+                                <div>
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Type</p>
+                                    <p style="margin: 0.25rem 0 0 0; font-weight: 600; color: #1e293b;">
+                                        📋 ${apt.appointment_type || 'Consultation'}
+                                    </p>
+                                </div>
+                            </div>
+                            
+                            ${apt.notes ? `
+                                <div style="background: #f1f5f9; padding: 0.75rem; border-radius: 8px; margin-bottom: 1rem;">
+                                    <p style="margin: 0; font-size: 0.75rem; color: #64748b; text-transform: uppercase; font-weight: 600;">Patient Notes</p>
+                                    <p style="margin: 0.25rem 0 0 0; color: #1e293b; font-size: 0.875rem;">${apt.notes}</p>
+                                </div>
+                            ` : ''}
+                            
+                            <div class="action-buttons">
+                                <button class="btn-confirm" onclick="confirmAppointment(${apt.id})">
+                                    ✅ Confirm Appointment
+                                </button>
+                                <button class="btn-decline" onclick="declineAppointment(${apt.id})">
+                                    ❌ Decline
+                                </button>
+                            </div>
+                        </div>
+                    `).join('');
+                }
+            } catch (error) {
+                console.error('Error loading pending appointments:', error);
+            }
+        }
+        
+        // Enhanced loadAppointments to also load pending
+        const originalLoadAppointments = loadAppointments;
+        loadAppointments = async function() {
+            await loadPendingAppointments();
+            if (originalLoadAppointments) {
+                await originalLoadAppointments();
+            }
+        };
+
+        async function confirmAppointment(appointmentId) {
+            if (!confirm('Confirm this appointment?')) return;
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/confirm`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment confirmed! Patient has been notified.', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to confirm appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error confirming appointment', 'error');
+                console.error(error);
+            }
+        }
+        
+        async function declineAppointment(appointmentId) {
+            const reason = prompt('Reason for declining (optional):');
+            if (reason === null) return; // User cancelled
+            
+            try {
+                const response = await fetch(`/api/v1/appointments/${appointmentId}/decline`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
+                    },
+                    body: JSON.stringify({ reason: reason || 'Not specified' })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    showNotification('Appointment declined', 'success');
+                    loadAppointments();
+                } else {
+                    showNotification(data.detail || 'Failed to decline appointment', 'error');
+                }
+            } catch (error) {
+                showNotification('Error declining appointment', 'error');
+                console.error(error);
+            }
+        }
+
+    
+        // Notification system
+        function showNotification(message, type = 'info') {
+            const notification = document.createElement('div');
+            notification.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: ${type === 'success' ? '#10b981' : type === 'error' ? '#ef4444' : '#3b82f6'};
+                color: white;
+                padding: 1rem 1.5rem;
+                border-radius: 8px;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                z-index: 10000;
+                font-weight: 600;
+                max-width: 400px;
+                animation: slideIn 0.3s ease-out;
+            `;
+            notification.textContent = message;
+            
+            document.body.appendChild(notification);
+            
+            setTimeout(() => {
+                notification.style.animation = 'slideOut 0.3s ease-out';
+                setTimeout(() => notification.remove(), 300);
+            }, 3000);
+        }
+        
+        // Add animation styles
+        const style = document.createElement('style');
+        style.textContent = `
+            @keyframes slideIn {
+                from { transform: translateX(400px); opacity: 0; }
+                to { transform: translateX(0); opacity: 1; }
+            }
+            @keyframes slideOut {
+                from { transform: translateX(0); opacity: 1; }
+                to { transform: translateX(400px); opacity: 0; }
+            }
+        `;
+        document.head.appendChild(style);
+
     </script>
 </body>
 </html>
