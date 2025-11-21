@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Celloxen Super Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            min-height: 100vh;
+        }
+        
+        .top-nav {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .logo-section h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .logo-section p {
+            font-size: 14px;
+            opacity: 0.9;
+        }
+        
+        .nav-buttons {
+            display: flex;
+            gap: 10px;
+        }
+        
+        .btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.3s;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background: white;
+            color: #1e3a8a;
+        }
+        
+        .main-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px;
+        }
+        
+        .page-header {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            margin-bottom: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+        
+        .page-header h1 {
+            color: #1e3a8a;
+            font-size: 32px;
+        }
+        
+        .btn-add {
+            background: #10b981;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-add:hover {
+            background: #059669;
+        }
+        
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .tab {
+            background: white;
+            border: none;
+            padding: 14px 28px;
+            font-size: 16px;
+            font-weight: 600;
+            color: #64748b;
+            cursor: pointer;
+            border-bottom: 3px solid transparent;
+            transition: all 0.3s;
+        }
+        
+        .tab.active {
+            color: #1e3a8a;
+            border-bottom-color: #1e3a8a;
+        }
+        
+        .tab:hover {
+            color: #1e3a8a;
+        }
+        
+        .tab-content {
+            display: none;
+        }
+        
+        .tab-content.active {
+            display: block;
+        }
+        
+        .users-table {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        
+        thead {
+            background: #f8fafc;
+        }
+        
+        th {
+            text-align: left;
+            padding: 16px;
+            color: #64748b;
+            font-weight: 600;
+            font-size: 12px;
+            text-transform: uppercase;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        td {
+            padding: 16px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        tr:hover {
+            background: #f9fafb;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+        }
+        
+        .badge-super-admin {
+            background: #dbeafe;
+            color: #1e3a8a;
+        }
+        
+        .badge-clinic-admin {
+            background: #dcfce7;
+            color: #10b981;
+        }
+        
+        .badge-active {
+            background: #dcfce7;
+            color: #10b981;
+        }
+        
+        .badge-inactive {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+        
+        .action-btns {
+            display: flex;
+            gap: 8px;
+        }
+        
+        .btn-edit, .btn-reset, .btn-delete {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-edit {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-edit:hover {
+            background: #2563eb;
+        }
+        
+        .btn-reset {
+            background: #f59e0b;
+            color: white;
+        }
+        
+        .btn-reset:hover {
+            background: #d97706;
+        }
+        
+        .btn-delete {
+            background: #ef4444;
+            color: white;
+        }
+        
+        .btn-delete:hover {
+            background: #dc2626;
+        }
+        
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.5);
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .modal-content {
+            background: white;
+            border-radius: 16px;
+            padding: 30px;
+            width: 90%;
+            max-width: 600px;
+            max-height: 90vh;
+            overflow-y: auto;
+        }
+        
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        
+        .modal-header h2 {
+            color: #1e3a8a;
+            font-size: 24px;
+        }
+        
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            color: #64748b;
+            cursor: pointer;
+            padding: 0;
+            width: 32px;
+            height: 32px;
+        }
+        
+        .btn-close:hover {
+            color: #ef4444;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            color: #0f172a;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+        
+        .form-group input, .form-group select {
+            width: 100%;
+            padding: 12px 16px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+        }
+        
+        .form-group input:focus, .form-group select:focus {
+            outline: none;
+            border-color: #1e3a8a;
+        }
+        
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: #1e3a8a;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-primary:hover {
+            background: #1e293b;
+        }
+        
+        .btn-secondary {
+            width: 100%;
+            padding: 14px;
+            background: white;
+            color: #1e3a8a;
+            border: 2px solid #1e3a8a;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+        
+        .btn-secondary:hover {
+            background: #f1f5f9;
+        }
+        
+        .alert {
+            padding: 16px;
+            border-radius: 8px;
+            margin-bottom: 20px;
+        }
+        
+        .alert-success {
+            background: #dcfce7;
+            border: 2px solid #10b981;
+            color: #065f46;
+        }
+        
+        .alert-error {
+            background: #fee2e2;
+            border: 2px solid #ef4444;
+            color: #991b1b;
+        }
+        
+        .info-box {
+            background: #f1f5f9;
+            border-left: 4px solid #3b82f6;
+            padding: 16px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+        }
+        
+        .password-display {
+            background: #fef3c7;
+            border: 2px solid #f59e0b;
+            padding: 16px;
+            border-radius: 8px;
+            margin: 16px 0;
+        }
+        
+        .password-display code {
+            font-family: monospace;
+            font-size: 18px;
+            font-weight: 600;
+            color: #92400e;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #64748b;
+        }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="logo-section">
+            <h1>CELLOXEN - Super Admin</h1>
+            <p>User Management & Settings</p>
+        </div>
+        <div class="nav-buttons">
+            <a href="super_admin_portal.html" class="btn">← Back to Dashboard</a>
+            <button class="btn" onclick="handleLogout()">Logout</button>
+        </div>
+    </div>
+    
+    <div class="main-content">
+        <div class="page-header">
+            <div>
+                <h1>⚙️ Settings & User Management</h1>
+                <p style="color: #64748b; margin-top: 10px;">Manage system users and account settings</p>
+            </div>
+            <button class="btn-add" onclick="showCreateUserModal()">+ Add User</button>
+        </div>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('super-admins')">Super Admins</button>
+            <button class="tab" onclick="switchTab('clinic-admins')">Clinic Admins</button>
+        </div>
+        
+        <div id="super-admins" class="tab-content active">
+            <div class="users-table">
+                <h2 style="color: #1e3a8a; margin-bottom: 20px;">Super Admin Users</h2>
+                <div id="superAdminTable">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </div>
+        </div>
+        
+        <div id="clinic-admins" class="tab-content">
+            <div class="users-table">
+                <h2 style="color: #1e3a8a; margin-bottom: 20px;">Clinic Admin Users</h2>
+                <div id="clinicAdminTable">
+                    <div class="loading">Loading users...</div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create User Modal -->
+    <div class="modal" id="createUserModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Create New User</h2>
+                <button class="btn-close" onclick="closeCreateUserModal()">&times;</button>
+            </div>
+            
+            <div id="createUserMessage"></div>
+            
+            <form id="createUserForm" onsubmit="handleCreateUser(event)">
+                <div class="form-group">
+                    <label>User Type *</label>
+                    <select id="userType" required onchange="handleUserTypeChange()">
+                        <option value="">Select Type</option>
+                        <option value="super_admin">Super Admin</option>
+                        <option value="clinic_admin">Clinic Admin</option>
+                    </select>
+                </div>
+                
+                <div class="form-group" id="clinicSelectGroup" style="display: none;">
+                    <label>Select Clinic *</label>
+                    <select id="clinicSelect">
+                        <option value="">Loading clinics...</option>
+                    </select>
+                </div>
+                
+                <div class="form-group">
+                    <label>Email Address *</label>
+                    <input type="email" id="userEmail" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Full Name *</label>
+                    <input type="text" id="userName" required>
+                </div>
+                
+                <div class="info-box">
+                    <strong>ℹ️ Note:</strong> A secure temporary password will be automatically generated and displayed after creation.
+                </div>
+                
+                <button type="submit" class="btn-primary" id="createUserBtn">Create User</button>
+                <button type="button" class="btn-secondary" onclick="closeCreateUserModal()">Cancel</button>
+            </form>
+        </div>
+    </div>
+    
+    <!-- Reset Password Modal -->
+    <div class="modal" id="resetPasswordModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Reset Password</h2>
+                <button class="btn-close" onclick="closeResetPasswordModal()">&times;</button>
+            </div>
+            
+            <div id="resetPasswordMessage"></div>
+            
+            <div class="info-box">
+                <strong>User:</strong> <span id="resetUserEmail"></span><br>
+                <strong>Type:</strong> <span id="resetUserType"></span>
+            </div>
+            
+            <p style="margin: 20px 0;">A new secure temporary password will be generated. The user will be required to change it on next login.</p>
+            
+            <button class="btn-primary" onclick="confirmResetPassword()">Generate New Password</button>
+            <button class="btn-secondary" onclick="closeResetPasswordModal()">Cancel</button>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'https://celloxen.com/api/v1/super-admin';
+        let authToken = localStorage.getItem('superAdminToken');
+        let currentResetUser = null;
+        
+        function handleLogout() {
+            localStorage.removeItem('superAdminToken');
+            window.location.href = 'super_admin_portal.html';
+        }
+        
+        function switchTab(tabName) {
+            // Update tab buttons
+            document.querySelectorAll('.tab').forEach(tab => tab.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            // Update tab content
+            document.querySelectorAll('.tab-content').forEach(content => content.classList.remove('active'));
+            document.getElementById(tabName).classList.add('active');
+            
+            // Load data
+            if (tabName === 'super-admins') {
+                loadSuperAdmins();
+            } else {
+                loadClinicAdmins();
+            }
+        }
+        
+        async function loadSuperAdmins() {
+            try {
+                const response = await fetch(`${API_BASE}/users/super-admins`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displaySuperAdmins(data.users);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        function displaySuperAdmins(users) {
+            const table = document.getElementById('superAdminTable');
+            
+            if (users.length === 0) {
+                table.innerHTML = '<p style="text-align: center; color: #64748b; padding: 40px;">No super admin users found.</p>';
+                return;
+            }
+            
+            table.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Created</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td><strong>${user.name || 'N/A'}</strong></td>
+                                <td>${user.email}</td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                                <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn-reset" onclick="showResetPasswordModal(${user.id}, '${user.email}', 'Super Admin')">Reset Password</button>
+                                        ${user.email !== 'admin@celloxen.com' ? `<button class="btn-delete" onclick="deleteUser(${user.id}, 'super_admin')">Delete</button>` : ''}
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        async function loadClinicAdmins() {
+            try {
+                const response = await fetch(`${API_BASE}/users/clinic-admins`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    displayClinicAdmins(data.users);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        function displayClinicAdmins(users) {
+            const table = document.getElementById('clinicAdminTable');
+            
+            if (users.length === 0) {
+                table.innerHTML = '<p style="text-align: center; color: #64748b; padding: 40px;">No clinic admin users found.</p>';
+                return;
+            }
+            
+            table.innerHTML = `
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Name</th>
+                            <th>Email</th>
+                            <th>Clinic</th>
+                            <th>Created</th>
+                            <th>Last Login</th>
+                            <th>Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${users.map(user => `
+                            <tr>
+                                <td><strong>${user.name || 'N/A'}</strong></td>
+                                <td>${user.email}</td>
+                                <td>${user.clinic_name}</td>
+                                <td>${new Date(user.created_at).toLocaleDateString()}</td>
+                                <td>${user.last_login ? new Date(user.last_login).toLocaleString() : 'Never'}</td>
+                                <td>
+                                    <div class="action-btns">
+                                        <button class="btn-reset" onclick="showResetPasswordModal(${user.id}, '${user.email}', 'Clinic Admin')">Reset Password</button>
+                                        <button class="btn-delete" onclick="deleteUser(${user.id}, 'clinic_admin')">Delete</button>
+                                    </div>
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                </table>
+            `;
+        }
+        
+        async function showCreateUserModal() {
+            document.getElementById('createUserMessage').innerHTML = '';
+            document.getElementById('createUserForm').reset();
+            document.getElementById('clinicSelectGroup').style.display = 'none';
+            
+            // Load clinics for dropdown
+            await loadClinicsForSelect();
+            
+            document.getElementById('createUserModal').style.display = 'flex';
+        }
+        
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').style.display = 'none';
+        }
+        
+        async function loadClinicsForSelect() {
+            try {
+                const response = await fetch(`${API_BASE}/clinics`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    const select = document.getElementById('clinicSelect');
+                    select.innerHTML = '<option value="">Select Clinic</option>' +
+                        data.clinics.map(c => `<option value="${c.id}">${c.clinic_name}</option>`).join('');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+            }
+        }
+        
+        function handleUserTypeChange() {
+            const userType = document.getElementById('userType').value;
+            const clinicGroup = document.getElementById('clinicSelectGroup');
+            
+            if (userType === 'clinic_admin') {
+                clinicGroup.style.display = 'block';
+                document.getElementById('clinicSelect').required = true;
+            } else {
+                clinicGroup.style.display = 'none';
+                document.getElementById('clinicSelect').required = false;
+            }
+        }
+        
+        async function handleCreateUser(event) {
+            event.preventDefault();
+            
+            const btn = document.getElementById('createUserBtn');
+            const messageDiv = document.getElementById('createUserMessage');
+            
+            btn.disabled = true;
+            btn.textContent = 'Creating...';
+            messageDiv.innerHTML = '';
+            
+            const userType = document.getElementById('userType').value;
+            const email = document.getElementById('userEmail').value;
+            const name = document.getElementById('userName').value;
+            const clinicId = document.getElementById('clinicSelect').value;
+            
+            const userData = {
+                user_type: userType,
+                email: email,
+                name: name
+            };
+            
+            if (userType === 'clinic_admin' && clinicId) {
+                userData.clinic_id = parseInt(clinicId);
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/users/create`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`,
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(userData)
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ User created successfully!</strong>
+                        </div>
+                        <div class="password-display">
+                            <strong>⚠️ Temporary Password:</strong><br>
+                            <code>${data.temporary_password}</code><br>
+                            <small>Please save this password securely. It will not be shown again.</small>
+                        </div>
+                    `;
+                    
+                    document.getElementById('createUserForm').reset();
+                    
+                    setTimeout(() => {
+                        closeCreateUserModal();
+                        loadSuperAdmins();
+                        loadClinicAdmins();
+                    }, 5000);
+                } else {
+                    messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.detail || 'Failed to create user'}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                messageDiv.innerHTML = '<div class="alert alert-error">❌ Connection error. Please try again.</div>';
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Create User';
+            }
+        }
+        
+        function showResetPasswordModal(userId, email, userType) {
+            currentResetUser = { id: userId, email: email, type: userType };
+            document.getElementById('resetUserEmail').textContent = email;
+            document.getElementById('resetUserType').textContent = userType;
+            document.getElementById('resetPasswordMessage').innerHTML = '';
+            document.getElementById('resetPasswordModal').style.display = 'flex';
+        }
+        
+        function closeResetPasswordModal() {
+            document.getElementById('resetPasswordModal').style.display = 'none';
+            currentResetUser = null;
+        }
+        
+        async function confirmResetPassword() {
+            const messageDiv = document.getElementById('resetPasswordMessage');
+            
+            if (!currentResetUser) return;
+            
+            try {
+                const userType = currentResetUser.type === 'Super Admin' ? 'super_admin' : 'clinic_admin';
+                
+                const response = await fetch(`${API_BASE}/users/${currentResetUser.id}/reset-password?user_type=${userType}`, {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    messageDiv.innerHTML = `
+                        <div class="alert alert-success">
+                            <strong>✅ Password reset successfully!</strong>
+                        </div>
+                        <div class="password-display">
+                            <strong>New Temporary Password:</strong><br>
+                            <code>${data.new_password}</code><br>
+                            <small>Please save this password and share it securely with the user.</small>
+                        </div>
+                    `;
+                    
+                    setTimeout(() => {
+                        closeResetPasswordModal();
+                    }, 5000);
+                } else {
+                    messageDiv.innerHTML = `<div class="alert alert-error">❌ ${data.detail || 'Failed to reset password'}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                messageDiv.innerHTML = '<div class="alert alert-error">❌ Connection error. Please try again.</div>';
+            }
+        }
+        
+        async function deleteUser(userId, userType) {
+            if (!confirm('Are you sure you want to delete this user? This action cannot be undone.')) {
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/users/${userId}/delete?user_type=${userType}`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ User deleted successfully!');
+                    loadSuperAdmins();
+                    loadClinicAdmins();
+                } else {
+                    alert('❌ Failed to delete user: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Connection error. Please try again.');
+            }
+        }
+        
+        window.onload = function() {
+            if (!authToken) {
+                window.location.href = 'super_admin_portal.html';
+                return;
+            }
+            loadSuperAdmins();
+        };
+    </script>
+</body>
+</html>

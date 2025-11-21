@@ -1,0 +1,427 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice Details - Celloxen Super Admin</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #f9fafb;
+            min-height: 100vh;
+        }
+        
+        .top-nav {
+            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            color: white;
+            padding: 15px 30px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .logo-section h1 {
+            font-size: 24px;
+            font-weight: 700;
+        }
+        
+        .btn {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid white;
+            padding: 8px 20px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            text-decoration: none;
+        }
+        
+        .btn:hover {
+            background: white;
+            color: #1e3a8a;
+        }
+        
+        .main-content {
+            max-width: 900px;
+            margin: 30px auto;
+            padding: 0 30px;
+        }
+        
+        .invoice-container {
+            background: white;
+            border-radius: 12px;
+            padding: 50px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        
+        .invoice-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 40px;
+            padding-bottom: 30px;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .company-info h1 {
+            color: #1e3a8a;
+            font-size: 36px;
+            margin-bottom: 5px;
+        }
+        
+        .company-info p {
+            color: #64748b;
+        }
+        
+        .invoice-meta {
+            text-align: right;
+        }
+        
+        .invoice-number {
+            color: #1e3a8a;
+            font-size: 24px;
+            font-weight: 700;
+            margin-bottom: 10px;
+        }
+        
+        .badge {
+            display: inline-block;
+            padding: 6px 16px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+        
+        .badge-paid {
+            background: #dcfce7;
+            color: #10b981;
+        }
+        
+        .badge-pending {
+            background: #fef3c7;
+            color: #f59e0b;
+        }
+        
+        .badge-overdue {
+            background: #fee2e2;
+            color: #ef4444;
+        }
+        
+        .invoice-details {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 40px;
+            margin-bottom: 40px;
+        }
+        
+        .detail-section h3 {
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+        }
+        
+        .detail-section p {
+            color: #0f172a;
+            line-height: 1.6;
+        }
+        
+        .invoice-table {
+            width: 100%;
+            margin-bottom: 30px;
+        }
+        
+        .invoice-table th {
+            background: #f8fafc;
+            color: #64748b;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 12px;
+            text-align: left;
+            border-bottom: 2px solid #e2e8f0;
+        }
+        
+        .invoice-table td {
+            padding: 16px 12px;
+            border-bottom: 1px solid #f1f5f9;
+        }
+        
+        .invoice-total {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e2e8f0;
+        }
+        
+        .total-label {
+            color: #64748b;
+            font-size: 18px;
+            font-weight: 600;
+            margin-right: 40px;
+        }
+        
+        .total-amount {
+            color: #1e3a8a;
+            font-size: 32px;
+            font-weight: 700;
+        }
+        
+        .invoice-actions {
+            display: flex;
+            gap: 15px;
+            margin-top: 40px;
+            padding-top: 30px;
+            border-top: 2px solid #e2e8f0;
+        }
+        
+        .btn-action {
+            flex: 1;
+            padding: 14px;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+        
+        .btn-print {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-print:hover {
+            background: #2563eb;
+        }
+        
+        .btn-mark-paid {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-mark-paid:hover {
+            background: #059669;
+        }
+        
+        .loading {
+            text-align: center;
+            padding: 60px;
+            color: #64748b;
+        }
+        
+        @media print {
+            .top-nav, .invoice-actions, .btn {
+                display: none;
+            }
+            
+            body {
+                background: white;
+            }
+            
+            .main-content {
+                padding: 0;
+            }
+            
+            .invoice-container {
+                box-shadow: none;
+                padding: 20px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="top-nav">
+        <div class="logo-section">
+            <h1>CELLOXEN - Invoice</h1>
+        </div>
+        <a href="super_admin_invoices.html" class="btn">← Back to Invoices</a>
+    </div>
+    
+    <div class="main-content">
+        <div id="content">
+            <div class="loading">Loading invoice...</div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'https://celloxen.com/api/v1/super-admin';
+        let authToken = localStorage.getItem('superAdminToken');
+        let currentInvoice = null;
+        
+        async function loadInvoice() {
+            const urlParams = new URLSearchParams(window.location.search);
+            const invoiceId = urlParams.get('id');
+            
+            if (!invoiceId) {
+                showError('No invoice ID provided');
+                return;
+            }
+            
+            if (!authToken) {
+                window.close();
+                return;
+            }
+            
+            try {
+                const response = await fetch(`${API_BASE}/invoices/${invoiceId}`, {
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    currentInvoice = data.invoice;
+                    displayInvoice(data.invoice);
+                } else {
+                    showError(data.detail || 'Failed to load invoice');
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                showError('Connection error. Please try again.');
+            }
+        }
+        
+        function displayInvoice(invoice) {
+            const content = document.getElementById('content');
+            
+            const statusBadgeClass = `badge-${invoice.payment_status}`;
+            const issueDate = new Date(invoice.issue_date).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            });
+            const dueDate = new Date(invoice.due_date).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            });
+            const paymentDate = invoice.payment_date ? new Date(invoice.payment_date).toLocaleDateString('en-GB', {
+                day: '2-digit',
+                month: 'long',
+                year: 'numeric'
+            }) : '-';
+            
+            content.innerHTML = `
+                <div class="invoice-container">
+                    <div class="invoice-header">
+                        <div class="company-info">
+                            <h1>CELLOXEN</h1>
+                            <p>Multi-Clinic Management Platform</p>
+                        </div>
+                        <div class="invoice-meta">
+                            <div class="invoice-number">${invoice.invoice_number}</div>
+                            <span class="badge ${statusBadgeClass}">${invoice.payment_status.toUpperCase()}</span>
+                        </div>
+                    </div>
+                    
+                    <div class="invoice-details">
+                        <div class="detail-section">
+                            <h3>Bill To:</h3>
+                            <p>
+                                <strong>${invoice.clinic.name}</strong><br>
+                                ${invoice.clinic.address_line1}<br>
+                                ${invoice.clinic.city}, ${invoice.clinic.postcode}<br>
+                                ${invoice.clinic.email}<br>
+                                ${invoice.clinic.phone || ''}
+                            </p>
+                        </div>
+                        
+                        <div class="detail-section">
+                            <h3>Invoice Details:</h3>
+                            <p>
+                                <strong>Issue Date:</strong> ${issueDate}<br>
+                                <strong>Due Date:</strong> ${dueDate}<br>
+                                ${invoice.payment_date ? `<strong>Payment Date:</strong> ${paymentDate}<br>` : ''}
+                                ${invoice.billing_period ? `<strong>Billing Period:</strong> ${invoice.billing_period}<br>` : ''}
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <table class="invoice-table">
+                        <thead>
+                            <tr>
+                                <th>Description</th>
+                                <th style="text-align: right;">Amount</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>
+                                    <strong>${invoice.description || 'Subscription Fee'}</strong>
+                                    ${invoice.billing_period ? `<br><small style="color: #64748b;">Period: ${invoice.billing_period}</small>` : ''}
+                                </td>
+                                <td style="text-align: right; font-weight: 600;">£${invoice.amount.toFixed(2)}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                    
+                    <div class="invoice-total">
+                        <div class="total-label">Total Amount:</div>
+                        <div class="total-amount">£${invoice.amount.toFixed(2)}</div>
+                    </div>
+                    
+                    <div class="invoice-actions">
+                        <button class="btn-action btn-print" onclick="window.print()">🖨️ Print Invoice</button>
+                        ${invoice.payment_status === 'pending' || invoice.payment_status === 'overdue' ? 
+                            `<button class="btn-action btn-mark-paid" onclick="markAsPaid()">✓ Mark as Paid</button>` : ''}
+                    </div>
+                </div>
+            `;
+        }
+        
+        async function markAsPaid() {
+            if (!confirm('Mark this invoice as PAID?')) {
+                return;
+            }
+            
+            const invoiceId = currentInvoice.id;
+            
+            try {
+                const response = await fetch(`${API_BASE}/invoices/${invoiceId}/mark-paid`, {
+                    method: 'PUT',
+                    headers: {
+                        'Authorization': `Bearer ${authToken}`
+                    }
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    alert('✅ Invoice marked as paid!');
+                    loadInvoice();
+                } else {
+                    alert('❌ Failed to update invoice: ' + (data.detail || 'Unknown error'));
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                alert('❌ Connection error. Please try again.');
+            }
+        }
+        
+        function showError(message) {
+            const content = document.getElementById('content');
+            content.innerHTML = `
+                <div class="invoice-container">
+                    <p style="color: #ef4444; text-align: center; padding: 40px;">${message}</p>
+                    <a href="super_admin_invoices.html" class="btn" style="display: block; text-align: center;">← Back to Invoices</a>
+                </div>
+            `;
+        }
+        
+        window.onload = loadInvoice;
+    </script>
+</body>
+</html>

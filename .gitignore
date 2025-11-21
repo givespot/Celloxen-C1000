@@ -1,25 +1,30 @@
 # Python
 __pycache__/
-*.py[cod]
-*$py.class
-*.so
-.Python
+*.pyc
+*.pyo
+*.egg-info/
 venv/
 env/
+
+# Node
+node_modules/
+npm-debug.log
+
+# Logs
+*.log
+logs/
 
 # Database
 *.db
 *.sqlite
 
-# Sensitive
-DATABASE_CREDENTIALS.txt
-*.log
-*.backup*
-*_backup_*
-nohup.out
+# Environment
+.env
+*.env
 
-# Node modules
-node_modules/
+# Backups
+*.backup
+*.bak
 
 # OS
 .DS_Store
