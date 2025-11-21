@@ -1,416 +1,402 @@
+#!/usr/bin/env python3
 """
-Celloxen Health Portal - Email Service
-Handles all email communications using IONOS SMTP
+Email Service for Celloxen Patient Portal
+Handles all patient email notifications
 """
 
-import smtplib
+import os
+import asyncio
+import aiosmtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from datetime import datetime
-from typing import Optional
-import psycopg2
-from psycopg2.extras import RealDictCursor
+import asyncpg
+from dotenv import load_dotenv
 
-# IONOS SMTP Configuration
-SMTP_SERVER = "smtp.ionos.com"
-SMTP_PORT = 587
-SMTP_USERNAME = "noreply@celloxen.com"
-SMTP_PASSWORD = "Kuwait1000$$"
-FROM_EMAIL = "noreply@celloxen.com"
-FROM_NAME = "Celloxen Health"
+# Load environment variables
+load_dotenv('/var/www/.env')
 
-# Email Templates
-EMAIL_TEMPLATES = {
-    "INVITATION": {
-        "subject": "Welcome to Your Wellness Journey with Celloxen",
-        "template": """
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-        .content {{ background: #f9f9f9; padding: 30px; }}
-        .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .footer {{ background: #333; color: #fff; padding: 20px; text-align: center; font-size: 12px; border-radius: 0 0 10px 10px; }}
-        .disclaimer {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🏥 Celloxen Health</h1>
-            <h2>Welcome to Your Wellness Journey!</h2>
-        </div>
-        <div class="content">
-            <p>Dear {patient_name},</p>
-            
-            <p>Welcome to Celloxen Health! We're excited to support you on your wellness journey.</p>
-            
-            <p>To prepare for your visit, please complete your wellness profile by clicking the button below:</p>
-            
-            <div style="text-align: center;">
-                <a href="{registration_link}" class="button">Create Your Account</a>
-            </div>
-            
-            <p>This secure link will:</p>
-            <ul>
-                <li>✓ Create your personal account</li>
-                <li>✓ Guide you through a wellness questionnaire</li>
-                <li>✓ Save your information securely</li>
-            </ul>
-            
-            <p>The process takes about 15-20 minutes and can be done from any device.</p>
-            
-            <p><strong>⏰ This link expires in 7 days.</strong></p>
-            
-            <p>If you have questions, reply to this email or call us at:<br>
-            📞 {clinic_phone}</p>
-            
-            <p>Looking forward to meeting you!</p>
-            
-            <p>Warm regards,<br>
-            <strong>The Celloxen Team</strong></p>
-            
-            <div class="disclaimer">
-                <strong>⚠️ Disclaimer:</strong> This is a wellness assessment, not medical diagnosis or treatment. 
-                Please consult a qualified healthcare provider for medical advice.
-            </div>
-        </div>
-        <div class="footer">
-            <p>Celloxen Health Portal<br>
-            {clinic_address}<br>
-            © 2025 Celloxen Health. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-        """
-    },
-    
-    "ACCOUNT_CONFIRMATION": {
-        "subject": "Your Celloxen Account is Ready!",
-        "template": """
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-        .content {{ background: #f9f9f9; padding: 30px; }}
-        .info-box {{ background: white; border: 2px solid #667eea; padding: 20px; margin: 20px 0; border-radius: 5px; }}
-        .score-box {{ background: #f0f4ff; padding: 15px; margin: 10px 0; border-radius: 5px; }}
-        .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-        .footer {{ background: #333; color: #fff; padding: 20px; text-align: center; font-size: 12px; border-radius: 0 0 10px 10px; }}
-        .disclaimer {{ background: #fff3cd; border-left: 4px solid #ffc107; padding: 15px; margin: 20px 0; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>🎉 Welcome to Celloxen Health!</h1>
-        </div>
-        <div class="content">
-            <p>Dear {patient_name},</p>
-            
-            <p>Your wellness profile has been successfully created!</p>
-            
-            <div class="info-box">
-                <h3>ACCOUNT DETAILS</h3>
-                <p><strong>Username:</strong> {email}<br>
-                <strong>Portal:</strong> <a href="https://celloxen.com/patient-portal">celloxen.com/patient-portal</a></p>
-            </div>
-            
-            <div class="info-box">
-                <h3>YOUR WELLNESS SNAPSHOT</h3>
-                <p><strong>Overall Wellness Score: {overall_score}/100</strong></p>
-                <div class="score-box">
-                    <strong>Domain Scores:</strong><br>
-                    • Energy & Vitality: {energy_score}/100<br>
-                    • Pain & Mobility: {pain_score}/100<br>
-                    • Stress Management: {stress_score}/100<br>
-                    • Metabolic Balance: {metabolic_score}/100<br>
-                    • Sleep Quality: {sleep_score}/100
-                </div>
-            </div>
-            
-            <h3>WHAT'S NEXT:</h3>
-            <ol>
-                <li>We'll schedule your comprehensive assessment</li>
-                <li>You'll receive an appointment confirmation</li>
-                <li>At your visit, we'll conduct iris imaging</li>
-                <li>You'll receive a detailed wellness report</li>
-                <li>We'll create your personalized therapy plan</li>
-            </ol>
-            
-            <p>You can login to your portal anytime to:</p>
-            <ul>
-                <li>✓ View your wellness information</li>
-                <li>✓ Track your progress</li>
-                <li>✓ Communicate with us</li>
-                <li>✓ Manage appointments</li>
-            </ul>
-            
-            <div style="text-align: center;">
-                <a href="https://celloxen.com/patient-portal" class="button">Login to Your Portal</a>
-            </div>
-            
-            <p>If you have any questions before your appointment, feel free to use the chat assistant in your portal or contact us directly.</p>
-            
-            <p>Looking forward to seeing you soon!</p>
-            
-            <p>The Celloxen Team<br>
-            📞 {clinic_phone}<br>
-            📧 health@celloxen.com</p>
-            
-            <div class="disclaimer">
-                <strong>⚠️ Remember:</strong> This is a wellness assessment, not medical diagnosis or treatment.
-            </div>
-        </div>
-        <div class="footer">
-            <p>Celloxen Health Portal<br>
-            © 2025 Celloxen Health. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-        """
-    },
-    
-    "APPOINTMENT_CONFIRMATION": {
-        "subject": "Your Celloxen Appointment is Confirmed",
-        "template": """
-<!DOCTYPE html>
-<html>
-<head>
-    <style>
-        body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-        .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-        .header {{ background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-        .content {{ background: #f9f9f9; padding: 30px; }}
-        .appointment-box {{ background: white; border: 3px solid #28a745; padding: 25px; margin: 20px 0; border-radius: 10px; text-align: center; }}
-        .info-section {{ background: #e8f4f8; padding: 20px; margin: 15px 0; border-radius: 5px; }}
-        .button {{ display: inline-block; background: #667eea; color: white; padding: 15px 30px; text-decoration: none; border-radius: 5px; margin: 10px 5px; }}
-        .footer {{ background: #333; color: #fff; padding: 20px; text-align: center; font-size: 12px; border-radius: 0 0 10px 10px; }}
-    </style>
-</head>
-<body>
-    <div class="container">
-        <div class="header">
-            <h1>✅ Appointment Confirmed</h1>
-        </div>
-        <div class="content">
-            <p>Dear {patient_name},</p>
-            
-            <p>Your comprehensive wellness assessment is scheduled!</p>
-            
-            <div class="appointment-box">
-                <h2>APPOINTMENT DETAILS</h2>
-                <p style="font-size: 18px;">
-                <strong>📅 Date:</strong> {appointment_date}<br>
-                <strong>🕐 Time:</strong> {appointment_time}<br>
-                <strong>⏱️ Duration:</strong> {duration} minutes<br>
-                <strong>👤 Practitioner:</strong> {practitioner_name}<br>
-                <strong>📍 Location:</strong> {clinic_name}
-                </p>
-            </div>
-            
-            <div class="info-section">
-                <h3>ADDRESS:</h3>
-                <p>{clinic_address}</p>
-            </div>
-            
-            <div class="info-section">
-                <h3>WHAT TO EXPECT:</h3>
-                <p>During your visit, we'll:</p>
-                <ul>
-                    <li>✓ Review your wellness profile</li>
-                    <li>✓ Conduct guided assessment via our chatbot</li>
-                    <li>✓ Capture iris images for analysis</li>
-                    <li>✓ Discuss initial findings</li>
-                    <li>✓ Create your personalized therapy plan</li>
-                </ul>
-            </div>
-            
-            <div class="info-section">
-                <h3>PLEASE PREPARE:</h3>
-                <ul>
-                    <li>• Arrive 10 minutes early</li>
-                    <li>• Bring any relevant medical documents</li>
-                    <li>• Wear comfortable clothing</li>
-                    <li>• Remove contact lenses before iris imaging</li>
-                    <li>• Avoid caffeine 2 hours before appointment</li>
-                </ul>
-            </div>
-            
-            <h3>NEED TO RESCHEDULE?</h3>
-            <p>Login to your portal or call us:</p>
-            
-            <div style="text-align: center;">
-                <a href="https://celloxen.com/patient-portal" class="button">Patient Portal</a>
-                <a href="tel:{clinic_phone}" class="button" style="background: #28a745;">Call Us</a>
-            </div>
-            
-            <p style="text-align: center; margin-top: 20px;">
-            <strong>We look forward to seeing you!</strong>
-            </p>
-            
-            <p>The Celloxen Team</p>
-        </div>
-        <div class="footer">
-            <p>Celloxen Health Portal<br>
-            📞 {clinic_phone} | 📧 health@celloxen.com<br>
-            © 2025 Celloxen Health. All rights reserved.</p>
-        </div>
-    </div>
-</body>
-</html>
-        """
-    }
-}
+# SMTP Configuration from environment
+SMTP_HOST = os.getenv("SMTP_HOST", "smtp.ionos.co.uk")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USER = os.getenv("SMTP_USER", "health@celloxen.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "Kuwait1000$$")
+SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "health@celloxen.com")
+SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Celloxen Health Portal")
+
+# Database Configuration
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "celloxen_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "CelloxenSecure2025")
+DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
+
+print(f"SMTP Config: {SMTP_HOST}:{SMTP_PORT}, User: {SMTP_USER}")
 
 
-def get_db():
-    """Get database connection"""
-    return psycopg2.connect(
-        host="localhost",
-        database="celloxen_portal",
-        user="celloxen_user",
-        password="celloxen_secure_2024"
-    )
-
-
-def send_email(to_email: str, subject: str, html_content: str, email_type: str, patient_id: Optional[int] = None) -> bool:
+async def send_email(to_email: str, subject: str, html_content: str, patient_id: int = None, email_type: str = "notification"):
     """
-    Send email via IONOS SMTP
+    Send email using IONOS SMTP
     
     Args:
         to_email: Recipient email address
         subject: Email subject
         html_content: HTML email body
-        email_type: Type of email (for logging)
-        patient_id: Patient ID (for logging)
+        patient_id: Patient ID for logging
+        email_type: Type of email (welcome, password_reset, report_ready, etc.)
     
     Returns:
-        bool: True if sent successfully, False otherwise
+        bool: True if sent successfully
     """
     try:
         # Create message
-        msg = MIMEMultipart('alternative')
-        msg['From'] = f"{FROM_NAME} <{FROM_EMAIL}>"
-        msg['To'] = to_email
-        msg['Subject'] = subject
+        message = MIMEMultipart("alternative")
+        message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM_EMAIL}>"
+        message["To"] = to_email
+        message["Subject"] = subject
         
         # Attach HTML content
-        html_part = MIMEText(html_content, 'html')
-        msg.attach(html_part)
+        html_part = MIMEText(html_content, "html")
+        message.attach(html_part)
         
-        # Connect to SMTP server
-        server = smtplib.SMTP(SMTP_SERVER, SMTP_PORT)
-        server.starttls()
-        server.login(SMTP_USERNAME, SMTP_PASSWORD)
+        print(f"Attempting to send email to {to_email} via {SMTP_HOST}:{SMTP_PORT}")
         
-        # Send email
-        server.send_message(msg)
-        server.quit()
+        # Send via IONOS SMTP
+        await aiosmtplib.send(
+            message,
+            hostname=SMTP_HOST,
+            port=SMTP_PORT,
+            username=SMTP_USER,
+            password=SMTP_PASSWORD,
+            start_tls=True,
+            timeout=30
+        )
         
-        # Log successful send
-        log_email(patient_id, email_type, to_email, subject, 'SENT')
+        # Log success
+        await log_email(patient_id, email_type, to_email, subject, "SENT")
         
+        print(f"✅ Email sent to {to_email}: {subject}")
         return True
         
     except Exception as e:
-        # Log failed send
-        log_email(patient_id, email_type, to_email, subject, 'FAILED', str(e))
-        print(f"Email send failed: {e}")
+        print(f"❌ Email send failed to {to_email}: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        await log_email(patient_id, email_type, to_email, subject, "FAILED", str(e))
         return False
 
 
-def log_email(patient_id: Optional[int], email_type: str, sent_to_email: str, subject: str, status: str, error_message: Optional[str] = None):
+async def log_email(patient_id: int, email_type: str, sent_to: str, subject: str, status: str, error: str = None):
     """Log email to database"""
     try:
-        conn = get_db()
-        cur = conn.cursor()
+        conn = await asyncpg.connect(
+            host=DB_HOST,
+            port=int(DB_PORT),
+            user=DB_USER,
+            password=DB_PASSWORD,
+            database=DB_NAME
+        )
         
-        cur.execute("""
-            INSERT INTO email_logs 
-            (patient_id, email_type, sent_to_email, subject, status, sent_at, error_message)
-            VALUES (%s, %s, %s, %s, %s, %s, %s)
-        """, (patient_id, email_type, sent_to_email, subject, status, datetime.now(), error_message))
+        await conn.execute("""
+            INSERT INTO email_logs (patient_id, email_type, sent_to_email, subject, status, error_message)
+            VALUES ($1, $2, $3, $4, $5, $6)
+        """, patient_id, email_type, sent_to, subject, status, error)
         
-        conn.commit()
-        cur.close()
-        conn.close()
-        
+        await conn.close()
     except Exception as e:
-        print(f"Email logging failed: {e}")
+        print(f"Email log error: {str(e)}")
 
 
-def send_invitation_email(patient_id: int, patient_name: str, email: str, registration_token: str, clinic_phone: str = "01224 123456", clinic_address: str = "Aberdeen Wellness Centre") -> bool:
-    """Send invitation email to patient"""
+# ============================================================================
+# EMAIL TEMPLATES
+# ============================================================================
+
+def get_email_base_template(content: str) -> str:
+    """Base email template with Celloxen branding"""
+    return f"""
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <style>
+        body {{
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Arial, sans-serif;
+            background-color: #f1f5f9;
+            margin: 0;
+            padding: 20px;
+        }}
+        .container {{
+            max-width: 600px;
+            margin: 0 auto;
+            background: #ffffff;
+            border-radius: 12px;
+            overflow: hidden;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            background: linear-gradient(135deg, #1e3a5f 0%, #2c5282 100%);
+            color: white;
+            padding: 30px;
+            text-align: center;
+        }}
+        .header h1 {{
+            margin: 0;
+            font-size: 24px;
+            font-weight: 700;
+        }}
+        .content {{
+            padding: 30px;
+            color: #334155;
+            line-height: 1.6;
+        }}
+        .button {{
+            display: inline-block;
+            background: #1e3a5f;
+            color: white !important;
+            padding: 14px 28px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 20px 0;
+        }}
+        .footer {{
+            background: #f8fafc;
+            padding: 20px 30px;
+            text-align: center;
+            color: #64748b;
+            font-size: 12px;
+        }}
+        .info-box {{
+            background: #e0f2fe;
+            border-left: 4px solid #0284c7;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 4px;
+        }}
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔬 Celloxen Health Portal</h1>
+        </div>
+        <div class="content">
+            {content}
+        </div>
+        <div class="footer">
+            <p><strong>Aberdeen Wellness Centre</strong></p>
+            <p>This is an automated email from Celloxen Health Portal. Please do not reply to this email.</p>
+            <p style="margin-top: 15px;">Need help? Contact us at <a href="mailto:health@celloxen.com">health@celloxen.com</a></p>
+        </div>
+    </div>
+</body>
+</html>
+    """
+
+
+async def send_welcome_email(patient_email: str, patient_name: str, patient_id: int, temporary_password: str = None):
+    """Send welcome email to new patient"""
+    content = f"""
+        <h2>Welcome to Celloxen Health Portal! 👋</h2>
+        <p>Dear {patient_name},</p>
+        <p>Your patient account has been created at Aberdeen Wellness Centre. You can now access your health reports and appointments online.</p>
+        
+        <div class="info-box">
+            <strong>Your Login Details:</strong><br>
+            Email: {patient_email}<br>
+            {"Password: " + temporary_password if temporary_password else "Password: (Set by staff)"}
+        </div>
+        
+        <p style="text-align: center;">
+            <a href="http://celloxen.com/patient_portal.html" class="button">Access Patient Portal</a>
+        </p>
+        
+        <p><strong>What you can do:</strong></p>
+        <ul>
+            <li>View your iridology analysis reports</li>
+            <li>Check upcoming appointments</li>
+            <li>Update your profile information</li>
+            <li>Change your password</li>
+        </ul>
+        
+        <p>If you have any questions, please contact our office.</p>
+        <p>Best regards,<br><strong>Aberdeen Wellness Centre Team</strong></p>
+    """
     
-    registration_link = f"https://celloxen.com/register/{registration_token}"
+    html = get_email_base_template(content)
+    subject = "Welcome to Celloxen Health Portal"
     
-    html_content = EMAIL_TEMPLATES["INVITATION"]["template"].format(
-        patient_name=patient_name,
-        registration_link=registration_link,
-        clinic_phone=clinic_phone,
-        clinic_address=clinic_address
-    )
-    
-    return send_email(
-        to_email=email,
-        subject=EMAIL_TEMPLATES["INVITATION"]["subject"],
-        html_content=html_content,
-        email_type="INVITATION",
-        patient_id=patient_id
-    )
+    return await send_email(patient_email, subject, html, patient_id, "welcome")
 
 
-def send_account_confirmation_email(patient_id: int, patient_name: str, email: str, wellness_scores: dict, clinic_phone: str = "01224 123456") -> bool:
-    """Send account confirmation email"""
+async def send_password_reset_email(patient_email: str, patient_name: str, patient_id: int, reset_token: str):
+    """Send password reset email"""
+    reset_link = f"http://celloxen.com/patient_portal.html?reset_token={reset_token}"
     
-    html_content = EMAIL_TEMPLATES["ACCOUNT_CONFIRMATION"]["template"].format(
-        patient_name=patient_name,
-        email=email,
-        overall_score=wellness_scores.get('overall', 0),
-        energy_score=wellness_scores.get('energy_vitality', 0),
-        pain_score=wellness_scores.get('pain_mobility', 0),
-        stress_score=wellness_scores.get('stress_management', 0),
-        metabolic_score=wellness_scores.get('metabolic_balance', 0),
-        sleep_score=wellness_scores.get('sleep_quality', 0),
-        clinic_phone=clinic_phone
-    )
+    content = f"""
+        <h2>Password Reset Request 🔒</h2>
+        <p>Dear {patient_name},</p>
+        <p>We received a request to reset your password for your Celloxen patient account.</p>
+        
+        <p style="text-align: center;">
+            <a href="{reset_link}" class="button">Reset Your Password</a>
+        </p>
+        
+        <div class="info-box">
+            <strong>⏰ This link will expire in 1 hour</strong><br>
+            For your security, please reset your password as soon as possible.
+        </div>
+        
+        <p><strong>If you didn't request this:</strong><br>
+        If you didn't request a password reset, please ignore this email or contact us if you have concerns.</p>
+        
+        <p>Best regards,<br><strong>Aberdeen Wellness Centre Team</strong></p>
+    """
     
-    return send_email(
-        to_email=email,
-        subject=EMAIL_TEMPLATES["ACCOUNT_CONFIRMATION"]["subject"],
-        html_content=html_content,
-        email_type="ACCOUNT_CONFIRMATION",
-        patient_id=patient_id
-    )
+    html = get_email_base_template(content)
+    subject = "Password Reset - Celloxen Health Portal"
+    
+    return await send_email(patient_email, subject, html, patient_id, "password_reset")
 
 
-def send_appointment_confirmation_email(patient_id: int, patient_name: str, email: str, appointment_details: dict) -> bool:
+async def send_report_ready_email(patient_email: str, patient_name: str, patient_id: int, report_number: str):
+    """Send notification when new report is ready"""
+    portal_link = "http://celloxen.com/patient_portal.html"
+    
+    content = f"""
+        <h2>New Report Available 📄</h2>
+        <p>Dear {patient_name},</p>
+        <p>Good news! Your iridology analysis report is now ready to view.</p>
+        
+        <div class="info-box">
+            <strong>Report Details:</strong><br>
+            Report Number: {report_number}<br>
+            Date: {datetime.now().strftime('%d %B %Y')}
+        </div>
+        
+        <p style="text-align: center;">
+            <a href="{portal_link}" class="button">View Your Report</a>
+        </p>
+        
+        <p><strong>What's in your report:</strong></p>
+        <ul>
+            <li>Complete iridology analysis</li>
+            <li>Constitutional type assessment</li>
+            <li>Detailed findings and recommendations</li>
+            <li>Downloadable PDF version</li>
+        </ul>
+        
+        <p>Log in to your patient portal to view your complete report and analysis.</p>
+        <p>Best regards,<br><strong>Aberdeen Wellness Centre Team</strong></p>
+    """
+    
+    html = get_email_base_template(content)
+    subject = f"Your Report is Ready - {report_number}"
+    
+    return await send_email(patient_email, subject, html, patient_id, "report_ready")
+
+
+async def send_appointment_reminder_email(patient_email: str, patient_name: str, patient_id: int, 
+                                         appointment_date: str, appointment_time: str, practitioner_name: str):
+    """Send appointment reminder email"""
+    content = f"""
+        <h2>Appointment Reminder 📅</h2>
+        <p>Dear {patient_name},</p>
+        <p>This is a friendly reminder about your upcoming appointment at Aberdeen Wellness Centre.</p>
+        
+        <div class="info-box">
+            <strong>Appointment Details:</strong><br>
+            Date: {appointment_date}<br>
+            Time: {appointment_time}<br>
+            Practitioner: {practitioner_name}<br>
+            Location: Aberdeen Wellness Centre
+        </div>
+        
+        <p><strong>Please remember:</strong></p>
+        <ul>
+            <li>Arrive 10 minutes early</li>
+            <li>Bring any relevant medical records</li>
+            <li>Contact us if you need to reschedule</li>
+        </ul>
+        
+        <p style="text-align: center;">
+            <a href="http://celloxen.com/patient_portal.html" class="button">View in Portal</a>
+        </p>
+        
+        <p>We look forward to seeing you!</p>
+        <p>Best regards,<br><strong>Aberdeen Wellness Centre Team</strong></p>
+    """
+    
+    html = get_email_base_template(content)
+    subject = f"Appointment Reminder - {appointment_date}"
+    
+    return await send_email(patient_email, subject, html, patient_id, "appointment_reminder")
+
+
+async def send_appointment_confirmation_email(patient_email: str, patient_name: str, patient_id: int,
+                                              appointment_date: str, appointment_time: str, appointment_type: str):
     """Send appointment confirmation email"""
+    content = f"""
+        <h2>Appointment Confirmed ✅</h2>
+        <p>Dear {patient_name},</p>
+        <p>Your appointment at Aberdeen Wellness Centre has been confirmed!</p>
+        
+        <div class="info-box">
+            <strong>Appointment Details:</strong><br>
+            Date: {appointment_date}<br>
+            Time: {appointment_time}<br>
+            Type: {appointment_type}<br>
+            Location: Aberdeen Wellness Centre
+        </div>
+        
+        <p style="text-align: center;">
+            <a href="http://celloxen.com/patient_portal.html" class="button">Manage Appointments</a>
+        </p>
+        
+        <p><strong>What to expect:</strong></p>
+        <ul>
+            <li>Comprehensive health assessment</li>
+            <li>Professional iridology analysis</li>
+            <li>Personalized recommendations</li>
+        </ul>
+        
+        <p>Need to reschedule? Contact us or use the patient portal.</p>
+        <p>Best regards,<br><strong>Aberdeen Wellness Centre Team</strong></p>
+    """
     
-    html_content = EMAIL_TEMPLATES["APPOINTMENT_CONFIRMATION"]["template"].format(
-        patient_name=patient_name,
-        appointment_date=appointment_details.get('date', ''),
-        appointment_time=appointment_details.get('time', ''),
-        duration=appointment_details.get('duration', '60'),
-        practitioner_name=appointment_details.get('practitioner', 'Our Practitioner'),
-        clinic_name=appointment_details.get('clinic_name', 'Celloxen Wellness Centre'),
-        clinic_address=appointment_details.get('clinic_address', ''),
-        clinic_phone=appointment_details.get('clinic_phone', '01224 123456')
+    html = get_email_base_template(content)
+    subject = "Appointment Confirmed"
+    
+    return await send_email(patient_email, subject, html, patient_id, "appointment_confirmation")
+
+
+# Test function
+async def test_email_system():
+    """Test the email system"""
+    # Use a real email address for testing
+    test_email = input("Enter test email address (or press Enter for default): ").strip()
+    if not test_email:
+        test_email = "abidkhan484@gmail.com"  # Change this to your email
+    
+    print(f"\nSending test email to: {test_email}")
+    
+    result = await send_welcome_email(
+        test_email,
+        "Test Patient",
+        22,
+        "TestPassword123!"
     )
     
-    return send_email(
-        to_email=email,
-        subject=EMAIL_TEMPLATES["APPOINTMENT_CONFIRMATION"]["subject"],
-        html_content=html_content,
-        email_type="APPOINTMENT_CONFIRMATION",
-        patient_id=patient_id
-    )
+    if result:
+        print("\n✅ Email system test successful!")
+        print(f"Check {test_email} for the welcome email")
+    else:
+        print("\n❌ Email system test failed!")
+    
+    return result
+
+
+if __name__ == "__main__":
+    # Test the email system
+    asyncio.run(test_email_system())

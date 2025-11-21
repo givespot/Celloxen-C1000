@@ -9,6 +9,9 @@ from datetime import datetime
 import json
 from contextlib import asynccontextmanager
 import os
+from dotenv import load_dotenv
+load_dotenv()  # Load environment variables from .env file
+
 from ai_iridology_analyzer import AIIridologyAnalyzer
 from new_assessment_module import router as new_assessment_router
 from enhanced_dashboard_api import router as dashboard_router
@@ -25,6 +28,13 @@ from celloxen_assessment_system import (
 
 # Initialize AI analyzer and report generator
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Database configuration from environment variables
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "celloxen_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
+
 ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 # Database connection context manager
@@ -32,11 +42,7 @@ ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else N
 async def get_db_connection():
     """Context manager for database connections"""
     conn = await asyncpg.connect(
-        host="localhost",
-        port=5432,
-        user="celloxen_user",
-        password="CelloxenSecure2025",
-        database="celloxen_portal"
+        host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
     )
     try:
         yield conn
@@ -45,6 +51,25 @@ async def get_db_connection():
 
 
 # Database connection context manager
+
+def convert_date_string(date_str):
+    """Convert date string to date object"""
+    from datetime import date
+    if date_str is None or isinstance(date_str, date):
+        return date_str
+    if isinstance(date_str, str):
+        try:
+            if '-' in date_str:
+                year, month, day = date_str.split('-')
+            elif '/' in date_str:
+                day, month, year = date_str.split('/')
+            else:
+                return None
+            return date(int(year), int(month), int(day))
+        except:
+            return None
+    return None
+
 app = FastAPI()
 
 # Include patient portal router
@@ -62,6 +87,13 @@ app.add_middleware(
 
 # Initialize AI analyzer and report generator
 ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
+# Database configuration from environment variables
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "celloxen_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD")
+DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
+
 ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 # Database connection context manager
@@ -75,8 +107,7 @@ async def login(user_credentials: dict):
             raise HTTPException(status_code=400, detail="Email and password required")
         
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         user = await conn.fetchrow("SELECT * FROM users WHERE email = $1", email)
@@ -116,18 +147,32 @@ async def get_current_user():
 async def get_patient_stats():
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         total_patients = await conn.fetchval("SELECT COUNT(*) FROM patients")
+        new_this_month = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM patients 
+            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            """
+        )
+        assessments_completed = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM comprehensive_assessments 
+            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            """
+        )
         await conn.close()
-        
         return {
             "total_patients": total_patients,
             "active_patients": total_patients,
-            "new_this_month": 0,
-            "assessments_completed": 0
+            "new_this_month": new_this_month,
+            "assessments_completed": assessments_completed
         }
+    except Exception as e:
+        print(f"Error in patient stats: {str(e)}")
+        return {"total_patients": 0, "active_patients": 0, "new_this_month": 0, "assessments_completed": 0}
+
     except Exception as e:
         return {"total_patients": 1, "active_patients": 1, "new_this_month": 0, "assessments_completed": 0}
 
@@ -135,8 +180,7 @@ async def get_patient_stats():
 async def get_clinic_patients():
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         patients = await conn.fetch("""
             SELECT p.*, c.name as clinic_name 
@@ -155,8 +199,7 @@ async def get_patient(patient_id: int):
     """Get a single patient with all details"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get patient data
@@ -230,8 +273,7 @@ async def update_patient(patient_id: int, patient_data: dict):
     """Update a patient's information"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Parse date of birth if provided
@@ -308,8 +350,7 @@ async def delete_patient(patient_id: int):
     """Delete a patient (soft delete by setting status to deleted)"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Check if patient exists
@@ -346,8 +387,7 @@ async def create_patient(patient_data: dict):
     print("🔍 DEBUG: Received patient_data:", patient_data)
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get clinic_id (default to 1 if not provided)
@@ -415,8 +455,7 @@ async def create_patient(patient_data: dict):
 async def update_patient(patient_id: int, patient_data: dict):
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Convert date if provided
@@ -456,8 +495,7 @@ async def update_patient(patient_id: int, patient_data: dict):
 async def delete_patient(patient_id: int):
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         await conn.execute("DELETE FROM patients WHERE id = $1", patient_id)
@@ -475,8 +513,7 @@ async def delete_patient(patient_id: int):
 async def get_patient(patient_id: int):
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user", 
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         patient = await conn.fetchrow("""
@@ -544,8 +581,7 @@ async def create_comprehensive_assessment(assessment_data: dict):  # TODO: Conve
         
         # Connect to database
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Verify patient exists
@@ -641,8 +677,7 @@ async def get_patient_assessments(patient_id: int):
     """Get all assessments for a specific patient"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Verify patient exists
@@ -687,8 +722,7 @@ async def get_assessment_details(assessment_id: int):
     try:
         import json
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get assessment with patient info
@@ -760,11 +794,8 @@ async def get_appointments_stats():
     """Get appointment statistics for the clinic"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get various stats
         total = await conn.fetchval("SELECT COUNT(*) FROM appointments")
         today = await conn.fetchval(
             "SELECT COUNT(*) FROM appointments WHERE appointment_date = CURRENT_DATE"
@@ -772,25 +803,35 @@ async def get_appointments_stats():
         scheduled = await conn.fetchval(
             "SELECT COUNT(*) FROM appointments WHERE status = 'SCHEDULED'"
         )
-        completed = await conn.fetchval(
-            "SELECT COUNT(*) FROM appointments WHERE status = 'COMPLETED'"
+        this_week = await conn.fetchval(
+            """
+            SELECT COUNT(*) FROM appointments 
+            WHERE appointment_date >= date_trunc('week', CURRENT_DATE)
+            AND appointment_date < date_trunc('week', CURRENT_DATE) + interval '7 days'
+            """
         )
-        
         await conn.close()
         
         return {
-            "total_appointments": total,
-            "today_appointments": today,
-            "scheduled_appointments": scheduled,
-            "completed_appointments": completed
+            "success": True,
+            "stats": {
+                "total": total,
+                "today": today,
+                "this_week": this_week,
+                "scheduled": scheduled,
+                "by_status": {
+                    "SCHEDULED": scheduled
+                }
+            }
         }
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
-        print(f"❌ ERROR type: {type(e)}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error in stats: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
+@app.get("/api/v1/appointments/stats/overview")
+async def get_appointments_stats_overview():
+    """Alias for appointments stats"""
+    return await get_appointments_stats()
 
 @app.get("/api/v1/appointments")
 async def get_appointments(
@@ -801,8 +842,7 @@ async def get_appointments(
     """Get all appointments with optional filters"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         query = """
@@ -855,8 +895,7 @@ async def create_appointment(appointment: AppointmentCreate):
     """Create a new appointment - Now with automatic type validation!"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
 
         # Generate appointment number
@@ -909,8 +948,7 @@ async def get_appointment(appointment_id: int):
     """Get a specific appointment by ID"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         appointment = await conn.fetchrow(
@@ -951,8 +989,7 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
     """Update an existing appointment"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Check if appointment exists
@@ -1011,8 +1048,7 @@ async def delete_appointment(appointment_id: int):
     """Delete an appointment"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Check if appointment exists
@@ -1049,8 +1085,7 @@ async def cancel_appointment(appointment_id: int, cancel_data: dict):
     """Cancel an appointment"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Update appointment status to cancelled
@@ -1084,8 +1119,7 @@ async def get_calendar_appointments(year: int, month: int):
     """Get appointments for a specific month (calendar view)"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         appointments = await conn.fetch(
@@ -1131,8 +1165,7 @@ async def get_therapy_plans_stats():
     """Get therapy plans statistics"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         total = await conn.fetchval("SELECT COUNT(*) FROM therapy_plans")
@@ -1167,8 +1200,7 @@ async def get_therapy_plans(status: str = None, patient_id: int = None):
     """Get all therapy plans with optional filters"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         query = """
@@ -1217,8 +1249,7 @@ async def get_therapy_plan(plan_id: int):
     """Get a specific therapy plan with items"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get plan details
@@ -1276,8 +1307,7 @@ async def create_therapy_plan(plan_data: dict):
         from datetime import datetime
         
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Generate plan number
@@ -1342,8 +1372,7 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
     """Update therapy plan status"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         await conn.execute(
@@ -1379,8 +1408,7 @@ async def get_reports_overview():
     """Get overall system statistics"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get counts
@@ -1460,8 +1488,7 @@ async def get_patient_activity():
     """Get patient activity report"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Patient activity with assessment and appointment counts
@@ -1504,8 +1531,7 @@ async def get_wellness_trends():
     """Get wellness score trends over time"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Monthly wellness trends
@@ -1593,8 +1619,7 @@ async def get_patient_assessment_overview(patient_id: int, authorization: str = 
             raise HTTPException(status_code=401, detail="Missing or invalid token")
         
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get latest assessment
@@ -1944,11 +1969,7 @@ async def get_patient_assessment_dashboard(
     """Get complete assessment dashboard data for a patient"""
     try:
         conn = await asyncpg.connect(
-            host="localhost",
-            port=5432,
-            user="celloxen_user",
-            password="CelloxenSecure2025",
-            database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         # Get patient info
@@ -2066,8 +2087,7 @@ async def start_iridology_analysis(
     try:
         # Create database connection
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         try:
@@ -2144,8 +2164,7 @@ async def upload_iris_images(
     
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         try:
@@ -2158,14 +2177,12 @@ async def upload_iris_images(
                     capture_method = $3,
                     status = 'pending',
                     updated_at = NOW()
-                WHERE id = $4 AND practitioner_id = $5
+                WHERE id = $4
                 """,
                 left_eye_image,
                 right_eye_image,
                 capture_method,
-                analysis_id,
-                current_user["id"]
-            )
+                analysis_id)
             
             return {
                 "success": True,
@@ -2191,8 +2208,7 @@ async def analyse_iris_images(
     
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         try:
@@ -2202,10 +2218,9 @@ async def analyse_iris_images(
                 SELECT ia.*, p.first_name, p.last_name, p.date_of_birth, p.gender
                 FROM iridology_analyses ia
                 JOIN patients p ON ia.patient_id = p.id
-                WHERE ia.id = $1 AND ia.practitioner_id = $2
+                WHERE ia.id = $1
                 """,
                 analysis_id,
-                current_user["id"]
             )
             
             if not analysis:
@@ -2341,8 +2356,7 @@ async def analyse_iris_images(
         # Mark as failed
         try:
             conn2 = await asyncpg.connect(
-                host="localhost", port=5432, user="celloxen_user",
-                password="CelloxenSecure2025", database="celloxen_portal"
+                host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
             )
             await conn2.execute(
                 """
@@ -2370,8 +2384,7 @@ async def get_iridology_results(
     
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         try:
@@ -2381,11 +2394,9 @@ async def get_iridology_results(
                 SELECT ia.*, p.first_name, p.last_name, p.patient_number
                 FROM iridology_analyses ia
                 JOIN patients p ON ia.patient_id = p.id
-                WHERE ia.id = $1 AND ia.practitioner_id = $2
+                WHERE ia.id = $1
                 """,
-                analysis_id,
-                current_user["id"]
-            )
+                analysis_id)
             
             if not analysis:
                 raise HTTPException(status_code=404, detail="Analysis not found")
@@ -2402,14 +2413,14 @@ async def get_iridology_results(
             
             return {
                 "success": True,
+                "patient": {
+                    "first_name": analysis["first_name"],
+                    "last_name": analysis["last_name"],
+                    "patient_number": analysis["patient_number"]
+                },
                 "analysis": {
                     "id": analysis["id"],
                     "analysis_number": analysis["analysis_number"],
-                    "patient": {
-                        "first_name": analysis["first_name"],
-                        "last_name": analysis["last_name"],
-                        "patient_number": analysis["patient_number"]
-                    },
                     "constitutional_type": analysis["constitutional_type"],
                     "constitutional_strength": analysis["constitutional_strength"],
                     "confidence_score": float(analysis["ai_confidence_score"]) if analysis["ai_confidence_score"] else 0,
@@ -2473,8 +2484,7 @@ async def view_iridology_report(
     """View iridology analysis report in browser"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         
         try:
@@ -2485,8 +2495,8 @@ async def view_iridology_report(
                     p.first_name, p.last_name, p.patient_number, p.date_of_birth
                 FROM iridology_analyses ia
                 JOIN patients p ON ia.patient_id = p.id
-                WHERE ia.id = $1 AND ia.practitioner_id = $2
-            """, analysis_id, current_user["id"])
+                WHERE ia.id = $1
+            """, analysis_id)
             
             if not analysis:
                 raise HTTPException(status_code=404, detail="Analysis not found")
@@ -2526,8 +2536,7 @@ async def get_recent_iridology_analyses(
     """Get recent iridology analyses for current practitioner"""
     try:
         conn = await asyncpg.connect(
-            host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
 
         try:
@@ -2569,3 +2578,744 @@ async def get_recent_iridology_analyses(
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# PATIENT APPOINTMENT BOOKING
+# ============================================================================
+
+@app.get("/api/v1/patient/available-slots")
+async def get_available_appointment_slots(
+    date: str = None,
+    authorization: str = Header(None)
+):
+    """Get available appointment slots for booking - PATIENT ACCESS"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No authorization token")
+    
+    try:
+        # Extract patient_id from JWT token
+        import jwt
+        token = authorization.replace("Bearer ", "")
+        
+        try:
+            # Decode JWT token
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            patient_id = int(decoded.get("sub"))
+        except:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get clinic_id from patient record
+        conn_temp = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        patient_info = await conn_temp.fetchrow(
+            "SELECT clinic_id FROM patients WHERE id = $1", patient_id
+        )
+        
+        await conn_temp.close()
+        
+        if not patient_info:
+            raise HTTPException(status_code=403, detail="Patient not found")
+        
+        clinic_id = patient_info['clinic_id']
+        
+        from datetime import datetime, timedelta
+        
+        # Default to next 7 days if no date specified
+        if not date:
+            start_date = datetime.now().date()
+        else:
+            start_date = datetime.strptime(date, '%Y-%m-%d').date()
+        
+        end_date = start_date + timedelta(days=7)
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Get practitioners from this clinic
+        practitioners = await conn.fetch("""
+            SELECT id, full_name FROM users 
+            WHERE clinic_id = $1 
+            AND role IN ('clinic_admin', 'clinic_user')
+            AND status = 'active'
+        """, clinic_id)
+        
+        # Generate available slots (9 AM to 5 PM, hourly)
+        available_slots = []
+        current_date = start_date
+        
+        while current_date <= end_date:
+            # Skip weekends (optional)
+            if current_date.weekday() < 5:  # Monday = 0, Friday = 4
+                for hour in range(9, 17):  # 9 AM to 5 PM
+                    from datetime import time as dt_time
+                    time_slot = dt_time(hour, 0, 0)  # Create proper time object
+                    time_slot_str = f"{hour:02d}:00:00"
+                    
+                    # Check if slot is already booked
+                    existing = await conn.fetchval("""
+                        SELECT COUNT(*) FROM appointments
+                        WHERE appointment_date = $1
+                        AND appointment_time = $2
+                        AND clinic_id = $3
+                        AND status != 'CANCELLED'
+                    """, current_date, time_slot, clinic_id)
+                    
+                    if existing == 0:
+                        available_slots.append({
+                            "date": str(current_date),
+                            "time": time_slot_str,
+                            "available": True
+                        })
+            
+            current_date += timedelta(days=1)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "practitioners": [{"id": p['id'], "name": p['full_name']} for p in practitioners],
+            "available_slots": available_slots[:20]  # Limit to 20 slots
+        }
+        
+    except Exception as e:
+        print(f"Available slots error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get available slots")
+
+
+@app.post("/api/v1/patient/book-appointment")
+async def book_patient_appointment(data: dict, authorization: str = Header(None)):
+    """Book appointment - PATIENT SELF-BOOKING"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No authorization token")
+    
+    try:
+        # Extract patient info from token
+        # Extract patient_id from JWT token
+        import jwt
+        token = authorization.replace("Bearer ", "")
+        
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            patient_id = int(decoded.get("sub"))
+        except:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get clinic_id from patient record
+        conn_temp = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        patient_info = await conn_temp.fetchrow(
+            "SELECT clinic_id FROM patients WHERE id = $1", patient_id
+        )
+        
+        await conn_temp.close()
+        
+        if not patient_info:
+            raise HTTPException(status_code=403, detail="Patient not found")
+        
+        clinic_id = patient_info['clinic_id']
+        
+        appointment_date = data.get("appointment_date")
+        appointment_time = data.get("appointment_time")
+        appointment_type = data.get("appointment_type", "CONSULTATION")
+        notes = data.get("notes", "")
+        
+        if not appointment_date or not appointment_time:
+            raise HTTPException(status_code=400, detail="Date and time required")
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Verify patient exists and get info
+        patient = await conn.fetchrow("""
+            SELECT id, first_name, last_name, email, clinic_id
+            FROM patients
+            WHERE id = $1 AND clinic_id = $2
+        """, patient_id, clinic_id)
+        
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=403, detail="Access denied")
+        
+        # Check if slot is still available
+        existing = await conn.fetchval("""
+            SELECT COUNT(*) FROM appointments
+            WHERE appointment_date = $1
+            AND appointment_time = $2
+            AND clinic_id = $3
+            AND status != 'CANCELLED'
+        """, appointment_date, appointment_time, clinic_id)
+        
+        if existing > 0:
+            await conn.close()
+            raise HTTPException(status_code=409, detail="Time slot no longer available")
+        
+        # Get a practitioner from the clinic (or let them choose)
+        practitioner_id = data.get("practitioner_id")
+        if not practitioner_id:
+            practitioner = await conn.fetchrow("""
+                SELECT id FROM users
+                WHERE clinic_id = $1
+                AND role IN ('clinic_admin', 'clinic_user')
+                AND status = 'active'
+                LIMIT 1
+            """, clinic_id)
+            practitioner_id = practitioner['id'] if practitioner else None
+        
+        # Create appointment with PENDING status (requires clinic confirmation)
+        appointment = await conn.fetchrow("""
+            INSERT INTO appointments (
+                patient_id, clinic_id, practitioner_id,
+                appointment_date, appointment_time, appointment_type,
+                duration_minutes, status, notes, created_at
+            ) VALUES ($1, $2, $3, $4, $5, $6, 60, 'PENDING', $7, NOW())
+            RETURNING id, appointment_date, appointment_time, appointment_type
+        """, patient_id, clinic_id, practitioner_id, 
+            appointment_date, appointment_time, appointment_type, notes)
+        
+        await conn.close()
+        
+        # Send confirmation email
+        patient_name = f"{patient['first_name']} {patient['last_name']}"
+        if patient['email']:
+            from datetime import datetime
+            formatted_date = datetime.strptime(appointment_date, '%Y-%m-%d').strftime('%A, %d %B %Y')
+            
+            await email_service.send_appointment_confirmation_email(
+                patient['email'],
+                patient_name,
+                patient_id,
+                formatted_date,
+                appointment_time,
+                appointment_type
+            )
+        
+        return {
+            "success": True,
+            "message": "Appointment request sent! Awaiting clinic confirmation.",
+            "appointment": {
+                "id": appointment['id'],
+                "date": str(appointment['appointment_date']),
+                "time": str(appointment['appointment_time']),
+                "type": appointment['appointment_type'],
+                "status": "PENDING"
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Appointment booking error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to book appointment")
+
+
+@app.delete("/api/v1/patient/appointments/{appointment_id}")
+async def cancel_patient_appointment(appointment_id: int, authorization: str = Header(None)):
+    """Cancel appointment - PATIENT ACCESS"""
+    if not authorization:
+        raise HTTPException(status_code=401, detail="No authorization token")
+    
+    try:
+        # Extract patient_id from JWT token
+        import jwt
+        token = authorization.replace("Bearer ", "")
+        
+        try:
+            decoded = jwt.decode(token, options={"verify_signature": False})
+            patient_id = int(decoded.get("sub"))
+        except:
+            raise HTTPException(status_code=401, detail="Invalid token")
+        
+        # Get clinic_id from patient record
+        conn_temp = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        patient_info = await conn_temp.fetchrow(
+            "SELECT clinic_id FROM patients WHERE id = $1", patient_id
+        )
+        
+        await conn_temp.close()
+        
+        if not patient_info:
+            raise HTTPException(status_code=403, detail="Patient not found")
+        
+        clinic_id = patient_info['clinic_id']
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Verify this appointment belongs to this patient
+        appointment = await conn.fetchrow("""
+            SELECT id FROM appointments
+            WHERE id = $1 AND patient_id = $2 AND clinic_id = $3
+        """, appointment_id, patient_id, clinic_id)
+        
+        if not appointment:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Appointment not found")
+        
+        # Cancel appointment
+        await conn.execute("""
+            UPDATE appointments
+            SET status = 'CANCELLED', updated_at = NOW()
+            WHERE id = $1
+        """, appointment_id)
+        
+        await conn.close()
+        
+        return {"success": True, "message": "Appointment cancelled"}
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Cancel appointment error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cancel appointment")
+
+
+# Staff confirm/decline appointment endpoints
+@app.post("/api/v1/appointments/{appointment_id}/confirm")
+async def confirm_appointment(appointment_id: int, authorization: str = Header(None)):
+    """Confirm pending appointment - STAFF ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Get appointment details
+        appointment = await conn.fetchrow("""
+            SELECT a.*, p.first_name, p.last_name, p.email, c.name as clinic_name
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            JOIN clinics c ON a.clinic_id = c.id
+            WHERE a.id = $1 AND a.status = 'PENDING'
+        """, appointment_id)
+        
+        if not appointment:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Appointment not found or already processed")
+        
+        # Update to SCHEDULED
+        await conn.execute("""
+            UPDATE appointments 
+            SET status = 'SCHEDULED', updated_at = NOW()
+            WHERE id = $1
+        """, appointment_id)
+        
+        await conn.close()
+        
+        # Send confirmation email to patient
+        patient_name = f"{appointment['first_name']} {appointment['last_name']}"
+        if appointment['email']:
+            from datetime import datetime
+            formatted_date = appointment['appointment_date'].strftime('%A, %d %B %Y')
+            
+            await email_service.send_appointment_confirmation_email(
+                appointment['email'],
+                patient_name,
+                appointment['patient_id'],
+                formatted_date,
+                str(appointment['appointment_time']),
+                appointment['appointment_type']
+            )
+        
+        return {
+            "success": True,
+            "message": "Appointment confirmed and patient notified"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Confirm appointment error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to confirm appointment")
+
+
+@app.post("/api/v1/appointments/{appointment_id}/decline")
+async def decline_appointment(appointment_id: int, data: dict, authorization: str = Header(None)):
+    """Decline pending appointment - STAFF ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        reason = data.get("reason", "No reason provided")
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Get appointment details
+        appointment = await conn.fetchrow("""
+            SELECT a.*, p.first_name, p.last_name, p.email
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.id = $1 AND a.status = 'PENDING'
+        """, appointment_id)
+        
+        if not appointment:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Appointment not found or already processed")
+        
+        # Update to CANCELLED
+        await conn.execute("""
+            UPDATE appointments 
+            SET status = 'CANCELLED', notes = COALESCE(notes, '') || ' [Declined: ' || $2 || ']', updated_at = NOW()
+            WHERE id = $1
+        """, appointment_id, reason)
+        
+        await conn.close()
+        
+        # TODO: Send decline notification email to patient
+        print(f"Appointment {appointment_id} declined. Patient: {appointment['email']}")
+        
+        return {
+            "success": True,
+            "message": "Appointment declined"
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Decline appointment error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to decline appointment")
+
+
+# ============================================================================
+# SUPER ADMIN - CLINIC MANAGEMENT
+# ============================================================================
+
+@app.get("/api/v1/superadmin/stats")
+async def get_superadmin_stats(authorization: str = Header(None)):
+    """Get system-wide statistics - SUPER ADMIN ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        # Verify super admin role
+        # TODO: Add proper JWT validation for super admin
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Get system-wide stats
+        total_clinics = await conn.fetchval("SELECT COUNT(*) FROM clinics")
+        active_clinics = await conn.fetchval("SELECT COUNT(*) FROM clinics WHERE status = 'active'")
+        pending_clinics = await conn.fetchval("SELECT COUNT(*) FROM clinics WHERE status = 'pending'")
+        total_patients = await conn.fetchval("SELECT COUNT(*) FROM patients")
+        total_analyses = await conn.fetchval("SELECT COUNT(*) FROM iridology_analyses")
+        total_appointments = await conn.fetchval("SELECT COUNT(*) FROM appointments")
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "stats": {
+                "total_clinics": total_clinics,
+                "active_clinics": active_clinics,
+                "pending_clinics": pending_clinics,
+                "total_patients": total_patients,
+                "total_analyses": total_analyses,
+                "total_appointments": total_appointments
+            }
+        }
+    except Exception as e:
+        print(f"Super admin stats error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get stats")
+
+
+@app.get("/api/v1/superadmin/clinics")
+async def get_all_clinics(authorization: str = Header(None)):
+    """Get all clinics - SUPER ADMIN ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        clinics = await conn.fetch("""
+            SELECT c.id, c.name, c.address, c.phone, c.email, c.status, c.created_at,
+                   COUNT(DISTINCT p.id) as patient_count,
+                   COUNT(DISTINCT u.id) as staff_count
+            FROM clinics c
+            LEFT JOIN patients p ON c.id = p.clinic_id
+            LEFT JOIN users u ON c.id = u.clinic_id
+            GROUP BY c.id, c.name, c.address, c.phone, c.email, c.status, c.created_at
+            ORDER BY c.created_at DESC
+        """)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "clinics": [dict(c) for c in clinics]
+        }
+    except Exception as e:
+        print(f"Get clinics error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to get clinics")
+
+
+@app.post("/api/v1/superadmin/clinics")
+async def create_clinic(data: dict, authorization: str = Header(None)):
+    """Create new clinic - SUPER ADMIN ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        clinic_name = data.get("name")
+        clinic_address = data.get("address")
+        clinic_phone = data.get("phone")
+        clinic_email = data.get("email")
+        admin_name = data.get("admin_name")
+        admin_email = data.get("admin_email")
+        
+        if not all([clinic_name, clinic_email, admin_name, admin_email]):
+            raise HTTPException(status_code=400, detail="Missing required fields")
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Check if clinic email already exists
+        existing = await conn.fetchval("SELECT id FROM clinics WHERE email = $1", clinic_email)
+        if existing:
+            await conn.close()
+            raise HTTPException(status_code=409, detail="Clinic email already exists")
+        
+        # Create clinic with PENDING status
+        clinic = await conn.fetchrow("""
+            INSERT INTO clinics (name, address, phone, email, status, created_at)
+            VALUES ($1, $2, $3, $4, 'pending', NOW())
+            RETURNING id, name, email
+        """, clinic_name, clinic_address, clinic_phone, clinic_email)
+        
+        # Generate password for clinic admin
+        import secrets
+        import string
+        alphabet = string.ascii_letters + string.digits + "!@#$%"
+        temp_password = ''.join(secrets.choice(alphabet) for i in range(12))
+        
+        # Hash password
+        import bcrypt
+        hashed = bcrypt.hashpw(temp_password.encode('utf-8'), bcrypt.gensalt(rounds=12))
+        
+        # Create admin user for clinic
+        admin_user = await conn.fetchrow("""
+            INSERT INTO users (
+                clinic_id, email, password_hash, full_name, role, status, created_at
+            ) VALUES ($1, $2, $3, $4, 'clinic_admin', 'active', NOW())
+            RETURNING id, email
+        """, clinic['id'], admin_email, hashed.decode('utf-8'), admin_name)
+        
+        await conn.close()
+        
+        # Send welcome email to clinic admin
+        # TODO: Create clinic welcome email template
+        print(f"Clinic created: {clinic['name']}")
+        print(f"Admin: {admin_email} / Password: {temp_password}")
+        
+        return {
+            "success": True,
+            "message": "Clinic created successfully",
+            "clinic": {
+                "id": clinic['id'],
+                "name": clinic['name'],
+                "email": clinic['email'],
+                "status": "pending"
+            },
+            "admin": {
+                "email": admin_email,
+                "temporary_password": temp_password
+            }
+        }
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Create clinic error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail="Failed to create clinic")
+
+
+@app.post("/api/v1/superadmin/clinics/{clinic_id}/activate")
+async def activate_clinic(clinic_id: int, authorization: str = Header(None)):
+    """Activate clinic - SUPER ADMIN ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Update clinic status
+        await conn.execute("""
+            UPDATE clinics 
+            SET status = 'active', updated_at = NOW()
+            WHERE id = $1
+        """, clinic_id)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Clinic activated successfully"
+        }
+    except Exception as e:
+        print(f"Activate clinic error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to activate clinic")
+
+
+@app.post("/api/v1/superadmin/clinics/{clinic_id}/deactivate")
+async def deactivate_clinic(clinic_id: int, authorization: str = Header(None)):
+    """Deactivate clinic - SUPER ADMIN ONLY"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Update clinic status
+        await conn.execute("""
+            UPDATE clinics 
+            SET status = 'inactive', updated_at = NOW()
+            WHERE id = $1
+        """, clinic_id)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Clinic deactivated successfully"
+        }
+    except Exception as e:
+        print(f"Deactivate clinic error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to deactivate clinic")
+
+
+@app.delete("/api/v1/superadmin/clinics/{clinic_id}")
+async def delete_clinic(clinic_id: int, authorization: str = Header(None)):
+    """Delete clinic - SUPER ADMIN ONLY (use with caution)"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Check if clinic has data
+        patient_count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id)
+        
+        if patient_count > 0:
+            await conn.close()
+            raise HTTPException(status_code=400, detail=f"Cannot delete clinic with {patient_count} patients. Deactivate instead.")
+        
+        # Delete clinic (cascade will handle related data)
+        await conn.execute("DELETE FROM clinics WHERE id = $1", clinic_id)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Clinic deleted successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Delete clinic error: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to delete clinic")
+
+
+
+@app.get("/api/v1/me")
+async def get_current_user(authorization: str = Header(None)):
+    """Get current user information"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    
+    try:
+        # For now, extract from token or check session
+        # This is a simple implementation
+        token = authorization.replace("Bearer ", "")
+        
+        # Check if it's the admin token (simple check for demo)
+        if "admin@celloxen.com" in token or token.startswith("token_for_admin"):
+            return {
+                "id": 1,
+                "email": "admin@celloxen.com",
+                "role": "super_admin",
+                "clinic_id": None
+            }
+        
+        # Otherwise check database
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Try to find user by checking token pattern
+        # This is simplified - in production use proper JWT
+        users = await conn.fetch("SELECT id, email, role, clinic_id FROM users")
+        
+        for user in users:
+            if user['email'] in token:
+                await conn.close()
+                return dict(user)
+        
+        await conn.close()
+        
+        # Default fallback
+        return {
+            "role": "clinic_user"
+        }
+        
+    except Exception as e:
+        print(f"Get user error: {str(e)}")
+        return {"role": "clinic_user"}
+
+
+# ============================================================================
+# SUPER ADMIN ROUTES
+# ============================================================================
+try:
+    from super_admin_endpoints import router as super_admin_router
+    app.include_router(super_admin_router)
+    print("✅ Super Admin routes loaded successfully")
+except Exception as e:
+    print(f"⚠️  Super Admin routes not loaded: {e}")
+
+
