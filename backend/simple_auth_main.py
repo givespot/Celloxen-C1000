@@ -4,6 +4,121 @@ from models import AppointmentCreate, PatientCreate, PatientUpdate, AssessmentCr
 from enhanced_chatbot import router as chatbot_router
 from patient_portal_endpoints import router as patient_router
 from fastapi.middleware.cors import CORSMiddleware
+
+
+# ============================================
+# EMAIL SENDER FOR PASSWORD RESET
+# ============================================
+
+import aiosmtplib
+from email.message import EmailMessage
+
+# SMTP Configuration for IONOS
+SMTP_HOST = "smtp.ionos.co.uk"
+SMTP_PORT = 587  # TLS port
+SMTP_USER = "health@celloxen.com"
+SMTP_PASSWORD = "Kuwait1000$$"
+SMTP_FROM = "health@celloxen.com"
+SMTP_FROM_NAME = "Celloxen Health Portal"
+
+async def send_password_reset_email(to_email: str, reset_token: str, user_name: str = "User"):
+    """Send password reset email"""
+    try:
+        # Create reset link
+        reset_link = f"https://celloxen.com/#reset-password?token={reset_token}"
+        
+        # Create email message
+        message = EmailMessage()
+        message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
+        message["To"] = to_email
+        message["Subject"] = "Password Reset Request - Celloxen Health Portal"
+        
+        # Email body (HTML)
+        html_body = f"""
+        <!DOCTYPE html>
+        <html>
+        <head>
+            <style>
+                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
+                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
+                .header {{ background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
+                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
+                .button {{ display: inline-block; background: #1e3a8a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
+                .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="header">
+                    <h1>Password Reset Request</h1>
+                </div>
+                <div class="content">
+                    <p>Hello,</p>
+                    <p>We received a request to reset your password for your Celloxen Health Portal account.</p>
+                    <p>Click the button below to reset your password:</p>
+                    <p style="text-align: center;">
+                        <a href="{reset_link}" class="button">Reset My Password</a>
+                    </p>
+                    <p>Or copy and paste this link into your browser:</p>
+                    <p style="word-break: break-all; background: #e5e7eb; padding: 10px; border-radius: 5px;">{reset_link}</p>
+                    <p><strong>This link will expire in 1 hour.</strong></p>
+                    <p>If you didn't request this password reset, please ignore this email. Your password will remain unchanged.</p>
+                    <p>Best regards,<br>The Celloxen Team</p>
+                </div>
+                <div class="footer">
+                    <p>Celloxen Health Portal v2.0</p>
+                    <p>This is an automated message. Please do not reply to this email.</p>
+                </div>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Plain text alternative
+        text_body = f"""
+Password Reset Request - Celloxen Health Portal
+
+Hello,
+
+We received a request to reset your password for your Celloxen Health Portal account.
+
+Click the link below to reset your password:
+{reset_link}
+
+This link will expire in 1 hour.
+
+If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
+
+Best regards,
+The Celloxen Team
+
+---
+Celloxen Health Portal v2.0
+This is an automated message. Please do not reply to this email.
+        """
+        
+        message.set_content(text_body)
+        message.add_alternative(html_body, subtype='html')
+        
+        # Send email via IONOS SMTP with STARTTLS
+        await aiosmtplib.send(
+            message,
+            hostname=SMTP_HOST,
+            port=SMTP_PORT,
+            username=SMTP_USER,
+            password=SMTP_PASSWORD,
+            start_tls=True,
+            validate_certs=False  # For IONOS compatibility
+        )
+        
+        print(f"✅ Password reset email sent to {to_email}")
+        return True
+        
+    except Exception as e:
+        print(f"❌ Error sending email: {str(e)}")
+        return False
+
+
 import asyncpg
 from datetime import datetime
 import json
@@ -3778,5 +3893,170 @@ async def change_password(data: dict):
     except Exception as e:
         print(f"Error changing password: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================
+# FORGOT PASSWORD ENDPOINTS
+# ============================================
+
+import secrets
+from datetime import datetime, timedelta
+
+@app.post("/api/v1/auth/forgot-password")
+async def request_password_reset(data: dict):
+    """Request a password reset token"""
+    try:
+        email = data.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        try:
+            # Find user by email
+            user = await conn.fetchrow(
+                "SELECT id, email FROM users WHERE email = $1",
+                email
+            )
+            
+            # Always return success even if user not found (security best practice)
+            if not user:
+                return {
+                    "success": True,
+                    "message": "If an account exists with this email, a password reset link has been sent."
+                }
+            
+            # Generate secure token
+            token = secrets.token_urlsafe(32)
+            expires_at = datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
+            
+            # Store token in database
+            await conn.execute(
+                """
+                INSERT INTO password_reset_tokens (user_id, token, expires_at)
+                VALUES ($1, $2, $3)
+                """,
+                user["id"], token, expires_at
+            )
+            
+            # Send password reset email
+            email_sent = await send_password_reset_email(email, token)
+            
+            if email_sent:
+                print(f"✅ Password reset email sent to {email}")
+            else:
+                print(f"⚠️ Failed to send email to {email}, but returning success for security")
+            
+            return {
+                "success": True,
+                "message": "If an account exists with this email, a password reset link has been sent to your inbox."
+            }
+        finally:
+            await conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error in forgot password: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/v1/auth/reset-password")
+async def reset_password(data: dict):
+    """Reset password using token"""
+    try:
+        token = data.get("token")
+        new_password = data.get("new_password")
+        
+        if not token or not new_password:
+            raise HTTPException(status_code=400, detail="Token and new password are required")
+        
+        if len(new_password) < 6:
+            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+        
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        try:
+            # Verify token
+            reset_token = await conn.fetchrow(
+                """
+                SELECT id, user_id, expires_at, used 
+                FROM password_reset_tokens 
+                WHERE token = $1
+                """,
+                token
+            )
+            
+            if not reset_token:
+                raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+            
+            if reset_token["used"]:
+                raise HTTPException(status_code=400, detail="This reset link has already been used")
+            
+            if datetime.utcnow() > reset_token["expires_at"]:
+                raise HTTPException(status_code=400, detail="This reset link has expired")
+            
+            # Hash new password
+            import bcrypt
+            password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+            
+            # Update user password
+            await conn.execute(
+                "UPDATE users SET password_hash = $1 WHERE id = $2",
+                password_hash, reset_token["user_id"]
+            )
+            
+            # Mark token as used
+            await conn.execute(
+                "UPDATE password_reset_tokens SET used = TRUE WHERE id = $1",
+                reset_token["id"]
+            )
+            
+            return {
+                "success": True,
+                "message": "Password has been reset successfully. You can now log in with your new password."
+            }
+        finally:
+            await conn.close()
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error resetting password: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/v1/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Verify if a reset token is valid"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        try:
+            reset_token = await conn.fetchrow(
+                """
+                SELECT expires_at, used 
+                FROM password_reset_tokens 
+                WHERE token = $1
+                """,
+                token
+            )
+            
+            if not reset_token:
+                return {"valid": False, "message": "Invalid reset token"}
+            
+            if reset_token["used"]:
+                return {"valid": False, "message": "This reset link has already been used"}
+            
+            if datetime.utcnow() > reset_token["expires_at"]:
+                return {"valid": False, "message": "This reset link has expired"}
+            
+            return {"valid": True, "message": "Token is valid"}
+        finally:
+            await conn.close()
+    except Exception as e:
+        print(f"Error verifying token: {str(e)}")
+        return {"valid": False, "message": "Error verifying token"}
+
+
 
 
