@@ -801,11 +801,11 @@ async def get_patient_assessments(patient_id: int):
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
         
-        # Get all assessments
+        # Get all assessments from patient_assessments table
         assessments = await conn.fetch(
-            """SELECT id, patient_id, assessment_date, assessment_status,
-                      overall_wellness_score, created_at
-               FROM comprehensive_assessments
+            """SELECT id, patient_id, created_at,
+                      'completed' as assessment_status
+               FROM patient_assessments
                WHERE patient_id = $1
                ORDER BY created_at DESC""",
             patient_id
