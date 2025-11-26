@@ -4,121 +4,6 @@ from models import AppointmentCreate, PatientCreate, PatientUpdate, AssessmentCr
 from enhanced_chatbot import router as chatbot_router
 from patient_portal_endpoints import router as patient_router
 from fastapi.middleware.cors import CORSMiddleware
-
-
-# ============================================
-# EMAIL SENDER FOR PASSWORD RESET
-# ============================================
-
-import aiosmtplib
-from email.message import EmailMessage
-
-# SMTP Configuration for IONOS
-SMTP_HOST = "smtp.ionos.co.uk"
-SMTP_PORT = 587  # TLS port
-SMTP_USER = "health@celloxen.com"
-SMTP_PASSWORD = "Kuwait1000$$"
-SMTP_FROM = "health@celloxen.com"
-SMTP_FROM_NAME = "Celloxen Health Portal"
-
-async def send_password_reset_email(to_email: str, reset_token: str, user_name: str = "User"):
-    """Send password reset email"""
-    try:
-        # Create reset link
-        reset_link = f"https://celloxen.com/#reset-password?token={reset_token}"
-        
-        # Create email message
-        message = EmailMessage()
-        message["From"] = f"{SMTP_FROM_NAME} <{SMTP_FROM}>"
-        message["To"] = to_email
-        message["Subject"] = "Password Reset Request - Celloxen Health Portal"
-        
-        # Email body (HTML)
-        html_body = f"""
-        <!DOCTYPE html>
-        <html>
-        <head>
-            <style>
-                body {{ font-family: Arial, sans-serif; line-height: 1.6; color: #333; }}
-                .container {{ max-width: 600px; margin: 0 auto; padding: 20px; }}
-                .header {{ background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%); color: white; padding: 30px; text-align: center; border-radius: 10px 10px 0 0; }}
-                .content {{ background: #f9fafb; padding: 30px; border-radius: 0 0 10px 10px; }}
-                .button {{ display: inline-block; background: #1e3a8a; color: white; padding: 12px 30px; text-decoration: none; border-radius: 5px; margin: 20px 0; }}
-                .footer {{ text-align: center; margin-top: 30px; color: #6b7280; font-size: 12px; }}
-            </style>
-        </head>
-        <body>
-            <div class="container">
-                <div class="header">
-                    <h1>Password Reset Request</h1>
-                </div>
-                <div class="content">
-                    <p>Hello,</p>
-                    <p>We received a request to reset your password for your Celloxen Health Portal account.</p>
-                    <p>Click the button below to reset your password:</p>
-                    <p style="text-align: center;">
-                        <a href="{reset_link}" class="button">Reset My Password</a>
-                    </p>
-                    <p>Or copy and paste this link into your browser:</p>
-                    <p style="word-break: break-all; background: #e5e7eb; padding: 10px; border-radius: 5px;">{reset_link}</p>
-                    <p><strong>This link will expire in 1 hour.</strong></p>
-                    <p>If you didn't request this password reset, please ignore this email. Your password will remain unchanged.</p>
-                    <p>Best regards,<br>The Celloxen Team</p>
-                </div>
-                <div class="footer">
-                    <p>Celloxen Health Portal v2.0</p>
-                    <p>This is an automated message. Please do not reply to this email.</p>
-                </div>
-            </div>
-        </body>
-        </html>
-        """
-        
-        # Plain text alternative
-        text_body = f"""
-Password Reset Request - Celloxen Health Portal
-
-Hello,
-
-We received a request to reset your password for your Celloxen Health Portal account.
-
-Click the link below to reset your password:
-{reset_link}
-
-This link will expire in 1 hour.
-
-If you didn't request this password reset, please ignore this email. Your password will remain unchanged.
-
-Best regards,
-The Celloxen Team
-
----
-Celloxen Health Portal v2.0
-This is an automated message. Please do not reply to this email.
-        """
-        
-        message.set_content(text_body)
-        message.add_alternative(html_body, subtype='html')
-        
-        # Send email via IONOS SMTP with STARTTLS
-        await aiosmtplib.send(
-            message,
-            hostname=SMTP_HOST,
-            port=SMTP_PORT,
-            username=SMTP_USER,
-            password=SMTP_PASSWORD,
-            start_tls=True,
-            validate_certs=False  # For IONOS compatibility
-        )
-        
-        print(f"✅ Password reset email sent to {to_email}")
-        return True
-        
-    except Exception as e:
-        print(f"❌ Error sending email: {str(e)}")
-        return False
-
-
 import asyncpg
 from datetime import datetime
 import json
@@ -212,6 +97,49 @@ DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
 ai_analyzer = AIIridologyAnalyzer(ANTHROPIC_API_KEY) if ANTHROPIC_API_KEY else None
 
 # Database connection context manager
+
+# Token verification helper function
+
+# JWT Configuration
+import jwt
+from datetime import datetime, timedelta
+
+SECRET_KEY = os.getenv("SECRET_KEY", "celloxen_secret_key_2025")
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+def create_access_token(data: dict):
+    """Create JWT access token"""
+    to_encode = data.copy()
+    expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+def verify_token(token: str):
+    """Verify JWT token and return user info"""
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        user_id = payload.get("sub")
+        clinic_id = payload.get("clinic_id")
+        
+        if user_id is None:
+            return None
+            
+        return {
+            "user_id": int(user_id),
+            "clinic_id": int(clinic_id) if clinic_id else None
+        }
+    except jwt.ExpiredSignatureError:
+        print("Token expired")
+        return None
+    except jwt.InvalidTokenError as e:
+        print(f"Invalid token: {str(e)}")
+        return None
+    except Exception as e:
+        print(f"Token verification error: {str(e)}")
+        return None
+
 @app.post("/api/v1/auth/login")
 async def login(user_credentials: dict):
     try:
@@ -233,7 +161,11 @@ async def login(user_credentials: dict):
         await conn.close()
         
         return {
-            "access_token": f"token_for_{user['email']}",
+            "access_token": create_access_token({
+                "sub": str(user['id']),
+                "clinic_id": user['clinic_id'],
+                "email": user['email']
+            }),
             "token_type": "bearer",
             "expires_in": 1800,
             "user": {
@@ -241,7 +173,8 @@ async def login(user_credentials: dict):
                 "email": user['email'],
                 "full_name": user['full_name'],
                 "role": user['role'],
-                "status": user['status']
+                "status": user['status'],
+                "clinic_id": user['clinic_id']
             }
         }
         
@@ -625,6 +558,460 @@ async def delete_patient(patient_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/clinic/patients/{patient_id}")
+
+# ============================================================================
+# CLINIC SUBSCRIPTION INVOICES
+# ============================================================================
+
+@app.get("/api/v1/clinic/invoices")
+async def get_clinic_invoices(authorization: str = Header(None)):
+    """Get all subscription invoices for logged-in clinic"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        invoices = await conn.fetch("""
+            SELECT id, invoice_number, amount, description,
+                   due_date, payment_status as status, created_at
+            FROM clinic_invoices
+            WHERE clinic_id = $1
+            ORDER BY created_at DESC
+        """, user['clinic_id'])
+        
+        await conn.close()
+        
+        return {"success": True, "invoices": [dict(inv) for inv in invoices]}
+    except Exception as e:
+        print(f"Error fetching invoices: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch invoices")
+
+@app.get("/api/v1/clinic/invoices/{invoice_id}")
+async def get_clinic_invoice(invoice_id: int, authorization: str = Header(None)):
+    """Get single invoice detail for logged-in clinic"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        invoice = await conn.fetchrow("""
+            SELECT ci.*, c.clinic_name, c.address_line1, c.city, 
+                   c.postcode, c.email, c.phone
+            FROM clinic_invoices ci
+            JOIN clinics c ON ci.clinic_id = c.id
+            WHERE ci.id = $1 AND ci.clinic_id = $2
+        """, invoice_id, user['clinic_id'])
+        
+        await conn.close()
+        
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        inv = dict(invoice)
+        return {
+            "success": True,
+            "invoice": {
+                "id": inv['id'],
+                "invoice_number": inv['invoice_number'],
+                "amount": float(inv['amount']),
+                "description": inv['description'],
+                "due_date": str(inv['due_date']),
+                "payment_status": inv['payment_status'],
+                "issue_date": str(inv['created_at'].date()) if inv.get('created_at') else None,
+                "clinic": {
+                    "name": inv['clinic_name'],
+                    "address_line1": inv['address_line1'],
+                    "city": inv['city'],
+                    "postcode": inv['postcode'],
+                    "email": inv['email'],
+                    "phone": inv.get('phone')
+                }
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error: {str(e)}")
+
+@app.put("/api/v1/clinic/invoices/{invoice_id}/mark-paid")
+async def mark_invoice_paid(invoice_id: int, authorization: str = Header(None)):
+    """Mark invoice as paid - Clinic staff only"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Verify invoice belongs to user's clinic
+        invoice = await conn.fetchrow("""
+            SELECT id, payment_status FROM clinic_invoices
+            WHERE id = $1 AND clinic_id = $2
+        """, invoice_id, user['clinic_id'])
+        
+        if not invoice:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        # Update invoice to paid
+        from datetime import datetime
+        await conn.execute("""
+            UPDATE clinic_invoices
+            SET payment_status = 'paid',
+                payment_date = $1,
+                updated_at = $2
+            WHERE id = $3
+        """, datetime.now().date(), datetime.now(), invoice_id)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Invoice marked as paid"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error marking invoice paid: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update invoice")
+
+# ============================================
+# PATIENT INVOICES ENDPOINTS
+# ============================================
+
+@app.get("/api/v1/patient-invoices")
+async def get_patient_invoices(
+    patient_id: int = None, 
+    status: str = None,
+    authorization: str = Header(None)
+):
+    """Get all patient invoices for clinic, optionally filtered by patient_id or status"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Build query based on filters
+        query = """
+            SELECT pi.*, p.first_name, p.last_name, p.email
+            FROM patient_invoices pi
+            JOIN patients p ON pi.patient_id = p.id
+            WHERE pi.clinic_id = $1
+        """
+        params = [user['clinic_id']]
+        
+        if patient_id:
+            query += f" AND pi.patient_id = ${len(params) + 1}"
+            params.append(patient_id)
+        
+        if status:
+            query += f" AND pi.status = ${len(params) + 1}"
+            params.append(status)
+        
+        query += " ORDER BY pi.created_at DESC"
+        
+        invoices = await conn.fetch(query, *params)
+        await conn.close()
+        
+        return {
+            "success": True,
+            "invoices": [dict(inv) for inv in invoices]
+        }
+    except Exception as e:
+        print(f"Error fetching patient invoices: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch invoices")
+
+@app.get("/api/v1/patient-invoices/{invoice_id}")
+async def get_patient_invoice(invoice_id: int, authorization: str = Header(None)):
+    """Get specific patient invoice details"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        invoice = await conn.fetchrow("""
+            SELECT pi.*, p.first_name, p.last_name, p.email, p.mobile_phone,
+                   c.name as clinic_name, c.address_line1, c.city, c.postcode
+            FROM patient_invoices pi
+            JOIN patients p ON pi.patient_id = p.id
+            JOIN clinics c ON pi.clinic_id = c.id
+            WHERE pi.id = $1 AND pi.clinic_id = $2
+        """, invoice_id, user['clinic_id'])
+        
+        await conn.close()
+        
+        if not invoice:
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        return {
+            "success": True,
+            "invoice": dict(invoice)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching invoice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to fetch invoice")
+
+@app.post("/api/v1/patient-invoices")
+async def create_patient_invoice(invoice_data: dict, authorization: str = Header(None)):
+    """Create new patient invoice"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Generate invoice number
+        last_invoice = await conn.fetchval("""
+            SELECT invoice_number FROM patient_invoices 
+            WHERE clinic_id = $1 
+            ORDER BY id DESC LIMIT 1
+        """, user['clinic_id'])
+        
+        if last_invoice:
+            num = int(last_invoice.split('-')[1]) + 1
+            invoice_number = f"PI-{num:05d}"
+        else:
+            invoice_number = "PI-00001"
+        
+        # Insert invoice
+        invoice_id = await conn.fetchval("""
+            INSERT INTO patient_invoices 
+            (clinic_id, patient_id, invoice_number, amount, description, 
+             service_date, due_date, status, created_by, notes)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+            RETURNING id
+        """, 
+            user['clinic_id'],
+            invoice_data.get('patient_id'),
+            invoice_number,
+            invoice_data.get('amount'),
+            invoice_data.get('description'),
+            invoice_data.get('service_date'),
+            invoice_data.get('due_date'),
+            'pending',
+            user['user_id'],
+            invoice_data.get('notes')
+        )
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "invoice_id": invoice_id,
+            "invoice_number": invoice_number,
+            "message": "Invoice created successfully"
+        }
+    except Exception as e:
+        print(f"Error creating invoice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to create invoice")
+
+@app.put("/api/v1/patient-invoices/{invoice_id}")
+async def update_patient_invoice(
+    invoice_id: int, 
+    invoice_data: dict, 
+    authorization: str = Header(None)
+):
+    """Update patient invoice"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Verify invoice belongs to clinic
+        exists = await conn.fetchval("""
+            SELECT id FROM patient_invoices 
+            WHERE id = $1 AND clinic_id = $2
+        """, invoice_id, user['clinic_id'])
+        
+        if not exists:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        # Update invoice
+        from datetime import datetime
+        await conn.execute("""
+            UPDATE patient_invoices
+            SET amount = $1, description = $2, service_date = $3,
+                due_date = $4, notes = $5, updated_at = $6
+            WHERE id = $7
+        """,
+            invoice_data.get('amount'),
+            invoice_data.get('description'),
+            invoice_data.get('service_date'),
+            invoice_data.get('due_date'),
+            invoice_data.get('notes'),
+            datetime.now(),
+            invoice_id
+        )
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Invoice updated successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error updating invoice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update invoice")
+
+@app.put("/api/v1/patient-invoices/{invoice_id}/mark-paid")
+async def mark_patient_invoice_paid(invoice_id: int, authorization: str = Header(None)):
+    """Mark patient invoice as paid"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Verify invoice belongs to clinic
+        invoice = await conn.fetchrow("""
+            SELECT id, status FROM patient_invoices
+            WHERE id = $1 AND clinic_id = $2
+        """, invoice_id, user['clinic_id'])
+        
+        if not invoice:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        # Update invoice to paid
+        from datetime import datetime
+        await conn.execute("""
+            UPDATE patient_invoices
+            SET status = 'paid',
+                payment_date = $1,
+                paid_at = $2,
+                payment_method = 'manual',
+                updated_at = $2
+            WHERE id = $3
+        """, datetime.now().date(), datetime.now(), invoice_id)
+        
+        await conn.close()
+        
+        return {
+            "success": True,
+            "message": "Invoice marked as paid"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error marking invoice paid: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to update invoice")
+
+@app.delete("/api/v1/patient-invoices/{invoice_id}")
+async def delete_patient_invoice(invoice_id: int, authorization: str = Header(None)):
+    """Delete/cancel patient invoice"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    
+    token = authorization.replace("Bearer ", "")
+    user = verify_token(token)
+    if not user:
+        raise HTTPException(status_code=401, detail="Invalid token")
+    
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        # Mark as cancelled instead of deleting
+        from datetime import datetime
+        result = await conn.execute("""
+            UPDATE patient_invoices
+            SET status = 'cancelled', updated_at = $1
+            WHERE id = $2 AND clinic_id = $3
+        """, datetime.now(), invoice_id, user['clinic_id'])
+        
+        await conn.close()
+        
+        if result == "UPDATE 0":
+            raise HTTPException(status_code=404, detail="Invoice not found")
+        
+        return {
+            "success": True,
+            "message": "Invoice cancelled successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error cancelling invoice: {str(e)}")
+        raise HTTPException(status_code=500, detail="Failed to cancel invoice")
+
+
+        raise HTTPException(status_code=500, detail="Failed to fetch invoice")
+
 async def get_patient(patient_id: int):
     try:
         conn = await asyncpg.connect(
@@ -801,11 +1188,11 @@ async def get_patient_assessments(patient_id: int):
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
         
-        # Get all assessments from patient_assessments table
+        # Get all assessments
         assessments = await conn.fetch(
-            """SELECT id, patient_id, created_at,
-                      'completed' as assessment_status
-               FROM patient_assessments
+            """SELECT id, patient_id, assessment_date, assessment_status,
+                      overall_wellness_score, created_at
+               FROM comprehensive_assessments
                WHERE patient_id = $1
                ORDER BY created_at DESC""",
             patient_id
@@ -3378,50 +3765,50 @@ async def delete_clinic(clinic_id: int, authorization: str = Header(None)):
 
 @app.get("/api/v1/me")
 async def get_current_user(authorization: str = Header(None)):
-    """Get current user information"""
+    """Get current user information from JWT token"""
     if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(status_code=401, detail="Missing or invalid token")
-    
     try:
-        # For now, extract from token or check session
-        # This is a simple implementation
         token = authorization.replace("Bearer ", "")
         
-        # Check if it's the admin token (simple check for demo)
-        if "admin@celloxen.com" in token or token.startswith("token_for_admin"):
-            return {
-                "id": 1,
-                "email": "admin@celloxen.com",
-                "role": "super_admin",
-                "clinic_id": None
-            }
+        # Use verify_token to decode JWT properly
+        token_data = verify_token(token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
         
-        # Otherwise check database
+        user_id = token_data.get('user_id')
+        clinic_id = token_data.get('clinic_id')
+        
+        if not user_id:
+            return {"role": "clinic_user", "clinic_id": clinic_id}
+        
+        # Get full user info from database
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER,
             password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Try to find user by checking token pattern
-        # This is simplified - in production use proper JWT
-        users = await conn.fetch("SELECT id, email, role, clinic_id FROM users")
-        
-        for user in users:
-            if user['email'] in token:
-                await conn.close()
-                return dict(user)
-        
+        user = await conn.fetchrow(
+            "SELECT id, email, full_name, role, clinic_id FROM users WHERE id = $1",
+            user_id
+        )
         await conn.close()
         
-        # Default fallback
-        return {
-            "role": "clinic_user"
-        }
+        if user:
+            return {
+                "id": user['id'],
+                "user_id": user['id'],
+                "email": user['email'],
+                "full_name": user['full_name'],
+                "role": user['role'],
+                "clinic_id": user['clinic_id']
+            }
         
+        return {"id": user_id, "user_id": user_id, "clinic_id": clinic_id, "role": "clinic_user"}
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"Get user error: {str(e)}")
-        return {"role": "clinic_user"}
-
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 # ============================================================================
 # SUPER ADMIN ROUTES
@@ -3434,629 +3821,226 @@ except Exception as e:
     print(f"⚠️  Super Admin routes not loaded: {e}")
 
 
-# Fixed Clinic Endpoints - No JWT validation (matches existing pattern)
-
-@app.post("/api/v1/clinic/change-password")
-async def change_password_v2(request: Request, password_data: dict):
-    """Change clinic password"""
-    try:
-        # Get email from request body instead of token
-        email = password_data.get("email", "staff@aberdeenwellness.co.uk")
-        current_password = password_data.get("current_password")
-        new_password = password_data.get("new_password")
-        
-        if not current_password or not new_password:
-            raise HTTPException(status_code=400, detail="Passwords required")
-        
-        if len(new_password) < 8:
-            raise HTTPException(status_code=400, detail="Password must be 8+ characters")
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        try:
-            user = await conn.fetchrow(
-                "SELECT id, password_hash FROM clinic_credentials WHERE email = $1", email
-            )
-            
-            if not user:
-                raise HTTPException(status_code=404, detail="User not found")
-            
-            if not bcrypt.checkpw(current_password.encode("utf-8"), user["password_hash"].encode("utf-8")):
-                raise HTTPException(status_code=400, detail="Current password incorrect")
-            
-            new_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt(rounds=12))
-            
-            await conn.execute(
-                "UPDATE clinic_credentials SET password_hash = $1, must_change_password = false, updated_at = CURRENT_TIMESTAMP WHERE email = $2",
-                new_hash.decode("utf-8"), email
-            )
-            
-            return {"success": True, "message": "Password changed successfully"}
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error changing password: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/api/v1/clinic/invoices/v2")
-async def get_clinic_invoices_v2():
-    """Get subscription invoices - simplified"""
-    try:
-        # Default to clinic_id = 1 (Aberdeen Wellness)
-        clinic_id = 1
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        try:
-            invoices = await conn.fetch(
-                """
-                SELECT id, invoice_number, amount, due_date, payment_status as status, 
-                       payment_date, billing_period, description, issue_date, created_at
-                FROM clinic_invoices
-                WHERE clinic_id = $1
-                ORDER BY due_date DESC
-                """,
-                clinic_id
-            )
-            
-            result = []
-            for inv in invoices:
-                result.append({
-                    "id": inv["id"],
-                    "invoice_number": inv["invoice_number"],
-                    "amount": float(inv["amount"]),
-                    "due_date": inv["due_date"].isoformat() if inv["due_date"] else None,
-                    "status": inv["status"],
-                    "payment_date": inv["payment_date"].isoformat() if inv["payment_date"] else None,
-                    "billing_period": inv["billing_period"],
-                    "description": inv["description"],
-                    "issue_date": inv["issue_date"].isoformat() if inv["issue_date"] else None,
-                    "created_at": inv["created_at"].isoformat() if inv["created_at"] else None
-                })
-            return {"invoices": result, "total": len(result)}
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error fetching clinic invoices: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/clinic/patient-invoices/v2")
-async def get_patient_invoices_v2():
-    """Get patient invoices - simplified"""
-    try:
-        # Default to clinic_id = 1
-        clinic_id = 1
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        try:
-            invoices = await conn.fetch(
-                """
-                SELECT pi.*, p.first_name || ' ' || p.last_name as patient_name, p.email as patient_email
-                FROM patient_invoices pi
-                JOIN patients p ON pi.patient_id = p.id
-                WHERE pi.clinic_id = $1
-                ORDER BY pi.created_at DESC
-                """,
-                clinic_id
-            )
-            
-            result = []
-            for inv in invoices:
-                result.append({
-                    "id": inv["id"],
-                    "invoice_number": inv["invoice_number"],
-                    "patient_name": inv["patient_name"],
-                    "patient_email": inv["patient_email"],
-                    "amount": float(inv["amount"]),
-                    "description": inv["description"],
-                    "due_date": inv["due_date"].isoformat() if inv["due_date"] else None,
-                    "status": inv["status"]
-                })
-            
-            return {"invoices": result, "total": len(result)}
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error fetching patient invoices: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.post("/api/v1/clinic/patient-invoices/v2")
-async def create_patient_invoice_v2(invoice: dict):
-    """Create a new patient invoice"""
-    try:
-        clinic_id = 1  # Default to clinic 1
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Get next invoice number
-            last_invoice = await conn.fetchrow(
-                "SELECT invoice_number FROM patient_invoices WHERE clinic_id = $1 ORDER BY id DESC LIMIT 1",
-                clinic_id
-            )
-            
-            if last_invoice:
-                last_num = int(last_invoice['invoice_number'].split('-')[1])
-                new_invoice_number = f"PI-{str(last_num + 1).zfill(5)}"
-            else:
-                new_invoice_number = "PI-00001"
-            
-            # Insert invoice
-            from datetime import datetime
-            service_date = datetime.strptime(invoice['service_date'], '%Y-%m-%d').date() if invoice.get('service_date') else None
-            due_date = datetime.strptime(invoice['due_date'], '%Y-%m-%d').date()
-            
-            new_invoice = await conn.fetchrow(
-                """
-                INSERT INTO patient_invoices 
-                (clinic_id, patient_id, invoice_number, amount, description, service_date, due_date, status)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-                RETURNING id, invoice_number
-                """,
-                clinic_id,
-                invoice['patient_id'],
-                new_invoice_number,
-                invoice['amount'],
-                invoice.get('description', ''),
-                service_date,
-                due_date,
-                'pending'
-            )
-            
-            return {
-                "success": True,
-                "invoice_id": new_invoice['id'],
-                "invoice_number": new_invoice['invoice_number']
-            }
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error creating patient invoice: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.patch("/api/v1/clinic/patient-invoices/{invoice_id}/status")
-async def update_invoice_status(invoice_id: int, status_data: dict):
-    """Update patient invoice status"""
-    try:
-        clinic_id = 1
-        new_status = status_data.get('status')
-        
-        if new_status not in ['pending', 'paid', 'overdue', 'cancelled']:
-            raise HTTPException(status_code=400, detail="Invalid status")
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Update status
-            result = await conn.execute(
-                """
-                UPDATE patient_invoices 
-                SET status = $1, updated_at = CURRENT_TIMESTAMP
-                WHERE id = $2 AND clinic_id = $3
-                """,
-                new_status,
-                invoice_id,
-                clinic_id
-            )
-            
-            if result == "UPDATE 0":
-                raise HTTPException(status_code=404, detail="Invoice not found")
-            
-            return {"success": True, "message": "Status updated successfully"}
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error updating invoice status: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-
 
 # ============================================
-# SETTINGS ENDPOINTS
+# ENHANCED CLINIC DASHBOARD API ENDPOINT
+# Added: 2025-11-26
 # ============================================
 
-@app.get("/api/v1/clinic/settings")
-async def get_clinic_settings():
-    """Get comprehensive clinic settings"""
+@app.get("/api/v1/clinic/dashboard")
+async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
+    """Get comprehensive dashboard data for clinic admin"""
     try:
-        clinic_id = 1
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        try:
-            # Get clinic profile
-            clinic = await conn.fetchrow(
-                """
-                SELECT name, email, phone, address_line1, address_line2, city, county, postcode, website,
-                       email_appointment_reminders, email_appointment_confirmations, 
-                       email_new_patient_alerts, email_invoice_notifications, email_marketing
-                FROM clinics WHERE id = $1
-                """,
-                clinic_id
-            )
-            
-            # Get opening hours
-            hours = await conn.fetch(
-                """
-                SELECT day_of_week, is_open, 
-                       to_char(open_time, 'HH24:MI') as open_time,
-                       to_char(close_time, 'HH24:MI') as close_time
-                FROM opening_hours 
-                WHERE clinic_id = $1 
-                ORDER BY day_of_week
-                """,
-                clinic_id
-            )
-            
-            return {
-                "profile": {
-                    "name": clinic["name"],
-                    "email": clinic["email"],
-                    "phone": clinic["phone"],
-                    "address_line1": clinic["address_line1"],
-                    "address_line2": clinic["address_line2"],
-                    "city": clinic["city"],
-                    "county": clinic["county"],
-                    "postcode": clinic["postcode"],
-                    "website": clinic["website"]
-                },
-                "opening_hours": [
+        
+        clinic_id = current_user.get('clinic_id', 1)
+        
+        # Get clinic info
+        clinic = await conn.fetchrow("""
+            SELECT id, name, clinic_name, clinic_code, city, postcode,
+                   subscription_tier, subscription_status, max_patients, max_staff,
+                   features_enabled, phone, email
+            FROM clinics WHERE id = $1
+        """, clinic_id)
+        
+        # Get user info
+        user = await conn.fetchrow("""
+            SELECT id, full_name, email, role FROM users WHERE id = $1
+        """, current_user.get('id'))
+        
+        # Get patient counts
+        total_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id
+        ) or 0
+        
+        active_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1 AND status = 'active'", clinic_id
+        ) or 0
+        
+        new_patients_month = await conn.fetchval("""
+            SELECT COUNT(*) FROM patients 
+            WHERE clinic_id = $1 AND created_at >= date_trunc('month', CURRENT_DATE)
+        """, clinic_id) or 0
+        
+        # Get staff count
+        total_staff = await conn.fetchval(
+            "SELECT COUNT(*) FROM users WHERE clinic_id = $1", clinic_id
+        ) or 0
+        
+        # Get today's appointments
+        today_appointments = await conn.fetchval("""
+            SELECT COUNT(*) FROM appointments 
+            WHERE clinic_id = $1 AND appointment_date = CURRENT_DATE
+        """, clinic_id) or 0
+        
+        # Get upcoming appointments (next 7 days)
+        upcoming_appointments = await conn.fetchval("""
+            SELECT COUNT(*) FROM appointments 
+            WHERE clinic_id = $1 
+            AND appointment_date BETWEEN CURRENT_DATE AND CURRENT_DATE + INTERVAL '7 days'
+        """, clinic_id) or 0
+        
+        # Get today's appointment details
+        today_appointment_list = await conn.fetch("""
+            SELECT a.id, a.appointment_time, a.appointment_type, a.status,
+                   p.first_name, p.last_name
+            FROM appointments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.clinic_id = $1 AND a.appointment_date = CURRENT_DATE
+            ORDER BY a.appointment_time
+        """, clinic_id)
+        
+        # Get assessment counts
+        total_assessments = await conn.fetchval(
+            "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
+        ) or 0
+        
+        pending_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM assessments 
+            WHERE clinic_id = $1 AND status = 'IN_PROGRESS'
+        """, clinic_id) or 0
+        
+        completed_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM assessments 
+            WHERE clinic_id = $1 AND status = 'COMPLETED'
+        """, clinic_id) or 0
+        
+        # Get iridology counts
+        total_iridology = await conn.fetchval(
+            "SELECT COUNT(*) FROM iridology_analyses WHERE clinic_id = $1", clinic_id
+        ) or 0
+        
+        completed_iridology = await conn.fetchval("""
+            SELECT COUNT(*) FROM iridology_analyses 
+            WHERE clinic_id = $1 AND status = 'COMPLETED'
+        """, clinic_id) or 0
+        
+        # Get invoice stats
+        outstanding_invoices = await conn.fetchrow("""
+            SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total
+            FROM patient_invoices 
+            WHERE clinic_id = $1 AND status IN ('pending', 'overdue')
+        """, clinic_id)
+        
+        overdue_invoices = await conn.fetchval("""
+            SELECT COUNT(*) FROM patient_invoices 
+            WHERE clinic_id = $1 AND status = 'overdue'
+        """, clinic_id) or 0
+        
+        revenue_this_month = await conn.fetchval("""
+            SELECT COALESCE(SUM(amount), 0) FROM patient_invoices 
+            WHERE clinic_id = $1 AND status = 'paid' 
+            AND paid_at >= date_trunc('month', CURRENT_DATE)
+        """, clinic_id) or 0
+        
+        # Get recent activity
+        recent_patients = await conn.fetch("""
+            SELECT id, first_name, last_name, created_at
+            FROM patients WHERE clinic_id = $1
+            ORDER BY created_at DESC LIMIT 5
+        """, clinic_id)
+        
+        recent_assessments = await conn.fetch("""
+            SELECT a.id, a.status, a.created_at, p.first_name, p.last_name
+            FROM assessments a
+            JOIN patients p ON a.patient_id = p.id
+            WHERE a.clinic_id = $1
+            ORDER BY a.created_at DESC LIMIT 5
+        """, clinic_id)
+        
+        recent_iridology = await conn.fetch("""
+            SELECT i.id, i.status, i.created_at, p.first_name, p.last_name
+            FROM iridology_analyses i
+            JOIN patients p ON i.patient_id = p.id
+            WHERE i.clinic_id = $1
+            ORDER BY i.created_at DESC LIMIT 5
+        """, clinic_id)
+        
+        await conn.close()
+        
+        # Build response
+        clinic_display_name = clinic['clinic_name'] or clinic['name'] if clinic else 'Clinic'
+        
+        return {
+            "clinic": {
+                "id": clinic['id'] if clinic else clinic_id,
+                "name": clinic_display_name,
+                "code": clinic['clinic_code'] if clinic else '',
+                "city": clinic['city'] if clinic else '',
+                "subscription_tier": clinic['subscription_tier'] if clinic else 'basic',
+                "subscription_status": clinic['subscription_status'] if clinic else 'active',
+                "max_patients": clinic['max_patients'] if clinic else 100,
+                "max_staff": clinic['max_staff'] if clinic else 5,
+                "phone": clinic['phone'] if clinic else '',
+                "email": clinic['email'] if clinic else ''
+            },
+            "user": {
+                "id": user['id'] if user else current_user.get('id'),
+                "full_name": user['full_name'] if user else 'User',
+                "email": user['email'] if user else '',
+                "role": user['role'] if user else 'staff'
+            },
+            "stats": {
+                "total_patients": total_patients,
+                "active_patients": active_patients,
+                "new_patients_month": new_patients_month,
+                "total_staff": total_staff,
+                "today_appointments": today_appointments,
+                "upcoming_appointments": upcoming_appointments,
+                "total_assessments": total_assessments,
+                "pending_assessments": pending_assessments,
+                "completed_assessments": completed_assessments,
+                "total_iridology": total_iridology,
+                "completed_iridology": completed_iridology,
+                "outstanding_invoices_count": outstanding_invoices['count'] if outstanding_invoices else 0,
+                "outstanding_invoices_total": float(outstanding_invoices['total']) if outstanding_invoices else 0,
+                "overdue_invoices": overdue_invoices,
+                "revenue_this_month": float(revenue_this_month)
+            },
+            "today_schedule": [
+                {
+                    "id": apt['id'],
+                    "time": str(apt['appointment_time'])[:5],
+                    "patient": f"{apt['first_name']} {apt['last_name']}",
+                    "type": apt['appointment_type'],
+                    "status": apt['status']
+                } for apt in today_appointment_list
+            ],
+            "recent_activity": {
+                "patients": [
                     {
-                        "day": h["day_of_week"],
-                        "is_open": h["is_open"],
-                        "open_time": h["open_time"],
-                        "close_time": h["close_time"]
-                    }
-                    for h in hours
+                        "id": p['id'],
+                        "name": f"{p['first_name']} {p['last_name']}",
+                        "created_at": p['created_at'].isoformat() if p['created_at'] else None
+                    } for p in recent_patients
                 ],
-                "notifications": {
-                    "appointment_reminders": clinic["email_appointment_reminders"],
-                    "appointment_confirmations": clinic["email_appointment_confirmations"],
-                    "new_patient_alerts": clinic["email_new_patient_alerts"],
-                    "invoice_notifications": clinic["email_invoice_notifications"],
-                    "marketing": clinic["email_marketing"]
-                }
+                "assessments": [
+                    {
+                        "id": a['id'],
+                        "patient": f"{a['first_name']} {a['last_name']}",
+                        "status": a['status'],
+                        "created_at": a['created_at'].isoformat() if a['created_at'] else None
+                    } for a in recent_assessments
+                ],
+                "iridology": [
+                    {
+                        "id": i['id'],
+                        "patient": f"{i['first_name']} {i['last_name']}",
+                        "status": i['status'],
+                        "created_at": i['created_at'].isoformat() if i['created_at'] else None
+                    } for i in recent_iridology
+                ]
+            },
+            "alerts": {
+                "overdue_invoices": overdue_invoices,
+                "pending_assessments": pending_assessments,
+                "follow_ups_needed": 0
             }
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error fetching settings: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.patch("/api/v1/clinic/settings/profile")
-async def update_clinic_profile(data: dict):
-    """Update clinic profile"""
-    try:
-        clinic_id = 1
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            await conn.execute(
-                """
-                UPDATE clinics SET
-                    name = $1, phone = $2, address_line1 = $3, address_line2 = $4,
-                    city = $5, county = $6, postcode = $7, website = $8,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $9
-                """,
-                data.get("name"), data.get("phone"), data.get("address_line1"), 
-                data.get("address_line2"), data.get("city"), data.get("county"),
-                data.get("postcode"), data.get("website"), clinic_id
-            )
-            return {"success": True, "message": "Profile updated successfully"}
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error updating profile: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.patch("/api/v1/clinic/settings/hours")
-async def update_opening_hours(data: dict):
-    """Update opening hours for a specific day"""
-    try:
-        clinic_id = 1
-        day = data.get("day")
-        is_open = data.get("is_open")
-        open_time = data.get("open_time") if is_open else None
-        close_time = data.get("close_time") if is_open else None
+        }
         
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Use direct SQL string interpolation for time values
-            if is_open and open_time and close_time:
-                await conn.execute(
-                    f"""
-                    UPDATE opening_hours SET
-                        is_open = $1, 
-                        open_time = '{open_time}'::time, 
-                        close_time = '{close_time}'::time,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE clinic_id = $2 AND day_of_week = $3
-                    """,
-                    is_open, clinic_id, day
-                )
-            else:
-                await conn.execute(
-                    """
-                    UPDATE opening_hours SET
-                        is_open = $1, 
-                        open_time = NULL, 
-                        close_time = NULL,
-                        updated_at = CURRENT_TIMESTAMP
-                    WHERE clinic_id = $2 AND day_of_week = $3
-                    """,
-                    is_open, clinic_id, day
-                )
-            return {"success": True, "message": "Opening hours updated"}
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
     except Exception as e:
-        print(f"Error updating hours: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.patch("/api/v1/clinic/settings/notifications")
-async def update_notification_preferences(data: dict):
-    """Update email notification preferences"""
-    try:
-        clinic_id = 1
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            await conn.execute(
-                """
-                UPDATE clinics SET
-                    email_appointment_reminders = $1,
-                    email_appointment_confirmations = $2,
-                    email_new_patient_alerts = $3,
-                    email_invoice_notifications = $4,
-                    email_marketing = $5,
-                    updated_at = CURRENT_TIMESTAMP
-                WHERE id = $6
-                """,
-                data.get("appointment_reminders"),
-                data.get("appointment_confirmations"),
-                data.get("new_patient_alerts"),
-                data.get("invoice_notifications"),
-                data.get("marketing"),
-                clinic_id
-            )
-            return {"success": True, "message": "Notification preferences updated"}
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error updating notifications: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/v1/clinic/settings/password")
-async def change_password(data: dict):
-    """Change clinic admin password"""
-    try:
-        clinic_id = 1
-        current_password = data.get("current_password")
-        new_password = data.get("new_password")
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Get current password hash
-            user = await conn.fetchrow(
-                "SELECT id, password_hash FROM users WHERE clinic_id = $1 AND role = 'clinic_user' LIMIT 1",
-                clinic_id
-            )
-            
-            if not user:
-                raise HTTPException(status_code=404, detail="Admin user not found")
-            
-            # Verify current password
-            import bcrypt
-            if not bcrypt.checkpw(current_password.encode('utf-8'), user["password_hash"].encode('utf-8')):
-                raise HTTPException(status_code=400, detail="Current password is incorrect")
-            
-            # Hash new password
-            new_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            
-            # Update password
-            await conn.execute(
-                "UPDATE users SET password_hash = $1 WHERE id = $2",
-                new_hash, user["id"]
-            )
-            
-            return {"success": True, "message": "Password changed successfully"}
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error changing password: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-# ============================================
-# FORGOT PASSWORD ENDPOINTS
-# ============================================
-
-import secrets
-from datetime import datetime, timedelta
-
-@app.post("/api/v1/auth/forgot-password")
-async def request_password_reset(data: dict):
-    """Request a password reset token"""
-    try:
-        email = data.get("email")
-        if not email:
-            raise HTTPException(status_code=400, detail="Email is required")
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Find user by email
-            user = await conn.fetchrow(
-                "SELECT id, email FROM users WHERE email = $1",
-                email
-            )
-            
-            # Always return success even if user not found (security best practice)
-            if not user:
-                return {
-                    "success": True,
-                    "message": "If an account exists with this email, a password reset link has been sent."
-                }
-            
-            # Generate secure token
-            token = secrets.token_urlsafe(32)
-            expires_at = datetime.utcnow() + timedelta(hours=1)  # Token valid for 1 hour
-            
-            # Store token in database
-            await conn.execute(
-                """
-                INSERT INTO password_reset_tokens (user_id, token, expires_at)
-                VALUES ($1, $2, $3)
-                """,
-                user["id"], token, expires_at
-            )
-            
-            # Send password reset email
-            email_sent = await send_password_reset_email(email, token)
-            
-            if email_sent:
-                print(f"✅ Password reset email sent to {email}")
-            else:
-                print(f"⚠️ Failed to send email to {email}, but returning success for security")
-            
-            return {
-                "success": True,
-                "message": "If an account exists with this email, a password reset link has been sent to your inbox."
-            }
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error in forgot password: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.post("/api/v1/auth/reset-password")
-async def reset_password(data: dict):
-    """Reset password using token"""
-    try:
-        token = data.get("token")
-        new_password = data.get("new_password")
-        
-        if not token or not new_password:
-            raise HTTPException(status_code=400, detail="Token and new password are required")
-        
-        if len(new_password) < 6:
-            raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
-        
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            # Verify token
-            reset_token = await conn.fetchrow(
-                """
-                SELECT id, user_id, expires_at, used 
-                FROM password_reset_tokens 
-                WHERE token = $1
-                """,
-                token
-            )
-            
-            if not reset_token:
-                raise HTTPException(status_code=400, detail="Invalid or expired reset token")
-            
-            if reset_token["used"]:
-                raise HTTPException(status_code=400, detail="This reset link has already been used")
-            
-            if datetime.utcnow() > reset_token["expires_at"]:
-                raise HTTPException(status_code=400, detail="This reset link has expired")
-            
-            # Hash new password
-            import bcrypt
-            password_hash = bcrypt.hashpw(new_password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
-            
-            # Update user password
-            await conn.execute(
-                "UPDATE users SET password_hash = $1 WHERE id = $2",
-                password_hash, reset_token["user_id"]
-            )
-            
-            # Mark token as used
-            await conn.execute(
-                "UPDATE password_reset_tokens SET used = TRUE WHERE id = $1",
-                reset_token["id"]
-            )
-            
-            return {
-                "success": True,
-                "message": "Password has been reset successfully. You can now log in with your new password."
-            }
-        finally:
-            await conn.close()
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"Error resetting password: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/auth/verify-reset-token/{token}")
-async def verify_reset_token(token: str):
-    """Verify if a reset token is valid"""
-    try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        try:
-            reset_token = await conn.fetchrow(
-                """
-                SELECT expires_at, used 
-                FROM password_reset_tokens 
-                WHERE token = $1
-                """,
-                token
-            )
-            
-            if not reset_token:
-                return {"valid": False, "message": "Invalid reset token"}
-            
-            if reset_token["used"]:
-                return {"valid": False, "message": "This reset link has already been used"}
-            
-            if datetime.utcnow() > reset_token["expires_at"]:
-                return {"valid": False, "message": "This reset link has expired"}
-            
-            return {"valid": True, "message": "Token is valid"}
-        finally:
-            await conn.close()
-    except Exception as e:
-        print(f"Error verifying token: {str(e)}")
-        return {"valid": False, "message": "Error verifying token"}
-
-
-
+        print(f"Dashboard error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to load dashboard: {str(e)}")
 
