@@ -589,7 +589,7 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
+                if (response.ok && data.token || data.access_token) {
                     authToken = data.token || data.access_token;
                     localStorage.setItem('superAdminToken', authToken);
                     showDashboard();
@@ -632,7 +632,7 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
+                if (response.ok && data.token || data.access_token) {
                     const stats = data.system_statistics;
                     document.getElementById('statTotalClinics').textContent = stats.clinics.total;
                     document.getElementById('statActiveClinics').textContent = stats.clinics.active;
@@ -654,7 +654,7 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
+                if (response.ok && data.token || data.access_token) {
                     const clinicsList = document.getElementById('clinicsList');
                     clinicsList.innerHTML = '';
                     
@@ -740,7 +740,7 @@
                 
                 const data = await response.json();
                 
-                if (response.ok) {
+                if (response.ok && data.token || data.access_token) {
                     messageDiv.innerHTML = '<div class="success-message">✅ Clinic created successfully!</div>';
                     setTimeout(() => {
                         closeAddClinicModal();

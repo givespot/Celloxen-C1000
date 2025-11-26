@@ -1318,7 +1318,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 def generate_temp_password(length=10):
     """Generate a secure temporary password (max 10 chars for bcrypt)"""
-    alphabet = string.ascii_letters + string.digits + "!@#$%"
+    alphabet = string.ascii_letters + string.digits
     password = ''.join(secrets.choice(alphabet) for i in range(length))
     return password
 
@@ -1359,17 +1359,14 @@ def send_clinic_welcome_email(clinic_id: int, token_data = Depends(verify_super_
         
         # Store credentials
         cursor.execute("""
-            INSERT INTO clinic_credentials 
-            (clinic_id, email, password_hash, temporary_password, must_change_password)
-            VALUES (%s, %s, %s, true, true)
+            INSERT INTO users 
+            (clinic_id, email, password_hash, full_name, role, status)
+            VALUES (%s, %s, %s, %s, 'clinic_admin', 'active')
             ON CONFLICT (email) 
             DO UPDATE SET 
-                password_hash = EXCLUDED.password_hash,
-                temporary_password = true,
-                must_change_password = true,
-                updated_at = CURRENT_TIMESTAMP
+                password_hash = EXCLUDED.password_hash
             RETURNING id
-        """, (clinic_id, clinic_email, password_hash))
+        """, (clinic_id, clinic_email, password_hash, clinic_name))
         
         credential_id = cursor.fetchone()[0]
         
@@ -1573,7 +1570,7 @@ def get_super_admins(token_data = Depends(verify_super_admin_token)):
                 "email": row[1],
                 "name": row[2],
                 "created_at": row[3].isoformat() if row[3] else None,
-                "last_login": row[4].isoformat() if row[4] else None
+                "status": row[4]
             })
         
         return {
@@ -1600,14 +1597,14 @@ def get_clinic_admins(token_data = Depends(verify_super_admin_token)):
     try:
         cursor.execute("""
             SELECT 
-                cc.id,
-                cc.email,
+                u.id,
+                u.email,
                 c.name as clinic_name,
-                cc.created_at,
-                cc.last_login
-            FROM clinic_credentials cc
-            JOIN clinics c ON cc.clinic_id = c.id
-            ORDER BY cc.created_at DESC
+                u.created_at,
+                u.status
+            FROM users u
+            JOIN clinics c ON u.clinic_id = c.id
+            WHERE u.role = 'clinic_admin' ORDER BY u.created_at DESC
         """)
         
         users = []
@@ -1618,7 +1615,7 @@ def get_clinic_admins(token_data = Depends(verify_super_admin_token)):
                 "name": row[1].split('@')[0],  # Extract name from email
                 "clinic_name": row[2],
                 "created_at": row[3].isoformat() if row[3] else None,
-                "last_login": row[4].isoformat() if row[4] else None
+                "status": row[4]
             })
         
         return {
@@ -1768,11 +1765,11 @@ def create_user(request: CreateUserRequest, token_data = Depends(verify_super_ad
             
             # Create clinic admin
             cursor.execute("""
-                INSERT INTO clinic_credentials 
-                (clinic_id, email, password_hash, temporary_password, must_change_password, created_at)
-                VALUES (%s, %s, %s, true, true, CURRENT_TIMESTAMP)
+                INSERT INTO users 
+                (clinic_id, email, password_hash, full_name, role, status, created_at)
+                VALUES (%s, %s, %s, %s, 'clinic_admin', 'active', CURRENT_TIMESTAMP)
                 RETURNING id
-            """, (request.clinic_id, request.email, password_hash))
+            """, (request.clinic_id, request.email, password_hash, request.name))
             
             user_id = cursor.fetchone()[0]
             
