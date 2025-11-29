@@ -7,7 +7,7 @@ from typing import Dict, List, Optional
 from anthropic import Anthropic
 
 class AIAssessmentAnalyzer:
-    """AI-powered wellness assessment analysis using Anthropic Claude API"""
+    """comprehensive wellness assessment analysis using Anthropic Claude API"""
     
     def __init__(self, api_key: str):
         self.api_key = api_key
@@ -21,7 +21,7 @@ class AIAssessmentAnalyzer:
         therapies: List[Dict]
     ) -> Dict:
         """
-        Generate comprehensive AI-powered assessment report
+        Generate comprehensive comprehensive wellness assessment report
         
         Args:
             patient_info: Patient demographic information
@@ -135,7 +135,7 @@ Based on the patient's responses and scores, provide a comprehensive wellness as
 
 Generate a detailed report in the following JSON format:
 {{
-    "executive_summary": "A 2-3 sentence overview of the patient's wellness status and key findings",
+    "executive_summary": "A comprehensive 4-6 sentence summary that includes: (1) the patient's overall wellness score and status, (2) the most critical areas of concern identified, (3) key positive findings, (4) the primary recommended therapy and why, (5) expected outcomes from following the treatment plan. Write in a professional clinical tone without mentioning AI or artificial intelligence.",
     
     "wellness_overview": {{
         "overall_status": "Excellent/Good/Fair/Needs Attention/Requires Support",

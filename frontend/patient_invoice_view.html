@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Invoice - Celloxen</title>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .navy-bg { background-color: #1e3a8a; }
+        .navy-text { color: #1e3a8a; }
+        .btn-navy { background: #1e3a8a; }
+        .btn-navy:hover { background: #1e293b; }
+        @media print {
+            .no-print { display: none !important; }
+            body { background: white !important; }
+            .invoice-container { box-shadow: none !important; max-width: 100% !important; }
+        }
+    </style>
+</head>
+<body class="bg-gray-100 min-h-screen py-8">
+    <div id="root"></div>
+    <script type="text/babel">
+        const InvoiceView = () => {
+            const [invoice, setInvoice] = React.useState(null);
+            const [loading, setLoading] = React.useState(true);
+            const [error, setError] = React.useState(null);
+
+            React.useEffect(() => {
+                fetchInvoice();
+            }, []);
+
+            const fetchInvoice = async () => {
+                const urlParams = new URLSearchParams(window.location.search);
+                const invoiceId = urlParams.get('invoiceId');
+                
+                if (!invoiceId) {
+                    setError('No invoice ID provided');
+                    setLoading(false);
+                    return;
+                }
+
+                try {
+                    const token = localStorage.getItem('celloxen_token');
+                    const response = await fetch(`/api/v1/patient-invoices/${invoiceId}`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    
+                    if (!response.ok) throw new Error('Failed to fetch invoice');
+                    
+                    const data = await response.json();
+                    setInvoice(data.invoice);
+                } catch (err) {
+                    setError(err.message);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const formatDate = (dateStr) => {
+                if (!dateStr) return 'N/A';
+                const date = new Date(dateStr);
+                return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' });
+            };
+
+            const formatCurrency = (amount) => {
+                return new Intl.NumberFormat('en-GB', {
+                    style: 'currency',
+                    currency: 'GBP'
+                }).format(amount || 0);
+            };
+
+            const getStatusStyle = (status) => {
+                switch(status?.toLowerCase()) {
+                    case 'paid': return 'bg-green-100 text-green-800 border-green-300';
+                    case 'pending': return 'bg-yellow-100 text-yellow-800 border-yellow-300';
+                    case 'overdue': return 'bg-red-100 text-red-800 border-red-300';
+                    default: return 'bg-gray-100 text-gray-800 border-gray-300';
+                }
+            };
+
+            if (loading) {
+                return (
+                    <div className="flex items-center justify-center h-screen">
+                        <div className="text-center">
+                            <div className="w-12 h-12 border-4 border-blue-200 border-t-blue-900 rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600">Loading invoice...</p>
+                        </div>
+                    </div>
+                );
+            }
+
+            if (error) {
+                return (
+                    <div className="flex items-center justify-center h-screen">
+                        <div className="bg-white p-8 rounded-xl shadow-lg text-center">
+                            <div className="text-red-500 text-4xl mb-4">⚠️</div>
+                            <h2 className="text-xl font-bold text-gray-800 mb-2">Error</h2>
+                            <p className="text-gray-600 mb-4">{error}</p>
+                            <button onClick={() => window.history.back()} className="btn-navy text-white px-6 py-2 rounded-lg">
+                                Go Back
+                            </button>
+                        </div>
+                    </div>
+                );
+            }
+
+            return (
+                <div className="max-w-3xl mx-auto px-4">
+                    {/* Action Buttons */}
+                    <div className="mb-6 flex justify-between items-center no-print">
+                        <button 
+                            onClick={() => { if (window.history.length > 1) window.history.back(); else window.close(); }}
+                            className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50 flex items-center"
+                        >
+                            ← Back
+                        </button>
+                        <div className="flex gap-3">
+                            <button 
+                                onClick={() => window.print()}
+                                className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 flex items-center"
+                            >
+                                🖨️ Print
+                            </button>
+                            <button 
+                                onClick={() => window.print()}
+                                className="btn-navy text-white px-4 py-2 rounded-lg flex items-center"
+                            >
+                                📥 Download PDF
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Invoice Document */}
+                    <div className="invoice-container bg-white rounded-xl shadow-lg overflow-hidden">
+                        {/* Header */}
+                        <div className="navy-bg text-white p-8">
+                            <div className="flex justify-between items-start">
+                                <div>
+                                    <h1 className="text-3xl font-bold mb-1">INVOICE</h1>
+                                    <p className="text-blue-200 text-lg">{invoice.invoice_number}</p>
+                                </div>
+                                <div className="text-right">
+                                    <h2 className="text-xl font-bold">{invoice.clinic_name}</h2>
+                                    <p className="text-blue-200 text-sm mt-1">{invoice.clinic_address}</p>
+                                    <p className="text-blue-200 text-sm">{invoice.clinic_city}, {invoice.clinic_postcode}</p>
+                                    {invoice.clinic_phone && <p className="text-blue-200 text-sm mt-2">📞 {invoice.clinic_phone}</p>}
+                                    {invoice.clinic_email && <p className="text-blue-200 text-sm">✉️ {invoice.clinic_email}</p>}
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Status Banner */}
+                        <div className={`px-8 py-3 border-b-2 ${getStatusStyle(invoice.status)}`}>
+                            <div className="flex justify-between items-center">
+                                <span className="font-semibold text-lg">Status: {invoice.status?.toUpperCase()}</span>
+                                {invoice.status === 'paid' && invoice.paid_at && (
+                                    <span className="text-sm">Paid on: {formatDate(invoice.paid_at)}</span>
+                                )}
+                            </div>
+                        </div>
+
+                        {/* Invoice Details */}
+                        <div className="p-8">
+                            <div className="grid grid-cols-2 gap-8 mb-8">
+                                {/* Bill To */}
+                                <div>
+                                    <h3 className="text-sm font-semibold text-gray-500 uppercase mb-2">Bill To</h3>
+                                    <p className="font-bold text-lg navy-text">{invoice.first_name} {invoice.last_name}</p>
+                                    {invoice.patient_address && <p className="text-gray-600">{invoice.patient_address}</p>}
+                                    {(invoice.patient_city || invoice.patient_postcode) && (
+                                        <p className="text-gray-600">{invoice.patient_city}, {invoice.patient_postcode}</p>
+                                    )}
+                                    {invoice.patient_email && <p className="text-gray-600 mt-2">✉️ {invoice.patient_email}</p>}
+                                    {invoice.mobile_phone && <p className="text-gray-600">📞 {invoice.mobile_phone}</p>}
+                                </div>
+
+                                {/* Invoice Info */}
+                                <div className="text-right">
+                                    <div className="mb-4">
+                                        <h3 className="text-sm font-semibold text-gray-500 uppercase mb-1">Invoice Date</h3>
+                                        <p className="text-gray-800">{formatDate(invoice.created_at)}</p>
+                                    </div>
+                                    <div className="mb-4">
+                                        <h3 className="text-sm font-semibold text-gray-500 uppercase mb-1">Service Date</h3>
+                                        <p className="text-gray-800">{formatDate(invoice.service_date)}</p>
+                                    </div>
+                                    <div>
+                                        <h3 className="text-sm font-semibold text-gray-500 uppercase mb-1">Due Date</h3>
+                                        <p className="text-gray-800 font-semibold">{formatDate(invoice.due_date)}</p>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Line Items */}
+                            <div className="border rounded-lg overflow-hidden mb-8">
+                                <table className="w-full">
+                                    <thead className="bg-gray-50">
+                                        <tr>
+                                            <th className="px-6 py-3 text-left text-xs font-semibold text-gray-600 uppercase">Description</th>
+                                            <th className="px-6 py-3 text-right text-xs font-semibold text-gray-600 uppercase">Amount</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr className="border-t">
+                                            <td className="px-6 py-4">
+                                                <p className="font-medium text-gray-900">{invoice.description || 'Professional Services'}</p>
+                                                {invoice.notes && <p className="text-sm text-gray-500 mt-1">{invoice.notes}</p>}
+                                            </td>
+                                            <td className="px-6 py-4 text-right font-medium text-gray-900">
+                                                {formatCurrency(invoice.amount)}
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+
+                            {/* Total */}
+                            <div className="flex justify-end">
+                                <div className="w-64">
+                                    <div className="flex justify-between py-2 border-t">
+                                        <span className="text-gray-600">Subtotal</span>
+                                        <span className="font-medium">{formatCurrency(invoice.amount)}</span>
+                                    </div>
+                                    <div className="flex justify-between py-2 border-t">
+                                        <span className="text-gray-600">VAT (0%)</span>
+                                        <span className="font-medium">£0.00</span>
+                                    </div>
+                                    <div className="flex justify-between py-3 border-t-2 border-gray-800">
+                                        <span className="text-xl font-bold navy-text">Total</span>
+                                        <span className="text-xl font-bold navy-text">{formatCurrency(invoice.amount)}</span>
+                                    </div>
+                                </div>
+                            </div>
+
+                            {/* Payment Info */}
+                            {invoice.status !== 'paid' && (
+                                <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                                    <h3 className="font-semibold text-blue-900 mb-2">Payment Information</h3>
+                                    <p className="text-blue-800 text-sm">
+                                        Please make payment by the due date. For any queries regarding this invoice, 
+                                        please contact us at {invoice.clinic_email || 'the clinic'}.
+                                    </p>
+                                </div>
+                            )}
+
+                            {invoice.status === 'paid' && (
+                                <div className="mt-8 p-4 bg-green-50 rounded-lg border border-green-200 text-center">
+                                    <span className="text-green-700 text-2xl font-bold">✓ PAID</span>
+                                    {invoice.payment_method && (
+                                        <p className="text-green-600 text-sm mt-1">Payment method: {invoice.payment_method}</p>
+                                    )}
+                                </div>
+                            )}
+                        </div>
+
+                        {/* Footer */}
+                        <div className="bg-gray-50 px-8 py-4 text-center text-sm text-gray-500 border-t">
+                            <p>Thank you for choosing {invoice.clinic_name}</p>
+                            <p className="mt-1">This invoice was generated by Celloxen Health Portal</p>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        ReactDOM.createRoot(document.getElementById('root')).render(<InvoiceView />);
+    </script>
+</body>
+</html>

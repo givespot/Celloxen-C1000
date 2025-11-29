@@ -152,7 +152,7 @@ async function displayIridologyWithPatient(analysis) {
                 try {
                     const response = await fetch('/api/v1/auth/login', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify({ email, password })
                     });
                     
@@ -341,7 +341,7 @@ async function displayIridologyWithPatient(analysis) {
                 try {
                     const response = await fetch('/api/v1/auth/forgot-password', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify({ email })
                     });
                     const data = await response.json();
@@ -494,7 +494,7 @@ async function displayIridologyWithPatient(analysis) {
                 try {
                     const response = await fetch('/api/v1/auth/reset-password', {
                         method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify({ token, new_password: password })
                     });
                     const data = await response.json();
@@ -769,11 +769,12 @@ async function displayIridologyWithPatient(analysis) {
                         method: 'POST',
                         headers: {
                             'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
                         },
                         body: JSON.stringify({
                             ...formData,
                             date_of_birth: dbDate,
-                            clinic_id: 1,
+                            // clinic_id set by backend from token
                             status: 'active'
                         })
                     });
@@ -1641,7 +1642,7 @@ async function displayIridologyWithPatient(analysis) {
 
             const fetchPatients = async () => {
                 try {
-                    const response = await fetch('/api/v1/clinic/patients');
+                    const response = await fetch('/api/v1/clinic/patients', { headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` } });
                     if (response.ok) {
                         const data = await response.json();
                         setPatients(data);
@@ -1763,6 +1764,8 @@ async function displayIridologyWithPatient(analysis) {
             const [editMode, setEditMode] = useState(false);
             const [formData, setFormData] = useState({});
             const [saving, setSaving] = useState(false);
+            const [patientAssessments, setPatientAssessments] = useState([]);
+            const [patientIridology, setPatientIridology] = useState([]);
 
             useEffect(() => {
                 fetchPatientData();
@@ -1770,12 +1773,40 @@ async function displayIridologyWithPatient(analysis) {
 
             const fetchPatientData = async () => {
                 try {
-                    const response = await fetch(`/api/v1/clinic/patients/${patientId}`);
+                    const token = localStorage.getItem('celloxen_token');
+                    const headers = { 'Authorization': `Bearer ${token}` };
+                    
+                    // Fetch patient details
+                    const response = await fetch(`/api/v1/clinic/patients/${patientId}`, { headers });
                     if (response.ok) {
                         const data = await response.json();
                         setPatient(data.patient);
                         setStats(data.stats);
                         setFormData(data.patient);
+                    }
+                    
+                    // Fetch patient assessments
+                    try {
+                        const assessmentsRes = await fetch(`/api/v1/clinic/patients/${patientId}/assessments`, { headers });
+                        if (assessmentsRes.ok) {
+                            const assessmentsData = await assessmentsRes.json();
+                            setPatientAssessments(assessmentsData.assessments || []);
+                        }
+                    } catch (e) {
+                        console.log('No assessments endpoint or error:', e);
+                        setPatientAssessments([]);
+                    }
+                    
+                    // Fetch patient iridology analyses
+                    try {
+                        const iridologyRes = await fetch(`/api/v1/clinic/patients/${patientId}/iridology`, { headers });
+                        if (iridologyRes.ok) {
+                            const iridologyData = await iridologyRes.json();
+                            setPatientIridology(iridologyData.analyses || []);
+                        }
+                    } catch (e) {
+                        console.log('No iridology endpoint or error:', e);
+                        setPatientIridology([]);
                     }
                 } catch (error) {
                     console.error('Error fetching patient:', error);
@@ -1788,7 +1819,7 @@ async function displayIridologyWithPatient(analysis) {
                 try {
                     const response = await fetch(`/api/v1/clinic/patients/${patientId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify(formData)
                     });
 
@@ -1814,7 +1845,7 @@ async function displayIridologyWithPatient(analysis) {
                 try {
                     const response = await fetch(`/api/v1/clinic/patients/${patientId}`, {
                         method: 'PUT',
-                        headers: { 'Content-Type': 'application/json' },
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify({ status: newStatus })
                     });
 
@@ -2364,8 +2395,96 @@ async function displayIridologyWithPatient(analysis) {
                             {/* Assessments Tab */}
                             {activeTab === 'assessments' && (
                                 <div className="space-y-6">
-                                    <h2 className="text-xl font-bold text-gray-900">Assessments History</h2>
-                                    <p className="text-gray-600">Assessment history will be displayed here</p>
+                                    {/* Wellness Assessments Section */}
+                                    <div>
+                                        <h2 className="text-xl font-bold text-gray-900 mb-4">Wellness Assessments</h2>
+                                        {patientAssessments.length === 0 ? (
+                                            <p className="text-gray-500 italic">No wellness assessments found</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {patientAssessments.map(assessment => (
+                                                    <div key={assessment.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900">Assessment #{assessment.id}</p>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {assessment.assessment_date ? new Date(assessment.assessment_date).toLocaleDateString('en-GB') : 'N/A'}
+                                                                </p>
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                                    assessment.assessment_status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                    assessment.assessment_status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    'bg-gray-100 text-gray-800'
+                                                                }`}>
+                                                                    {assessment.assessment_status || 'Unknown'}
+                                                                </span>
+                                                                {assessment.overall_wellness_score && (
+                                                                    <p className="text-sm text-gray-600 mt-1">Score: {Math.round(assessment.overall_wellness_score)}%</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => window.open(`/wellness_report.html?assessmentId=${assessment.id}`, '_blank')}
+                                                            className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                                        >
+                                                            View Report →
+                                                        </button>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
+                                    
+                                    {/* Iridology Analyses Section */}
+                                    <div className="mt-8">
+                                        <h2 className="text-xl font-bold text-gray-900 mb-4">Iridology Analyses</h2>
+                                        {patientIridology.length === 0 ? (
+                                            <p className="text-gray-500 italic">No iridology analyses found</p>
+                                        ) : (
+                                            <div className="space-y-3">
+                                                {patientIridology.map(analysis => (
+                                                    <div key={analysis.id} className="bg-white border rounded-lg p-4 hover:shadow-md transition-shadow">
+                                                        <div className="flex justify-between items-start">
+                                                            <div>
+                                                                <p className="font-semibold text-gray-900">{analysis.analysis_number}</p>
+                                                                <p className="text-sm text-gray-600">
+                                                                    {analysis.created_at ? new Date(analysis.created_at).toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'N/A'}
+                                                                </p>
+                                                                {analysis.constitutional_type && (
+                                                                    <p className="text-sm text-gray-700 mt-1">
+                                                                        <span className="font-medium">Type:</span> {analysis.constitutional_type}
+                                                                        {analysis.constitutional_strength && ` (${analysis.constitutional_strength})`}
+                                                                    </p>
+                                                                )}
+                                                            </div>
+                                                            <div className="text-right">
+                                                                <span className={`px-2 py-1 rounded text-xs font-medium ${
+                                                                    analysis.status === 'completed' ? 'bg-green-100 text-green-800' :
+                                                                    analysis.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                                                                    analysis.status === 'failed' ? 'bg-red-100 text-red-800' :
+                                                                    'bg-gray-100 text-gray-800'
+                                                                }`}>
+                                                                    {analysis.status}
+                                                                </span>
+                                                                {analysis.confidence_score && (
+                                                                    <p className="text-sm text-gray-600 mt-1">Confidence: {Math.round(analysis.confidence_score)}%</p>
+                                                                )}
+                                                            </div>
+                                                        </div>
+                                                        {analysis.status === 'completed' && (
+                                                            <button 
+                                                                onClick={() => window.open(`/iridology_report.html?analysisId=${analysis.id}`, '_blank')}
+                                                                className="mt-2 text-sm text-blue-600 hover:text-blue-800"
+                                                            >
+                                                                View Report →
+                                                            </button>
+                                                        )}
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
@@ -2481,13 +2600,20 @@ async function displayIridologyWithPatient(analysis) {
             };
 
             const submitAssessment = async () => {
+                // Validate all questions answered
+                const unanswered = answers.filter(a => a === null).length;
+                if (unanswered > 0) {
+                    alert('Please answer all questions. ' + unanswered + ' question(s) remaining.');
+                    return;
+                }
                 setLoading(true);
                 
                 try {
                     const response = await fetch('/api/v1/assessment/submit', {
                         method: 'POST',
                         headers: {
-                            'Content-Type': 'application/json'
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}`
                         },
                         body: JSON.stringify({
                             patient_id: selectedPatient.id,
@@ -3838,7 +3964,7 @@ const IridologyModule = () => {
 
             const loadPatients = async () => {
                 try {
-                    const response = await fetch('/api/v1/clinic/patients');
+                    const response = await fetch('/api/v1/clinic/patients', { headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` } });
                     const data = await response.json();
                     setPatients(Array.isArray(data) ? data.filter(p => p.status === 'active') : []);
                 } catch (err) {
@@ -3911,7 +4037,7 @@ const IridologyModule = () => {
                         `/api/v1/iridology/${analysisId}/upload-images`,
                         {
                             method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
+                            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                             body: JSON.stringify({
                                 left_eye_image: leftEyeImage,
                                 right_eye_image: rightEyeImage,
@@ -4936,6 +5062,7 @@ const IridologyModule = () => {
                 duration_minutes: 60,
                 booking_notes: ''
             });
+            const [editingAppointmentId, setEditingAppointmentId] = React.useState(null);
 
             React.useEffect(() => {
                 loadAppointments();
@@ -4945,7 +5072,7 @@ const IridologyModule = () => {
 
             const loadAppointments = async () => {
                 try {
-                    const response = await fetch('/api/v1/appointments');
+                    const response = await fetch('/api/v1/appointments', { headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` } });
                     const data = await response.json();
                     if (data.success) {
                         setAppointments(data.appointments);
@@ -4959,7 +5086,7 @@ const IridologyModule = () => {
 
             const loadStats = async () => {
                 try {
-                    const response = await fetch('/api/v1/appointments/stats/overview');
+                    const response = await fetch('/api/v1/appointments/stats/overview', { headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` } });
                     const data = await response.json();
                     if (data.success) {
                         setStats(data.stats);
@@ -4971,7 +5098,7 @@ const IridologyModule = () => {
 
             const loadPatients = async () => {
                 try {
-                    const response = await fetch('/api/v1/clinic/patients');
+                    const response = await fetch('/api/v1/clinic/patients', { headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` } });
                     const data = await response.json();
                     if (Array.isArray(data)) {
                         setPatients(data.filter(p => p.status === 'active'));
@@ -4984,15 +5111,24 @@ const IridologyModule = () => {
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 try {
-                    const response = await fetch('/api/v1/appointments', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
+                    let url = '/api/v1/appointments';
+                    let method = 'POST';
+                    
+                    if (editingAppointmentId) {
+                        url = `/api/v1/appointments/${editingAppointmentId}`;
+                        method = 'PUT';
+                    }
+                    
+                    const response = await fetch(url, {
+                        method: method,
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify(formData)
                     });
                     const data = await response.json();
-                    if (data.success) {
-                        alert('Appointment created successfully!');
+                    if (data.success || response.ok) {
+                        alert(editingAppointmentId ? 'Appointment updated successfully!' : 'Appointment created successfully!');
                         setShowForm(false);
+                        setEditingAppointmentId(null);
                         loadAppointments();
                         loadStats();
                         setFormData({
@@ -5004,10 +5140,49 @@ const IridologyModule = () => {
                             booking_notes: ''
                         });
                     } else {
-                        alert('Error: ' + data.error);
+                        alert('Error: ' + (data.error || data.detail || 'Operation failed'));
                     }
                 } catch (error) {
-                    alert('Error creating appointment');
+                    alert(editingAppointmentId ? 'Error updating appointment' : 'Error creating appointment');
+                }
+            };
+
+            const handleEditAppointment = (apt) => {
+                setFormData({
+                    patient_id: apt.patient_id,
+                    appointment_type: apt.appointment_type,
+                    appointment_date: apt.appointment_date,
+                    appointment_time: apt.appointment_time,
+                    duration_minutes: apt.duration_minutes || 60,
+                    booking_notes: apt.booking_notes || ''
+                });
+                setEditingAppointmentId(apt.id);
+                setShowForm(true);
+            };
+
+            const handleCancelAppointment = async (appointmentId) => {
+                if (!confirm('Are you sure you want to cancel this appointment?')) return;
+                
+                try {
+                    const response = await fetch(`/api/v1/appointments/${appointmentId}/cancel`, {
+                        method: 'POST',
+                        headers: { 
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` 
+                        },
+                        body: JSON.stringify({ reason: 'Cancelled by clinic admin' })
+                    });
+                    const data = await response.json();
+                    if (data.success || response.ok) {
+                        alert('Appointment cancelled successfully');
+                        loadAppointments();
+                        loadStats();
+                    } else {
+                        alert('Error: ' + (data.detail || data.error || 'Failed to cancel appointment'));
+                    }
+                } catch (error) {
+                    console.error('Error cancelling appointment:', error);
+                    alert('Error cancelling appointment');
                 }
             };
 
@@ -5074,7 +5249,7 @@ const IridologyModule = () => {
                     {/* New Appointment Form */}
                     {showForm && (
                         <div className="bg-white rounded-lg p-6 shadow-md border border-gray-200 mb-6">
-                            <h2 className="text-xl font-bold mb-4">Create New Appointment</h2>
+                            <h2 className="text-xl font-bold mb-4">{editingAppointmentId ? "Update Appointment" : "Create New Appointment"}</h2>
                             <form onSubmit={handleSubmit}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -5150,7 +5325,7 @@ const IridologyModule = () => {
                                 </div>
                                 <div className="mt-4 flex gap-2">
                                     <button type="submit" className="btn-navy text-white px-6 py-2 rounded-lg font-semibold">
-                                        Create Appointment
+                                        {editingAppointmentId ? "Update Appointment" : "Create Appointment"}
                                     </button>
                                     <button
                                         type="button"
@@ -5182,6 +5357,7 @@ const IridologyModule = () => {
                                                 <th className="text-left py-3 px-4">Type</th>
                                                 <th className="text-left py-3 px-4">Duration</th>
                                                 <th className="text-left py-3 px-4">Status</th>
+                                                <th className="text-left py-3 px-4">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -5198,6 +5374,26 @@ const IridologyModule = () => {
                                                             {formatType(apt.status)}
                                                         </span>
                                                     </td>
+                                                    <td className="py-3 px-4">
+                                                        <div className="flex items-center space-x-2">
+                                                            <button
+                                                                onClick={() => handleEditAppointment(apt)}
+                                                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                                                                title="Edit Appointment"
+                                                            >
+                                                                Edit
+                                                            </button>
+                                                            {apt.status !== 'CANCELLED' && (
+                                                                <button
+                                                                    onClick={() => handleCancelAppointment(apt.id)}
+                                                                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
+                                                                    title="Cancel Appointment"
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            )}
+                                                        </div>
+                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -5211,26 +5407,27 @@ const IridologyModule = () => {
         };
 
         // Settings Component
+        // Settings Component - Professional Enterprise Design
         const SettingsModule = () => {
             const [activeTab, setActiveTab] = React.useState('profile');
             const [loading, setLoading] = React.useState(true);
             const [saving, setSaving] = React.useState(false);
             const [message, setMessage] = React.useState({ type: '', text: '' });
-            
+
             // Profile state
             const [profile, setProfile] = React.useState({
                 name: '', email: '', phone: '', address_line1: '', address_line2: '',
                 city: '', county: '', postcode: '', website: ''
             });
-            
-            // Opening hours state (0=Sunday, 1=Monday, etc.)
+
+            // Opening hours state
             const [hours, setHours] = React.useState([]);
-            
+
             // Password state
             const [passwordData, setPasswordData] = React.useState({
                 current_password: '', new_password: '', confirm_password: ''
             });
-            
+
             // Notifications state
             const [notifications, setNotifications] = React.useState({
                 appointment_reminders: true,
@@ -5299,7 +5496,7 @@ const IridologyModule = () => {
                 try {
                     const dayData = hours.find(h => h.day === day);
                     const updatedDay = { ...dayData, [field]: value };
-                    
+
                     const response = await fetch('/api/v1/clinic/settings/hours', {
                         method: 'PATCH',
                         headers: {
@@ -5313,7 +5510,7 @@ const IridologyModule = () => {
                             close_time: updatedDay.close_time
                         })
                     });
-                    
+
                     if (response.ok) {
                         setHours(hours.map(h => h.day === day ? updatedDay : h));
                         showMessage('success', 'Hours updated successfully');
@@ -5376,7 +5573,7 @@ const IridologyModule = () => {
                         },
                         body: JSON.stringify(updated)
                     });
-                    
+
                     if (response.ok) {
                         setNotifications(updated);
                         showMessage('success', 'Notification preferences updated');
@@ -5390,326 +5587,429 @@ const IridologyModule = () => {
                 }
             };
 
+            // Tab configuration with icons
+            const tabs = [
+                { id: 'profile', label: 'Clinic Profile', icon: '🏥' },
+                { id: 'hours', label: 'Opening Hours', icon: '🕐' },
+                { id: 'password', label: 'Security', icon: '🔒' },
+                { id: 'notifications', label: 'Notifications', icon: '🔔' }
+            ];
+
             if (loading) {
                 return (
-                    <div className="flex items-center justify-center h-64">
-                        <div className="text-gray-600">Loading settings...</div>
+                    <div className="flex items-center justify-center h-96">
+                        <div className="text-center">
+                            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-900 rounded-full animate-spin mx-auto mb-4"></div>
+                            <p className="text-gray-600 font-medium">Loading settings...</p>
+                        </div>
                     </div>
                 );
             }
 
             return (
-                <div className="p-6">
-                    <h1 className="text-2xl font-bold text-gray-900 mb-6">⚙️ Settings</h1>
-
-                    {message.text && (
-                        <div className={`mb-4 p-4 rounded-lg ${
-                            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
-                        }`}>
-                            {message.text}
-                        </div>
-                    )}
-
-                    {/* Tabs */}
-                    <div className="border-b border-gray-200 mb-6">
-                        <div className="flex space-x-8">
-                            {['profile', 'hours', 'password', 'notifications'].map(tab => (
-                                <button
-                                    key={tab}
-                                    onClick={() => setActiveTab(tab)}
-                                    className={`pb-4 px-1 border-b-2 font-medium text-sm ${
-                                        activeTab === tab
-                                            ? 'border-blue-600 text-blue-600'
-                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                                    }`}
-                                >
-                                    {tab === 'profile' && 'Clinic Profile'}
-                                    {tab === 'hours' && 'Opening Hours'}
-                                    {tab === 'password' && 'Change Password'}
-                                    {tab === 'notifications' && 'Email Notifications'}
-                                </button>
-                            ))}
+                <div className="p-6 bg-gray-50 min-h-screen">
+                    {/* Header */}
+                    <div className="mb-8">
+                        <div className="flex items-center space-x-3 mb-2">
+                            <div className="w-10 h-10 bg-gradient-to-br from-blue-900 to-blue-700 rounded-xl flex items-center justify-center">
+                                <span className="text-white text-xl">⚙️</span>
+                            </div>
+                            <div>
+                                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
+                                <p className="text-sm text-gray-500">Manage your clinic preferences and configuration</p>
+                            </div>
                         </div>
                     </div>
 
-                    {/* Profile Tab */}
-                    {activeTab === 'profile' && (
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h2 className="text-lg font-semibold mb-4">Clinic Information</h2>
-                            <form onSubmit={handleProfileUpdate} className="space-y-4">
-                                <div className="grid grid-cols-2 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Clinic Name</label>
-                                        <input
-                                            type="text"
-                                            value={profile.name || ''}
-                                            onChange={(e) => setProfile({...profile, name: e.target.value})}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
-                                        <input
-                                            type="tel"
-                                            value={profile.phone || ''}
-                                            onChange={(e) => setProfile({...profile, phone: e.target.value})}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
-                                    <input
-                                        type="email"
-                                        value={profile.email || ''}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
-                                        disabled
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Contact support to change your email address</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
-                                    <input
-                                        type="text"
-                                        value={profile.address_line1 || ''}
-                                        onChange={(e) => setProfile({...profile, address_line1: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
-                                    <input
-                                        type="text"
-                                        value={profile.address_line2 || ''}
-                                        onChange={(e) => setProfile({...profile, address_line2: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                    />
-                                </div>
-                                <div className="grid grid-cols-3 gap-4">
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
-                                        <input
-                                            type="text"
-                                            value={profile.city || ''}
-                                            onChange={(e) => setProfile({...profile, city: e.target.value})}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
-                                        <input
-                                            type="text"
-                                            value={profile.county || ''}
-                                            onChange={(e) => setProfile({...profile, county: e.target.value})}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        />
-                                    </div>
-                                    <div>
-                                        <label className="block text-sm font-medium text-gray-700 mb-1">Postcode</label>
-                                        <input
-                                            type="text"
-                                            value={profile.postcode || ''}
-                                            onChange={(e) => setProfile({...profile, postcode: e.target.value})}
-                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                            required
-                                        />
-                                    </div>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
-                                    <input
-                                        type="url"
-                                        value={profile.website || ''}
-                                        onChange={(e) => setProfile({...profile, website: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        placeholder="https://www.example.com"
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {saving ? 'Saving...' : 'Save Changes'}
-                                </button>
-                            </form>
+                    {/* Alert Message */}
+                    {message.text && (
+                        <div className={`mb-6 p-4 rounded-xl border-l-4 ${
+                            message.type === 'success' 
+                                ? 'bg-green-50 border-green-500 text-green-800' 
+                                : 'bg-red-50 border-red-500 text-red-800'
+                        }`}>
+                            <div className="flex items-center">
+                                <span className="mr-2">{message.type === 'success' ? '✓' : '⚠'}</span>
+                                <span className="font-medium">{message.text}</span>
+                            </div>
                         </div>
                     )}
 
-                    {/* Opening Hours Tab */}
-                    {activeTab === 'hours' && (
-                        <div className="bg-white rounded-lg shadow p-6">
-                            <h2 className="text-lg font-semibold mb-4">Clinic Opening Hours</h2>
-                            <p className="text-sm text-gray-600 mb-6">Set your clinic hours for each day of the week</p>
-                            <div className="space-y-4">
-                                {hours.map(day => (
-                                    <div key={day.day} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
-                                        <div className="w-32">
-                                            <span className="font-medium">{dayNames[day.day]}</span>
+                    <div className="flex gap-6">
+                        {/* Sidebar Navigation */}
+                        <div className="w-64 flex-shrink-0">
+                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800">
+                                    <h3 className="text-white font-semibold text-sm uppercase tracking-wider">Configuration</h3>
+                                </div>
+                                <nav className="p-2">
+                                    {tabs.map(tab => (
+                                        <button
+                                            key={tab.id}
+                                            onClick={() => setActiveTab(tab.id)}
+                                            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 mb-1 ${
+                                                activeTab === tab.id
+                                                    ? 'bg-blue-50 text-blue-900 font-semibold border-l-4 border-blue-900'
+                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
+                                            }`}
+                                        >
+                                            <span className="text-lg">{tab.icon}</span>
+                                            <span>{tab.label}</span>
+                                        </button>
+                                    ))}
+                                </nav>
+                            </div>
+                        </div>
+
+                        {/* Main Content Area */}
+                        <div className="flex-1">
+                            {/* Profile Tab */}
+                            {activeTab === 'profile' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
+                                                <span className="text-2xl">🏥</span>
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900">Clinic Profile</h2>
+                                                <p className="text-sm text-gray-500">Update your clinic information and contact details</p>
+                                            </div>
                                         </div>
-                                        <div className="flex items-center">
+                                    </div>
+                                    <form onSubmit={handleProfileUpdate} className="p-6 space-y-6">
+                                        {/* Basic Info Section */}
+                                        <div className="grid grid-cols-2 gap-6">
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Clinic Name</label>
+                                                <input
+                                                    type="text"
+                                                    value={profile.name || ''}
+                                                    onChange={(e) => setProfile({...profile, name: e.target.value})}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    placeholder="Enter clinic name"
+                                                    required
+                                                />
+                                            </div>
+                                            <div>
+                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
+                                                <input
+                                                    type="tel"
+                                                    value={profile.phone || ''}
+                                                    onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    placeholder="+44 xxx xxx xxxx"
+                                                    required
+                                                />
+                                            </div>
+                                        </div>
+
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
+                                            <div className="relative">
+                                                <input
+                                                    type="email"
+                                                    value={profile.email || ''}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
+                                                    disabled
+                                                />
+                                                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-md">Read-only</span>
+                                            </div>
+                                            <p className="text-xs text-gray-500 mt-2 flex items-center">
+                                                <span className="mr-1">ℹ️</span>
+                                                Contact support to change your email address
+                                            </p>
+                                        </div>
+
+                                        {/* Address Section */}
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
+                                                <span className="mr-2">📍</span>
+                                                Clinic Address
+                                            </h3>
+                                            <div className="space-y-4">
+                                                <input
+                                                    type="text"
+                                                    value={profile.address_line1 || ''}
+                                                    onChange={(e) => setProfile({...profile, address_line1: e.target.value})}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    placeholder="Address Line 1"
+                                                    required
+                                                />
+                                                <input
+                                                    type="text"
+                                                    value={profile.address_line2 || ''}
+                                                    onChange={(e) => setProfile({...profile, address_line2: e.target.value})}
+                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                    placeholder="Address Line 2 (Optional)"
+                                                />
+                                                <div className="grid grid-cols-3 gap-4">
+                                                    <input
+                                                        type="text"
+                                                        value={profile.city || ''}
+                                                        onChange={(e) => setProfile({...profile, city: e.target.value})}
+                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                        placeholder="City"
+                                                        required
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={profile.county || ''}
+                                                        onChange={(e) => setProfile({...profile, county: e.target.value})}
+                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                        placeholder="County"
+                                                    />
+                                                    <input
+                                                        type="text"
+                                                        value={profile.postcode || ''}
+                                                        onChange={(e) => setProfile({...profile, postcode: e.target.value})}
+                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                        placeholder="Postcode"
+                                                        required
+                                                    />
+                                                </div>
+                                            </div>
+                                        </div>
+
+                                        {/* Website */}
+                                        <div className="pt-4 border-t border-gray-100">
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
+                                                <span className="mr-2">🌐</span>
+                                                Website
+                                            </label>
                                             <input
-                                                type="checkbox"
-                                                checked={day.is_open}
-                                                onChange={(e) => handleHoursUpdate(day.day, 'is_open', e.target.checked)}
-                                                className="w-4 h-4 text-blue-600"
+                                                type="url"
+                                                value={profile.website || ''}
+                                                onChange={(e) => setProfile({...profile, website: e.target.value})}
+                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                placeholder="https://www.yourclinic.com"
                                             />
-                                            <span className="ml-2 text-sm">Open</span>
                                         </div>
-                                        {day.is_open && (
-                                            <>
-                                                <div>
-                                                    <input
-                                                        type="time"
-                                                        value={day.open_time || '09:00'}
-                                                        onChange={(e) => handleHoursUpdate(day.day, 'open_time', e.target.value)}
-                                                        className="px-3 py-2 border border-gray-300 rounded-lg"
-                                                    />
-                                                </div>
-                                                <span className="text-gray-500">to</span>
-                                                <div>
-                                                    <input
-                                                        type="time"
-                                                        value={day.close_time || '17:00'}
-                                                        onChange={(e) => handleHoursUpdate(day.day, 'close_time', e.target.value)}
-                                                        className="px-3 py-2 border border-gray-300 rounded-lg"
-                                                    />
-                                                </div>
-                                            </>
-                                        )}
-                                        {!day.is_open && (
-                                            <span className="text-gray-400">Closed</span>
-                                        )}
-                                    </div>
-                                ))}
-                            </div>
-                        </div>
-                    )}
 
-                    {/* Change Password Tab */}
-                    {activeTab === 'password' && (
-                        <div className="bg-white rounded-lg shadow p-6 max-w-md">
-                            <h2 className="text-lg font-semibold mb-4">Change Password</h2>
-                            <form onSubmit={handlePasswordChange} className="space-y-4">
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.current_password}
-                                        onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
+                                        {/* Save Button */}
+                                        <div className="pt-6 border-t border-gray-100">
+                                            <button
+                                                type="submit"
+                                                disabled={saving}
+                                                className="px-8 py-3 bg-gradient-to-r from-blue-900 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-800 hover:to-blue-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-blue-900/20"
+                                            >
+                                                {saving ? (
+                                                    <span className="flex items-center">
+                                                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                                                        Saving...
+                                                    </span>
+                                                ) : 'Save Changes'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.new_password}
-                                        onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                        minLength="6"
-                                    />
-                                    <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
-                                    <input
-                                        type="password"
-                                        value={passwordData.confirm_password}
-                                        onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
-                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
-                                        required
-                                    />
-                                </div>
-                                <button
-                                    type="submit"
-                                    disabled={saving}
-                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
-                                >
-                                    {saving ? 'Changing...' : 'Change Password'}
-                                </button>
-                            </form>
-                        </div>
-                    )}
+                            )}
 
-                    {/* Email Notifications Tab */}
-                    {activeTab === 'notifications' && (
-                        <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
-                            <h2 className="text-lg font-semibold mb-4">Email Notification Preferences</h2>
-                            <p className="text-sm text-gray-600 mb-6">Choose which email notifications you want to receive</p>
-                            <div className="space-y-4">
-                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                    <div>
-                                        <h3 className="font-medium">Appointment Reminders</h3>
-                                        <p className="text-sm text-gray-600">Receive reminders for upcoming appointments</p>
+                            {/* Opening Hours Tab */}
+                            {activeTab === 'hours' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
+                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
+                                                <span className="text-2xl">🕐</span>
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900">Opening Hours</h2>
+                                                <p className="text-sm text-gray-500">Configure your clinic's operating schedule</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={notifications.appointment_reminders}
-                                        onChange={(e) => handleNotificationsUpdate('appointment_reminders', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600"
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                    <div>
-                                        <h3 className="font-medium">Appointment Confirmations</h3>
-                                        <p className="text-sm text-gray-600">Get notified when appointments are booked</p>
+                                    <div className="p-6">
+                                        <div className="space-y-3">
+                                            {hours.map(day => (
+                                                <div 
+                                                    key={day.day} 
+                                                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
+                                                        day.is_open 
+                                                            ? 'border-green-200 bg-green-50/50' 
+                                                            : 'border-gray-200 bg-gray-50'
+                                                    }`}
+                                                >
+                                                    <div className="flex items-center space-x-4">
+                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${
+                                                            day.is_open 
+                                                                ? 'bg-green-500 text-white' 
+                                                                : 'bg-gray-300 text-gray-600'
+                                                        }`}>
+                                                            {dayNames[day.day].substring(0, 2)}
+                                                        </div>
+                                                        <div>
+                                                            <span className="font-semibold text-gray-900">{dayNames[day.day]}</span>
+                                                            {!day.is_open && (
+                                                                <span className="ml-3 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Closed</span>
+                                                            )}
+                                                        </div>
+                                                    </div>
+                                                    <div className="flex items-center space-x-4">
+                                                        <label className="flex items-center cursor-pointer">
+                                                            <div className="relative">
+                                                                <input
+                                                                    type="checkbox"
+                                                                    checked={day.is_open}
+                                                                    onChange={(e) => handleHoursUpdate(day.day, 'is_open', e.target.checked)}
+                                                                    className="sr-only"
+                                                                />
+                                                                <div className={`w-12 h-6 rounded-full transition-all duration-200 ${day.is_open ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                                                                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${day.is_open ? 'translate-x-6' : ''}`}></div>
+                                                            </div>
+                                                            <span className="ml-2 text-sm text-gray-600">{day.is_open ? 'Open' : 'Closed'}</span>
+                                                        </label>
+                                                        {day.is_open && (
+                                                            <div className="flex items-center space-x-2 ml-4">
+                                                                <input
+                                                                    type="time"
+                                                                    value={day.open_time || '09:00'}
+                                                                    onChange={(e) => handleHoursUpdate(day.day, 'open_time', e.target.value)}
+                                                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                />
+                                                                <span className="text-gray-400 font-medium">to</span>
+                                                                <input
+                                                                    type="time"
+                                                                    value={day.close_time || '17:00'}
+                                                                    onChange={(e) => handleHoursUpdate(day.day, 'close_time', e.target.value)}
+                                                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                                                />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                </div>
+                                            ))}
+                                        </div>
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={notifications.appointment_confirmations}
-                                        onChange={(e) => handleNotificationsUpdate('appointment_confirmations', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600"
-                                    />
                                 </div>
-                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                    <div>
-                                        <h3 className="font-medium">New Patient Alerts</h3>
-                                        <p className="text-sm text-gray-600">Be notified when new patients register</p>
+                            )}
+
+                            {/* Security/Password Tab */}
+                            {activeTab === 'password' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-xl">
+                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
+                                                <span className="text-2xl">🔒</span>
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900">Security Settings</h2>
+                                                <p className="text-sm text-gray-500">Update your password and security preferences</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={notifications.new_patient_alerts}
-                                        onChange={(e) => handleNotificationsUpdate('new_patient_alerts', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600"
-                                    />
+                                    <form onSubmit={handlePasswordChange} className="p-6 space-y-5">
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
+                                            <input
+                                                type="password"
+                                                value={passwordData.current_password}
+                                                onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
+                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                placeholder="Enter current password"
+                                                required
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
+                                            <input
+                                                type="password"
+                                                value={passwordData.new_password}
+                                                onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
+                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                placeholder="Enter new password"
+                                                required
+                                                minLength="6"
+                                            />
+                                            <p className="text-xs text-gray-500 mt-2 flex items-center">
+                                                <span className="mr-1">ℹ️</span>
+                                                Minimum 6 characters required
+                                            </p>
+                                        </div>
+                                        <div>
+                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
+                                            <input
+                                                type="password"
+                                                value={passwordData.confirm_password}
+                                                onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
+                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
+                                                placeholder="Confirm new password"
+                                                required
+                                            />
+                                        </div>
+                                        <div className="pt-4">
+                                            <button
+                                                type="submit"
+                                                disabled={saving}
+                                                className="px-8 py-3 bg-gradient-to-r from-blue-900 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-800 hover:to-blue-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-blue-900/20"
+                                            >
+                                                {saving ? (
+                                                    <span className="flex items-center">
+                                                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
+                                                        Updating...
+                                                    </span>
+                                                ) : 'Update Password'}
+                                            </button>
+                                        </div>
+                                    </form>
                                 </div>
-                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                    <div>
-                                        <h3 className="font-medium">Invoice Notifications</h3>
-                                        <p className="text-sm text-gray-600">Receive notifications for new invoices and payments</p>
+                            )}
+
+                            {/* Notifications Tab */}
+                            {activeTab === 'notifications' && (
+                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl">
+                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
+                                        <div className="flex items-center space-x-3">
+                                            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
+                                                <span className="text-2xl">🔔</span>
+                                            </div>
+                                            <div>
+                                                <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
+                                                <p className="text-sm text-gray-500">Choose which email notifications you want to receive</p>
+                                            </div>
+                                        </div>
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={notifications.invoice_notifications}
-                                        onChange={(e) => handleNotificationsUpdate('invoice_notifications', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600"
-                                    />
-                                </div>
-                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
-                                    <div>
-                                        <h3 className="font-medium">Marketing Emails</h3>
-                                        <p className="text-sm text-gray-600">Receive updates and promotional content from Celloxen</p>
+                                    <div className="p-6 space-y-4">
+                                        {[
+                                            { key: 'appointment_reminders', title: 'Appointment Reminders', desc: 'Receive reminders for upcoming appointments', icon: '📅' },
+                                            { key: 'appointment_confirmations', title: 'Appointment Confirmations', desc: 'Get notified when appointments are booked', icon: '✅' },
+                                            { key: 'new_patient_alerts', title: 'New Patient Alerts', desc: 'Be notified when new patients register', icon: '👤' },
+                                            { key: 'invoice_notifications', title: 'Invoice Notifications', desc: 'Receive notifications for new invoices and payments', icon: '💳' },
+                                            { key: 'marketing', title: 'Marketing & Updates', desc: 'Receive updates and promotional content from Celloxen', icon: '📢' }
+                                        ].map(item => (
+                                            <div key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all duration-200">
+                                                <div className="flex items-center space-x-4">
+                                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
+                                                        <span className="text-lg">{item.icon}</span>
+                                                    </div>
+                                                    <div>
+                                                        <h3 className="font-semibold text-gray-900">{item.title}</h3>
+                                                        <p className="text-sm text-gray-500">{item.desc}</p>
+                                                    </div>
+                                                </div>
+                                                <label className="flex items-center cursor-pointer">
+                                                    <div className="relative">
+                                                        <input
+                                                            type="checkbox"
+                                                            checked={notifications[item.key]}
+                                                            onChange={(e) => handleNotificationsUpdate(item.key, e.target.checked)}
+                                                            className="sr-only"
+                                                        />
+                                                        <div className={`w-12 h-6 rounded-full transition-all duration-200 ${notifications[item.key] ? 'bg-blue-900' : 'bg-gray-300'}`}></div>
+                                                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${notifications[item.key] ? 'translate-x-6' : ''}`}></div>
+                                                    </div>
+                                                </label>
+                                            </div>
+                                        ))}
                                     </div>
-                                    <input
-                                        type="checkbox"
-                                        checked={notifications.marketing}
-                                        onChange={(e) => handleNotificationsUpdate('marketing', e.target.checked)}
-                                        className="w-5 h-5 text-blue-600"
-                                    />
                                 </div>
-                            </div>
+                            )}
                         </div>
-                    )}
+                    </div>
                 </div>
             );
         };
+
 
 
         // Invoices Component
@@ -5914,16 +6214,32 @@ const IridologyModule = () => {
                                                 {invoice.description || 'N/A'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                <select
-                                                    value={invoice.status}
-                                                    onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
-                                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm"
-                                                >
-                                                    <option value="pending">Pending</option>
-                                                    <option value="paid">Paid</option>
-                                                    <option value="overdue">Overdue</option>
-                                                    <option value="cancelled">Cancelled</option>
-                                                </select>
+                                                <div className="flex items-center space-x-2">
+                                                    <button
+                                                        onClick={() => window.open(`/patient_invoice_view.html?invoiceId=${invoice.id}`, '_blank')}
+                                                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
+                                                        title="View Invoice"
+                                                    >
+                                                        View
+                                                    </button>
+                                                    <button
+                                                        onClick={() => window.open(`/patient_invoice_view.html?invoiceId=${invoice.id}`, '_blank')}
+                                                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
+                                                        title="Download PDF"
+                                                    >
+                                                        PDF
+                                                    </button>
+                                                    <select
+                                                        value={invoice.status}
+                                                        onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
+                                                        className="px-2 py-1 border border-gray-300 rounded text-xs"
+                                                    >
+                                                        <option value="pending">Pending</option>
+                                                        <option value="paid">Paid</option>
+                                                        <option value="overdue">Overdue</option>
+                                                        <option value="cancelled">Cancelled</option>
+                                                    </select>
+                                                </div>
                                             </td>
                                         </tr>
                                     ))}
