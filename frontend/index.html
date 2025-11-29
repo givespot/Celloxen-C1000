@@ -5093,7 +5093,7 @@ const TherapiesModule = () => {
 
     const fetchTherapies = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch('/api/v1/therapies', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -5110,7 +5110,7 @@ const TherapiesModule = () => {
 
     const fetchStats = async () => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch('/api/v1/therapy-module/stats', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -5129,7 +5129,7 @@ const TherapiesModule = () => {
             return;
         }
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch('/api/v1/clinic/patients', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -5155,7 +5155,7 @@ const TherapiesModule = () => {
 
     const fetchPatientAssignments = async (patientId) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch(`/api/v1/patients/${patientId}/therapy-assignments`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -5183,7 +5183,7 @@ const TherapiesModule = () => {
         if (!selectedPatient || !selectedTherapy) return;
         
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch(`/api/v1/patients/${selectedPatient.id}/therapy-assignments`, {
                 method: 'POST',
                 headers: {
@@ -5213,7 +5213,7 @@ const TherapiesModule = () => {
     const viewSessions = async (assignment) => {
         setSelectedAssignment(assignment);
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch(`/api/v1/therapy-assignments/${assignment.assignment_id}/sessions`, {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
@@ -5229,7 +5229,7 @@ const TherapiesModule = () => {
 
     const completeSession = async (sessionId) => {
         try {
-            const token = localStorage.getItem('token');
+            const token = localStorage.getItem('celloxen_token');
             const response = await fetch(`/api/v1/therapy-sessions/${sessionId}/complete`, {
                 method: 'PUT',
                 headers: {

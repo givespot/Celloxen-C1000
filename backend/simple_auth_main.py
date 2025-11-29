@@ -188,7 +188,7 @@ async def login(user_credentials: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/auth/me")
-async def get_current_user():
+async def get_current_user_endpoint():
     return {"id": 1, "email": "admin@celloxen.com", "role": "super_admin"}
 
 @app.get("/api/v1/patients/stats/overview")
@@ -2156,6 +2156,49 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
 
 
 # ============================================================================
+
+
+
+# ============================================================================
+# AUTHENTICATION DEPENDENCY
+# ============================================================================
+async def get_current_user(authorization: str = Header(None)):
+    """Dependency to get current user from JWT token"""
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid token")
+    try:
+        token = authorization.replace("Bearer ", "")
+        token_data = verify_token(token)
+        if not token_data:
+            raise HTTPException(status_code=401, detail="Invalid or expired token")
+        user_id = token_data.get('user_id')
+        clinic_id = token_data.get('clinic_id')
+        if not user_id:
+            return {"user_id": None, "role": "clinic_user", "clinic_id": clinic_id}
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER,
+            password=DB_PASSWORD, database=DB_NAME
+        )
+        user = await conn.fetchrow(
+            "SELECT id, email, full_name, role, clinic_id FROM users WHERE id = $1",
+            user_id
+        )
+        await conn.close()
+        if user:
+            return {
+                "id": user['id'],
+                "user_id": user['id'],
+                "email": user['email'],
+                "full_name": user['full_name'],
+                "role": user['role'],
+                "clinic_id": user['clinic_id']
+            }
+        return {"id": user_id, "user_id": user_id, "clinic_id": clinic_id, "role": "clinic_user"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Auth error: {str(e)}")
+        raise HTTPException(status_code=401, detail="Authentication failed")
 
 # ============================================================================
 # THERAPIES MODULE API ENDPOINTS
