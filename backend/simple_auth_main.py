@@ -2156,6 +2156,764 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
 
 
 # ============================================================================
+
+# ============================================================================
+# THERAPIES MODULE API ENDPOINTS
+# ============================================================================
+# Provides: Therapy library, assignments, sessions, and progress tracking
+# ============================================================================
+
+@app.get("/api/v1/therapies")
+async def get_all_therapies():
+    """Get all therapy definitions for the library"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            therapies = await conn.fetch(
+                """SELECT id, therapy_code, therapy_name, subtitle, description,
+                          primary_support_areas, client_indicators,
+                          short_term_benefits, long_term_benefits,
+                          recommended_sessions, session_frequency, session_duration,
+                          applicator_placement, target_organs, is_active
+                   FROM therapies
+                   WHERE is_active = true
+                   ORDER BY therapy_code"""
+            )
+            
+            return {
+                "success": True,
+                "therapies": [
+                    {
+                        "id": t["id"],
+                        "therapy_code": t["therapy_code"],
+                        "therapy_name": t["therapy_name"],
+                        "subtitle": t["subtitle"],
+                        "description": t["description"],
+                        "primary_support_areas": t["primary_support_areas"] if t["primary_support_areas"] else [],
+                        "client_indicators": t["client_indicators"] if t["client_indicators"] else [],
+                        "short_term_benefits": t["short_term_benefits"] if t["short_term_benefits"] else [],
+                        "long_term_benefits": t["long_term_benefits"] if t["long_term_benefits"] else [],
+                        "recommended_sessions": t["recommended_sessions"],
+                        "session_frequency": t["session_frequency"],
+                        "session_duration": t["session_duration"],
+                        "applicator_placement": t["applicator_placement"],
+                        "target_organs": t["target_organs"],
+                        "is_active": t["is_active"]
+                    }
+                    for t in therapies
+                ]
+            }
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        print(f"❌ Error fetching therapies: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/therapies/{therapy_code}")
+async def get_therapy_details(therapy_code: str):
+    """Get detailed information for a specific therapy"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            therapy = await conn.fetchrow(
+                """SELECT * FROM therapies WHERE therapy_code = $1""",
+                therapy_code.upper()
+            )
+            
+            if not therapy:
+                raise HTTPException(status_code=404, detail="Therapy not found")
+            
+            return {
+                "success": True,
+                "therapy": dict(therapy)
+            }
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error fetching therapy details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/patients/{patient_id}/therapy-assignments")
+async def get_patient_therapy_assignments(
+    patient_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all therapy assignments for a patient with progress"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            patient = await conn.fetchrow(
+                """SELECT id, patient_number, first_name, last_name, date_of_birth
+                   FROM patients WHERE id = $1 AND clinic_id = $2""",
+                patient_id, current_user["clinic_id"]
+            )
+            
+            if not patient:
+                raise HTTPException(status_code=404, detail="Patient not found")
+            
+            assignments = await conn.fetch(
+                """SELECT 
+                        tpi.id as assignment_id,
+                        tpi.therapy_plan_id,
+                        tpi.therapy_code,
+                        tpi.therapy_name,
+                        tpi.therapy_description,
+                        tpi.recommended_sessions as total_sessions,
+                        tpi.session_duration_minutes,
+                        tpi.rationale,
+                        tpi.priority,
+                        tpi.created_at as assigned_date,
+                        tp.status as plan_status,
+                        tp.plan_number,
+                        t.session_frequency,
+                        t.target_organs,
+                        COALESCE((
+                            SELECT COUNT(*) FROM therapy_sessions ts
+                            WHERE ts.therapy_plan_item_id = tpi.id
+                            AND ts.status = 'COMPLETED'
+                        ), 0) as completed_sessions,
+                        (
+                            SELECT scheduled_date FROM therapy_sessions ts
+                            WHERE ts.therapy_plan_item_id = tpi.id
+                            AND ts.status = 'SCHEDULED'
+                            ORDER BY scheduled_date ASC
+                            LIMIT 1
+                        ) as next_session_date,
+                        (
+                            SELECT scheduled_time FROM therapy_sessions ts
+                            WHERE ts.therapy_plan_item_id = tpi.id
+                            AND ts.status = 'SCHEDULED'
+                            ORDER BY scheduled_date ASC
+                            LIMIT 1
+                        ) as next_session_time
+                   FROM therapy_plan_items tpi
+                   JOIN therapy_plans tp ON tpi.therapy_plan_id = tp.id
+                   LEFT JOIN therapies t ON tpi.therapy_code = t.therapy_code
+                   WHERE tp.patient_id = $1 AND tp.clinic_id = $2
+                   ORDER BY tpi.created_at DESC""",
+                patient_id, current_user["clinic_id"]
+            )
+            
+            return {
+                "success": True,
+                "patient": {
+                    "id": patient["id"],
+                    "patient_number": patient["patient_number"],
+                    "first_name": patient["first_name"],
+                    "last_name": patient["last_name"],
+                    "date_of_birth": patient["date_of_birth"].isoformat() if patient["date_of_birth"] else None
+                },
+                "assignments": [
+                    {
+                        "assignment_id": a["assignment_id"],
+                        "therapy_plan_id": a["therapy_plan_id"],
+                        "plan_number": a["plan_number"],
+                        "therapy_code": a["therapy_code"],
+                        "therapy_name": a["therapy_name"],
+                        "therapy_description": a["therapy_description"],
+                        "total_sessions": a["total_sessions"],
+                        "completed_sessions": a["completed_sessions"],
+                        "progress_percent": round((a["completed_sessions"] / a["total_sessions"]) * 100) if a["total_sessions"] > 0 else 0,
+                        "session_duration_minutes": a["session_duration_minutes"],
+                        "session_frequency": a["session_frequency"],
+                        "target_organs": a["target_organs"],
+                        "rationale": a["rationale"],
+                        "priority": a["priority"],
+                        "plan_status": a["plan_status"],
+                        "assigned_date": a["assigned_date"].isoformat() if a["assigned_date"] else None,
+                        "next_session_date": a["next_session_date"].isoformat() if a["next_session_date"] else None,
+                        "next_session_time": a["next_session_time"].strftime("%H:%M") if a["next_session_time"] else None,
+                        "status": "COMPLETED" if a["completed_sessions"] >= a["total_sessions"] else 
+                                 ("IN_PROGRESS" if a["completed_sessions"] > 0 else "SCHEDULED")
+                    }
+                    for a in assignments
+                ]
+            }
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error fetching patient therapy assignments: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+async def generate_therapy_sessions_helper(
+    conn,
+    plan_item_id: int,
+    clinic_id: int,
+    patient_id: int,
+    num_sessions: int,
+    start_date: str,
+    session_time: str,
+    frequency: str,
+    created_by: int
+):
+    """Generate therapy sessions based on frequency and count"""
+    from datetime import timedelta
+    
+    current_date = datetime.strptime(start_date, "%Y-%m-%d").date()
+    sessions_created = 0
+    
+    for i in range(1, num_sessions + 1):
+        session_number = f"TS-{clinic_id}-{plan_item_id}-{i:03d}"
+        
+        await conn.execute(
+            """INSERT INTO therapy_sessions 
+               (session_number, therapy_plan_item_id, clinic_id, patient_id,
+                session_sequence, total_sessions, scheduled_date, scheduled_time,
+                duration_minutes, status, created_by)
+               VALUES ($1, $2, $3, $4, $5, $6, $7, $8::time, $9, 'SCHEDULED', $10)""",
+            session_number,
+            plan_item_id,
+            clinic_id,
+            patient_id,
+            i,
+            num_sessions,
+            current_date,
+            session_time,
+            35,
+            created_by
+        )
+        sessions_created += 1
+        
+        if "daily" in frequency.lower():
+            current_date += timedelta(days=1)
+            while current_date.weekday() >= 5:
+                current_date += timedelta(days=1)
+        elif "2-3" in frequency.lower() or "2-3x" in frequency.lower():
+            day_of_week = current_date.weekday()
+            if day_of_week == 0:
+                current_date += timedelta(days=2)
+            elif day_of_week == 2:
+                current_date += timedelta(days=2)
+            else:
+                days_until_monday = (7 - day_of_week) % 7
+                if days_until_monday == 0:
+                    days_until_monday = 7
+                current_date += timedelta(days=days_until_monday)
+                while current_date.weekday() >= 5:
+                    current_date += timedelta(days=1)
+        else:
+            current_date += timedelta(days=2)
+            while current_date.weekday() >= 5:
+                current_date += timedelta(days=1)
+    
+    return sessions_created
+
+
+@app.post("/api/v1/patients/{patient_id}/therapy-assignments")
+async def assign_therapy_to_patient(
+    patient_id: int,
+    assignment_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Assign a therapy to a patient with custom session count and time"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            patient = await conn.fetchrow(
+                """SELECT id, first_name, last_name FROM patients 
+                   WHERE id = $1 AND clinic_id = $2""",
+                patient_id, current_user["clinic_id"]
+            )
+            
+            if not patient:
+                raise HTTPException(status_code=404, detail="Patient not found")
+            
+            therapy = await conn.fetchrow(
+                """SELECT * FROM therapies WHERE therapy_code = $1 AND is_active = true""",
+                assignment_data["therapy_code"].upper()
+            )
+            
+            if not therapy:
+                raise HTTPException(status_code=404, detail="Therapy not found")
+            
+            num_sessions = assignment_data.get("num_sessions", therapy["recommended_sessions"])
+            session_time = assignment_data.get("session_time", "10:00")
+            start_date = assignment_data.get("start_date")
+            practitioner_notes = assignment_data.get("practitioner_notes", "")
+            
+            if not start_date:
+                raise HTTPException(status_code=400, detail="Start date is required")
+            
+            existing_plan = await conn.fetchrow(
+                """SELECT id, plan_number FROM therapy_plans 
+                   WHERE patient_id = $1 AND clinic_id = $2 
+                   AND status IN ('PENDING_APPROVAL', 'APPROVED', 'IN_PROGRESS')
+                   ORDER BY created_at DESC LIMIT 1""",
+                patient_id, current_user["clinic_id"]
+            )
+            
+            if existing_plan:
+                plan_id = existing_plan["id"]
+                plan_number = existing_plan["plan_number"]
+            else:
+                plan_number = f"TP-{current_user['clinic_id']}-{patient_id}-{int(datetime.now().timestamp())}"
+                
+                plan_id = await conn.fetchval(
+                    """INSERT INTO therapy_plans 
+                       (plan_number, clinic_id, patient_id, assessment_id, recommended_by, status, notes)
+                       VALUES ($1, $2, $3, 
+                               COALESCE((SELECT id FROM comprehensive_assessments WHERE patient_id = $3 ORDER BY created_at DESC LIMIT 1), 
+                                        (SELECT id FROM comprehensive_assessments ORDER BY id LIMIT 1)),
+                               $4, 'APPROVED', $5)
+                       RETURNING id""",
+                    plan_number,
+                    current_user["clinic_id"],
+                    patient_id,
+                    current_user["user_id"],
+                    practitioner_notes
+                )
+            
+            plan_item_id = await conn.fetchval(
+                """INSERT INTO therapy_plan_items 
+                   (therapy_plan_id, therapy_code, therapy_name, therapy_description,
+                    recommended_sessions, session_duration_minutes, rationale, priority)
+                   VALUES ($1, $2, $3, $4, $5, $6, $7, 'PRIMARY')
+                   RETURNING id""",
+                plan_id,
+                therapy["therapy_code"],
+                therapy["therapy_name"],
+                therapy["description"],
+                num_sessions,
+                35,
+                practitioner_notes
+            )
+            
+            sessions_created = await generate_therapy_sessions_helper(
+                conn,
+                plan_item_id,
+                current_user["clinic_id"],
+                patient_id,
+                num_sessions,
+                start_date,
+                session_time,
+                therapy["session_frequency"] or "daily",
+                current_user["user_id"]
+            )
+            
+            return {
+                "success": True,
+                "message": f"Therapy {therapy['therapy_code']} assigned successfully",
+                "assignment": {
+                    "plan_id": plan_id,
+                    "plan_number": plan_number,
+                    "plan_item_id": plan_item_id,
+                    "therapy_code": therapy["therapy_code"],
+                    "therapy_name": therapy["therapy_name"],
+                    "total_sessions": num_sessions,
+                    "sessions_created": sessions_created,
+                    "start_date": start_date,
+                    "session_time": session_time
+                }
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error assigning therapy: {e}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/therapy-assignments/{assignment_id}/sessions")
+async def get_therapy_sessions(
+    assignment_id: int,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all sessions for a therapy assignment"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            sessions = await conn.fetch(
+                """SELECT ts.*, u.first_name as therapist_first_name, u.last_name as therapist_last_name
+                   FROM therapy_sessions ts
+                   LEFT JOIN users u ON ts.therapist_id = u.id
+                   WHERE ts.therapy_plan_item_id = $1 AND ts.clinic_id = $2
+                   ORDER BY ts.session_sequence ASC""",
+                assignment_id, current_user["clinic_id"]
+            )
+            
+            return {
+                "success": True,
+                "sessions": [
+                    {
+                        "id": s["id"],
+                        "session_number": s["session_number"],
+                        "session_sequence": s["session_sequence"],
+                        "total_sessions": s["total_sessions"],
+                        "scheduled_date": s["scheduled_date"].isoformat() if s["scheduled_date"] else None,
+                        "scheduled_time": s["scheduled_time"].strftime("%H:%M") if s["scheduled_time"] else None,
+                        "duration_minutes": s["duration_minutes"],
+                        "status": s["status"],
+                        "therapist_name": f"{s['therapist_first_name']} {s['therapist_last_name']}" if s["therapist_first_name"] else None,
+                        "completed_at": s["completed_at"].isoformat() if s["completed_at"] else None,
+                        "therapist_notes": s["therapist_notes"],
+                        "patient_feedback": s["patient_feedback"]
+                    }
+                    for s in sessions
+                ]
+            }
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        print(f"❌ Error fetching therapy sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/v1/therapy-sessions/{session_id}/complete")
+async def complete_therapy_session(
+    session_id: int,
+    completion_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Mark a therapy session as completed"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            session = await conn.fetchrow(
+                """SELECT * FROM therapy_sessions WHERE id = $1 AND clinic_id = $2""",
+                session_id, current_user["clinic_id"]
+            )
+            
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            if session["status"] == "COMPLETED":
+                raise HTTPException(status_code=400, detail="Session already completed")
+            
+            await conn.execute(
+                """UPDATE therapy_sessions SET
+                   status = 'COMPLETED',
+                   completed_at = NOW(),
+                   therapist_id = $1,
+                   therapist_notes = $2,
+                   patient_feedback = $3,
+                   duration_minutes = COALESCE($4, duration_minutes),
+                   any_concerns = $5,
+                   concern_details = $6,
+                   updated_at = NOW()
+                   WHERE id = $7""",
+                current_user["user_id"],
+                completion_data.get("therapist_notes", ""),
+                completion_data.get("patient_feedback", ""),
+                completion_data.get("actual_duration_minutes"),
+                completion_data.get("any_concerns", False),
+                completion_data.get("concern_details", ""),
+                session_id
+            )
+            
+            plan_item_id = session["therapy_plan_item_id"]
+            total = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_sessions WHERE therapy_plan_item_id = $1""",
+                plan_item_id
+            )
+            completed = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_sessions 
+                   WHERE therapy_plan_item_id = $1 AND status = 'COMPLETED'""",
+                plan_item_id
+            )
+            
+            if completed >= total:
+                plan_id = await conn.fetchval(
+                    """SELECT therapy_plan_id FROM therapy_plan_items WHERE id = $1""",
+                    plan_item_id
+                )
+                all_items_complete = await conn.fetchval(
+                    """SELECT NOT EXISTS (
+                        SELECT 1 FROM therapy_plan_items tpi
+                        WHERE tpi.therapy_plan_id = $1
+                        AND (
+                            SELECT COUNT(*) FROM therapy_sessions ts 
+                            WHERE ts.therapy_plan_item_id = tpi.id AND ts.status = 'COMPLETED'
+                        ) < tpi.recommended_sessions
+                    )""",
+                    plan_id
+                )
+                
+                if all_items_complete:
+                    await conn.execute(
+                        """UPDATE therapy_plans SET status = 'COMPLETED', updated_at = NOW() 
+                           WHERE id = $1""",
+                        plan_id
+                    )
+            
+            return {
+                "success": True,
+                "message": "Session completed successfully",
+                "progress": {
+                    "completed": completed,
+                    "total": total,
+                    "percent": round((completed / total) * 100) if total > 0 else 0
+                }
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error completing session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/v1/therapy-sessions/{session_id}/reschedule")
+async def reschedule_therapy_session(
+    session_id: int,
+    reschedule_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Reschedule a therapy session"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            session = await conn.fetchrow(
+                """SELECT * FROM therapy_sessions WHERE id = $1 AND clinic_id = $2""",
+                session_id, current_user["clinic_id"]
+            )
+            
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            if session["status"] == "COMPLETED":
+                raise HTTPException(status_code=400, detail="Cannot reschedule completed session")
+            
+            await conn.execute(
+                """UPDATE therapy_sessions SET
+                   scheduled_date = $1,
+                   scheduled_time = $2::time,
+                   status = 'SCHEDULED',
+                   updated_at = NOW()
+                   WHERE id = $3""",
+                reschedule_data["new_date"],
+                reschedule_data["new_time"],
+                session_id
+            )
+            
+            return {
+                "success": True,
+                "message": "Session rescheduled successfully",
+                "new_date": reschedule_data["new_date"],
+                "new_time": reschedule_data["new_time"]
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error rescheduling session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.put("/api/v1/therapy-sessions/{session_id}/cancel")
+async def cancel_therapy_session(
+    session_id: int,
+    cancel_data: dict,
+    current_user: dict = Depends(get_current_user)
+):
+    """Cancel a therapy session"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            session = await conn.fetchrow(
+                """SELECT * FROM therapy_sessions WHERE id = $1 AND clinic_id = $2""",
+                session_id, current_user["clinic_id"]
+            )
+            
+            if not session:
+                raise HTTPException(status_code=404, detail="Session not found")
+            
+            await conn.execute(
+                """UPDATE therapy_sessions SET
+                   status = 'CANCELLED',
+                   therapist_notes = COALESCE(therapist_notes || E'\n', '') || $1,
+                   updated_at = NOW()
+                   WHERE id = $2""",
+                f"Cancelled: {cancel_data.get('reason', 'No reason provided')}",
+                session_id
+            )
+            
+            return {
+                "success": True,
+                "message": "Session cancelled"
+            }
+            
+        finally:
+            await conn.close()
+            
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ Error cancelling session: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/therapies/today-sessions")
+async def get_today_therapy_sessions(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get all therapy sessions scheduled for today"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            sessions = await conn.fetch(
+                """SELECT ts.*, 
+                          p.first_name, p.last_name, p.patient_number,
+                          tpi.therapy_code, tpi.therapy_name
+                   FROM therapy_sessions ts
+                   JOIN patients p ON ts.patient_id = p.id
+                   JOIN therapy_plan_items tpi ON ts.therapy_plan_item_id = tpi.id
+                   WHERE ts.clinic_id = $1 
+                   AND ts.scheduled_date = CURRENT_DATE
+                   AND ts.status IN ('SCHEDULED', 'CHECKED_IN', 'IN_PROGRESS')
+                   ORDER BY ts.scheduled_time ASC""",
+                current_user["clinic_id"]
+            )
+            
+            return {
+                "success": True,
+                "date": datetime.now().strftime("%Y-%m-%d"),
+                "sessions": [
+                    {
+                        "id": s["id"],
+                        "session_number": s["session_number"],
+                        "scheduled_time": s["scheduled_time"].strftime("%H:%M") if s["scheduled_time"] else None,
+                        "patient_name": f"{s['first_name']} {s['last_name']}",
+                        "patient_number": s["patient_number"],
+                        "therapy_code": s["therapy_code"],
+                        "therapy_name": s["therapy_name"],
+                        "session_sequence": s["session_sequence"],
+                        "total_sessions": s["total_sessions"],
+                        "status": s["status"]
+                    }
+                    for s in sessions
+                ]
+            }
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        print(f"❌ Error fetching today's sessions: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/therapies/module-stats")
+async def get_therapies_module_stats(
+    current_user: dict = Depends(get_current_user)
+):
+    """Get statistics for the therapies module"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        
+        try:
+            active_plans = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_plans 
+                   WHERE clinic_id = $1 AND status IN ('APPROVED', 'IN_PROGRESS')""",
+                current_user["clinic_id"]
+            )
+            
+            today_sessions = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_sessions 
+                   WHERE clinic_id = $1 AND scheduled_date = CURRENT_DATE""",
+                current_user["clinic_id"]
+            )
+            
+            completed_today = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_sessions 
+                   WHERE clinic_id = $1 
+                   AND scheduled_date = CURRENT_DATE 
+                   AND status = 'COMPLETED'""",
+                current_user["clinic_id"]
+            )
+            
+            week_sessions = await conn.fetchval(
+                """SELECT COUNT(*) FROM therapy_sessions 
+                   WHERE clinic_id = $1 
+                   AND scheduled_date >= date_trunc('week', CURRENT_DATE)
+                   AND scheduled_date < date_trunc('week', CURRENT_DATE) + interval '7 days'""",
+                current_user["clinic_id"]
+            )
+            
+            by_therapy = await conn.fetch(
+                """SELECT tpi.therapy_code, tpi.therapy_name, COUNT(ts.id) as session_count
+                   FROM therapy_sessions ts
+                   JOIN therapy_plan_items tpi ON ts.therapy_plan_item_id = tpi.id
+                   WHERE ts.clinic_id = $1 AND ts.status = 'SCHEDULED'
+                   GROUP BY tpi.therapy_code, tpi.therapy_name
+                   ORDER BY session_count DESC""",
+                current_user["clinic_id"]
+            )
+            
+            return {
+                "success": True,
+                "stats": {
+                    "active_plans": active_plans,
+                    "today_sessions": today_sessions,
+                    "completed_today": completed_today,
+                    "week_sessions": week_sessions,
+                    "by_therapy": [
+                        {
+                            "code": t["therapy_code"],
+                            "name": t["therapy_name"],
+                            "count": t["session_count"]
+                        }
+                        for t in by_therapy
+                    ]
+                }
+            }
+        finally:
+            await conn.close()
+            
+    except Exception as e:
+        print(f"❌ Error fetching therapy stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # REPORTS ENDPOINTS
 # ============================================================================
 
