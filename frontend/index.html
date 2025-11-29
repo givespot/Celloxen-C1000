@@ -5111,7 +5111,7 @@ const TherapiesModule = () => {
     const fetchStats = async () => {
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch('/api/v1/therapies/module-stats', {
+            const response = await fetch('/api/v1/therapy-module/stats', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
@@ -5130,12 +5130,16 @@ const TherapiesModule = () => {
         }
         try {
             const token = localStorage.getItem('token');
-            const response = await fetch(`/api/v1/patients?search=${encodeURIComponent(query)}`, {
+            const response = await fetch('/api/v1/clinic/patients', {
                 headers: { 'Authorization': `Bearer ${token}` }
             });
             const data = await response.json();
-            if (data.patients) {
-                setPatients(data.patients.slice(0, 10));
+            if (Array.isArray(data)) {
+                const filtered = data.filter(p => 
+                    (p.first_name + ' ' + p.last_name).toLowerCase().includes(query.toLowerCase()) ||
+                    (p.patient_number && p.patient_number.toLowerCase().includes(query.toLowerCase()))
+                );
+                setPatients(filtered.slice(0, 10));
             }
         } catch (error) {
             console.error('Error searching patients:', error);

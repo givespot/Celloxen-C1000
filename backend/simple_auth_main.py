@@ -2788,7 +2788,7 @@ async def cancel_therapy_session(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/therapies/today-sessions")
+@app.get("/api/v1/therapy-sessions/today")
 async def get_today_therapy_sessions(
     current_user: dict = Depends(get_current_user)
 ):
@@ -2840,7 +2840,7 @@ async def get_today_therapy_sessions(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/v1/therapies/module-stats")
+@app.get("/api/v1/therapy-module/stats")
 async def get_therapies_module_stats(
     current_user: dict = Depends(get_current_user)
 ):
