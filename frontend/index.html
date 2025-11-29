@@ -4982,7 +4982,18 @@ const IridologyModule = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                     <span>Appointments</span>
+                                </button>                                <button
+                                    onClick={() => setCurrentPage("therapies")}
+                                    className={\`sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 \${
+                                        currentPage === "therapies" ? "active" : ""
+                                    }\`}
+                                >
+                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+                                    </svg>
+                                    <span>Therapies</span>
                                 </button>
+
                                 <button
                                     onClick={() => setCurrentPage("patient-invoices")}
                                     className={`sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${
@@ -5030,6 +5041,7 @@ const IridologyModule = () => {
 {currentPage === 'iridology' && <IridologyModule />}
                         {currentPage === 'iridology-new' && <IridologyNew />}
                             {currentPage === 'appointments' && <AppointmentsModule />}
+                            {currentPage === 'therapies' && <TherapiesModule />}
                             {currentPage === 'settings' && <SettingsModule />}
                             {currentPage === 'patient-invoices' && <PatientInvoicesModule />}
                             {currentPage === 'patient-profile' && selectedPatientId && (
@@ -5048,6 +5060,614 @@ const IridologyModule = () => {
         // ============================================
         // APPOINTMENTS MODULE COMPONENT
         // ============================================
+
+// ============================================================================
+// THERAPIES MODULE COMPONENT
+// ============================================================================
+
+const TherapiesModule = () => {
+    const [activeTab, setActiveTab] = useState('assign');
+    const [therapies, setTherapies] = useState([]);
+    const [loading, setLoading] = useState(true);
+    const [searchQuery, setSearchQuery] = useState('');
+    const [patients, setPatients] = useState([]);
+    const [selectedPatient, setSelectedPatient] = useState(null);
+    const [patientAssignments, setPatientAssignments] = useState([]);
+    const [showAssignModal, setShowAssignModal] = useState(false);
+    const [selectedTherapy, setSelectedTherapy] = useState(null);
+    const [assignmentForm, setAssignmentForm] = useState({
+        num_sessions: 16,
+        session_time: '10:00',
+        start_date: new Date().toISOString().split('T')[0],
+        practitioner_notes: ''
+    });
+    const [showSessionsModal, setShowSessionsModal] = useState(false);
+    const [selectedAssignment, setSelectedAssignment] = useState(null);
+    const [sessions, setSessions] = useState([]);
+    const [stats, setStats] = useState(null);
+
+    useEffect(() => {
+        fetchTherapies();
+        fetchStats();
+    }, []);
+
+    const fetchTherapies = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/v1/therapies', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setTherapies(data.therapies);
+            }
+        } catch (error) {
+            console.error('Error fetching therapies:', error);
+        } finally {
+            setLoading(false);
+        }
+    };
+
+    const fetchStats = async () => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch('/api/v1/therapies/module-stats', {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setStats(data.stats);
+            }
+        } catch (error) {
+            console.error('Error fetching stats:', error);
+        }
+    };
+
+    const searchPatients = async (query) => {
+        if (query.length < 2) {
+            setPatients([]);
+            return;
+        }
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/patients?search=${encodeURIComponent(query)}`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.patients) {
+                setPatients(data.patients.slice(0, 10));
+            }
+        } catch (error) {
+            console.error('Error searching patients:', error);
+        }
+    };
+
+    const selectPatient = async (patient) => {
+        setSelectedPatient(patient);
+        setSearchQuery(`${patient.first_name} ${patient.last_name}`);
+        setPatients([]);
+        await fetchPatientAssignments(patient.id);
+    };
+
+    const fetchPatientAssignments = async (patientId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/patients/${patientId}/therapy-assignments`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setPatientAssignments(data.assignments);
+            }
+        } catch (error) {
+            console.error('Error fetching assignments:', error);
+        }
+    };
+
+    const openAssignModal = (therapy) => {
+        setSelectedTherapy(therapy);
+        setAssignmentForm({
+            num_sessions: therapy.recommended_sessions,
+            session_time: '10:00',
+            start_date: new Date().toISOString().split('T')[0],
+            practitioner_notes: ''
+        });
+        setShowAssignModal(true);
+    };
+
+    const assignTherapy = async () => {
+        if (!selectedPatient || !selectedTherapy) return;
+        
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/patients/${selectedPatient.id}/therapy-assignments`, {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    therapy_code: selectedTherapy.therapy_code,
+                    ...assignmentForm
+                })
+            });
+            const data = await response.json();
+            if (data.success) {
+                alert(`${selectedTherapy.therapy_name} assigned successfully!\n${data.assignment.sessions_created} sessions created.`);
+                setShowAssignModal(false);
+                fetchPatientAssignments(selectedPatient.id);
+                fetchStats();
+            } else {
+                alert('Error: ' + (data.detail || 'Failed to assign therapy'));
+            }
+        } catch (error) {
+            console.error('Error assigning therapy:', error);
+            alert('Error assigning therapy');
+        }
+    };
+
+    const viewSessions = async (assignment) => {
+        setSelectedAssignment(assignment);
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/therapy-assignments/${assignment.assignment_id}/sessions`, {
+                headers: { 'Authorization': `Bearer ${token}` }
+            });
+            const data = await response.json();
+            if (data.success) {
+                setSessions(data.sessions);
+                setShowSessionsModal(true);
+            }
+        } catch (error) {
+            console.error('Error fetching sessions:', error);
+        }
+    };
+
+    const completeSession = async (sessionId) => {
+        try {
+            const token = localStorage.getItem('token');
+            const response = await fetch(`/api/v1/therapy-sessions/${sessionId}/complete`, {
+                method: 'PUT',
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ therapist_notes: 'Session completed' })
+            });
+            const data = await response.json();
+            if (data.success) {
+                viewSessions(selectedAssignment);
+                fetchPatientAssignments(selectedPatient.id);
+                fetchStats();
+            }
+        } catch (error) {
+            console.error('Error completing session:', error);
+        }
+    };
+
+    const formatDate = (dateStr) => {
+        if (!dateStr) return '-';
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-GB');
+    };
+
+    const getProgressColor = (percent) => {
+        if (percent >= 75) return 'bg-green-500';
+        if (percent >= 50) return 'bg-blue-500';
+        if (percent >= 25) return 'bg-yellow-500';
+        return 'bg-gray-300';
+    };
+
+    const getStatusBadge = (status) => {
+        const styles = {
+            'SCHEDULED': 'bg-blue-100 text-blue-800',
+            'IN_PROGRESS': 'bg-amber-100 text-amber-800',
+            'COMPLETED': 'bg-green-100 text-green-800',
+            'CANCELLED': 'bg-red-100 text-red-800'
+        };
+        return styles[status] || 'bg-gray-100 text-gray-800';
+    };
+
+    const timeOptions = [];
+    for (let h = 8; h <= 18; h++) {
+        for (let m = 0; m < 60; m += 15) {
+            const time = `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+            timeOptions.push(time);
+        }
+    }
+
+    if (loading) {
+        return (
+            <div className="flex items-center justify-center h-64">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
+            </div>
+        );
+    }
+
+    return (
+        <div className="p-6">
+            <div className="mb-6">
+                <h1 className="text-2xl font-bold text-gray-900">Therapies</h1>
+                <p className="text-gray-600">Manage therapy assignments and track patient progress</p>
+            </div>
+
+            {/* Stats Cards */}
+            {stats && (
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-900">
+                        <div className="text-2xl font-bold text-blue-900">{stats.active_plans}</div>
+                        <div className="text-sm text-gray-600">Active Plans</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
+                        <div className="text-2xl font-bold text-green-600">{stats.completed_today}</div>
+                        <div className="text-sm text-gray-600">Completed Today</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-amber-500">
+                        <div className="text-2xl font-bold text-amber-600">{stats.today_sessions}</div>
+                        <div className="text-sm text-gray-600">Today's Sessions</div>
+                    </div>
+                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
+                        <div className="text-2xl font-bold text-purple-600">{stats.week_sessions}</div>
+                        <div className="text-sm text-gray-600">This Week</div>
+                    </div>
+                </div>
+            )}
+
+            {/* Tabs */}
+            <div className="mb-6">
+                <div className="border-b border-gray-200">
+                    <nav className="flex space-x-8">
+                        <button
+                            onClick={() => setActiveTab('assign')}
+                            className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'assign'
+                                    ? 'border-blue-900 text-blue-900'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Assign Therapy
+                        </button>
+                        <button
+                            onClick={() => setActiveTab('library')}
+                            className={`py-3 px-1 border-b-2 font-medium text-sm ${
+                                activeTab === 'library'
+                                    ? 'border-blue-900 text-blue-900'
+                                    : 'border-transparent text-gray-500 hover:text-gray-700'
+                            }`}
+                        >
+                            Therapy Library
+                        </button>
+                    </nav>
+                </div>
+            </div>
+
+            {/* Assign Therapy Tab */}
+            {activeTab === 'assign' && (
+                <div className="bg-white rounded-lg shadow">
+                    <div className="p-6 border-b">
+                        <label className="block text-sm font-medium text-gray-700 mb-2">Search Patient</label>
+                        <div className="relative">
+                            <input
+                                type="text"
+                                value={searchQuery}
+                                onChange={(e) => {
+                                    setSearchQuery(e.target.value);
+                                    searchPatients(e.target.value);
+                                }}
+                                placeholder="Search by name or patient number..."
+                                className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            {patients.length > 0 && (
+                                <div className="absolute z-10 w-full md:w-96 mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-auto">
+                                    {patients.map(patient => (
+                                        <button
+                                            key={patient.id}
+                                            onClick={() => selectPatient(patient)}
+                                            className="w-full text-left px-4 py-2 hover:bg-gray-100"
+                                        >
+                                            <div className="font-medium">{patient.first_name} {patient.last_name}</div>
+                                            <div className="text-sm text-gray-500">{patient.patient_number}</div>
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    </div>
+
+                    {selectedPatient && (
+                        <div className="p-6">
+                            <div className="flex items-center justify-between mb-6">
+                                <div>
+                                    <h2 className="text-xl font-semibold text-gray-900">
+                                        {selectedPatient.first_name} {selectedPatient.last_name}
+                                    </h2>
+                                    <p className="text-gray-600">{selectedPatient.patient_number}</p>
+                                </div>
+                                <button
+                                    onClick={() => setShowAssignModal(true)}
+                                    className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800"
+                                >
+                                    + Add Therapy
+                                </button>
+                            </div>
+
+                            {patientAssignments.length === 0 ? (
+                                <div className="text-center py-8 text-gray-500">
+                                    <p>No therapies assigned yet.</p>
+                                    <p className="text-sm">Click "Add Therapy" to assign a therapy to this patient.</p>
+                                </div>
+                            ) : (
+                                <div className="space-y-4">
+                                    {patientAssignments.map(assignment => (
+                                        <div key={assignment.assignment_id} className="border rounded-lg p-4">
+                                            <div className="flex items-center justify-between mb-3">
+                                                <div>
+                                                    <span className="text-sm font-medium text-blue-900">{assignment.therapy_code}</span>
+                                                    <h3 className="font-semibold text-gray-900">{assignment.therapy_name}</h3>
+                                                </div>
+                                                <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(assignment.status)}`}>
+                                                    {assignment.status}
+                                                </span>
+                                            </div>
+                                            
+                                            <div className="mb-3">
+                                                <div className="flex justify-between text-sm mb-1">
+                                                    <span>{assignment.completed_sessions} of {assignment.total_sessions} sessions</span>
+                                                    <span>{assignment.progress_percent}%</span>
+                                                </div>
+                                                <div className="w-full bg-gray-200 rounded-full h-2">
+                                                    <div 
+                                                        className={`h-2 rounded-full ${getProgressColor(assignment.progress_percent)}`}
+                                                        style={{ width: `${assignment.progress_percent}%` }}
+                                                    ></div>
+                                                </div>
+                                            </div>
+
+                                            <div className="flex items-center justify-between text-sm text-gray-600">
+                                                <div>
+                                                    {assignment.next_session_date && (
+                                                        <span>Next: {formatDate(assignment.next_session_date)} at {assignment.next_session_time}</span>
+                                                    )}
+                                                </div>
+                                                <button
+                                                    onClick={() => viewSessions(assignment)}
+                                                    className="text-blue-900 hover:text-blue-700 font-medium"
+                                                >
+                                                    View Sessions →
+                                                </button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Therapy Library Tab */}
+            {activeTab === 'library' && (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                    {therapies.map(therapy => (
+                        <div key={therapy.id} className="bg-white rounded-lg shadow hover:shadow-lg transition-shadow">
+                            <div className="p-6">
+                                <div className="flex items-center justify-between mb-3">
+                                    <span className="px-3 py-1 bg-blue-900 text-white text-xs font-semibold rounded-full">
+                                        {therapy.therapy_code}
+                                    </span>
+                                    <span className="text-sm text-gray-500">{therapy.recommended_sessions} sessions</span>
+                                </div>
+                                <h3 className="text-lg font-semibold text-gray-900 mb-2">{therapy.therapy_name}</h3>
+                                <p className="text-sm text-gray-600 mb-4 line-clamp-2">{therapy.subtitle}</p>
+                                
+                                <div className="space-y-2 text-sm">
+                                    <div className="flex items-center text-gray-600">
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                        </svg>
+                                        {therapy.session_duration}
+                                    </div>
+                                    <div className="flex items-center text-gray-600">
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                        {therapy.session_frequency}
+                                    </div>
+                                    <div className="flex items-center text-gray-600">
+                                        <svg className="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z" />
+                                        </svg>
+                                        {therapy.target_organs}
+                                    </div>
+                                </div>
+
+                                {selectedPatient && (
+                                    <button
+                                        onClick={() => openAssignModal(therapy)}
+                                        className="mt-4 w-full py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 transition-colors"
+                                    >
+                                        Assign to Patient
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Assign Therapy Modal */}
+            {showAssignModal && selectedTherapy && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4">
+                        <div className="p-6 border-b">
+                            <h3 className="text-lg font-semibold">Assign Therapy</h3>
+                            <p className="text-sm text-gray-600">{selectedTherapy.therapy_code} - {selectedTherapy.therapy_name}</p>
+                        </div>
+                        <div className="p-6 space-y-4">
+                            {selectedPatient && (
+                                <div className="bg-blue-50 p-3 rounded-lg">
+                                    <p className="text-sm text-gray-600">Patient:</p>
+                                    <p className="font-medium">{selectedPatient.first_name} {selectedPatient.last_name}</p>
+                                </div>
+                            )}
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Sessions</label>
+                                <div className="flex items-center space-x-3">
+                                    <button
+                                        onClick={() => setAssignmentForm(f => ({ ...f, num_sessions: Math.max(1, f.num_sessions - 1) }))}
+                                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                                    >-</button>
+                                    <input
+                                        type="number"
+                                        value={assignmentForm.num_sessions}
+                                        onChange={(e) => setAssignmentForm(f => ({ ...f, num_sessions: parseInt(e.target.value) || 1 }))}
+                                        className="w-20 text-center px-3 py-2 border border-gray-300 rounded-lg"
+                                        min="1"
+                                        max="24"
+                                    />
+                                    <button
+                                        onClick={() => setAssignmentForm(f => ({ ...f, num_sessions: Math.min(24, f.num_sessions + 1) }))}
+                                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                                    >+</button>
+                                    <span className="text-sm text-gray-500">(Recommended: {selectedTherapy.recommended_sessions})</span>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Session Time</label>
+                                <div className="flex items-center space-x-3">
+                                    <button
+                                        onClick={() => {
+                                            const idx = timeOptions.indexOf(assignmentForm.session_time);
+                                            if (idx > 0) setAssignmentForm(f => ({ ...f, session_time: timeOptions[idx - 1] }));
+                                        }}
+                                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                                    >-</button>
+                                    <select
+                                        value={assignmentForm.session_time}
+                                        onChange={(e) => setAssignmentForm(f => ({ ...f, session_time: e.target.value }))}
+                                        className="w-32 px-3 py-2 border border-gray-300 rounded-lg"
+                                    >
+                                        {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
+                                    <button
+                                        onClick={() => {
+                                            const idx = timeOptions.indexOf(assignmentForm.session_time);
+                                            if (idx < timeOptions.length - 1) setAssignmentForm(f => ({ ...f, session_time: timeOptions[idx + 1] }));
+                                        }}
+                                        className="w-10 h-10 rounded-lg border border-gray-300 flex items-center justify-center hover:bg-gray-100"
+                                    >+</button>
+                                </div>
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
+                                <input
+                                    type="date"
+                                    value={assignmentForm.start_date}
+                                    onChange={(e) => setAssignmentForm(f => ({ ...f, start_date: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                />
+                            </div>
+
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
+                                <textarea
+                                    value={assignmentForm.practitioner_notes}
+                                    onChange={(e) => setAssignmentForm(f => ({ ...f, practitioner_notes: e.target.value }))}
+                                    className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    rows="2"
+                                    placeholder="Any notes for this therapy assignment..."
+                                />
+                            </div>
+
+                            <div className="bg-gray-50 p-3 rounded-lg">
+                                <p className="text-sm font-medium text-gray-700 mb-1">Schedule Preview</p>
+                                <p className="text-sm text-gray-600">
+                                    {assignmentForm.num_sessions} sessions starting {assignmentForm.start_date} at {assignmentForm.session_time}
+                                </p>
+                                <p className="text-sm text-gray-500">
+                                    Frequency: {selectedTherapy.session_frequency}
+                                </p>
+                            </div>
+                        </div>
+                        <div className="p-6 border-t flex justify-end space-x-3">
+                            <button
+                                onClick={() => setShowAssignModal(false)}
+                                className="px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={assignTherapy}
+                                disabled={!selectedPatient}
+                                className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50"
+                            >
+                                Confirm Assignment
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+
+            {/* Sessions Modal */}
+            {showSessionsModal && selectedAssignment && (
+                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                    <div className="bg-white rounded-lg shadow-xl w-full max-w-2xl mx-4 max-h-[80vh] overflow-hidden">
+                        <div className="p-6 border-b">
+                            <h3 className="text-lg font-semibold">{selectedAssignment.therapy_name}</h3>
+                            <p className="text-sm text-gray-600">
+                                {selectedAssignment.completed_sessions} of {selectedAssignment.total_sessions} sessions completed
+                            </p>
+                        </div>
+                        <div className="p-6 overflow-y-auto max-h-96">
+                            <div className="space-y-2">
+                                {sessions.map(session => (
+                                    <div key={session.id} className="flex items-center justify-between p-3 border rounded-lg">
+                                        <div className="flex items-center space-x-4">
+                                            <div className="w-8 h-8 rounded-full bg-blue-100 text-blue-900 flex items-center justify-center font-medium text-sm">
+                                                {session.session_sequence}
+                                            </div>
+                                            <div>
+                                                <div className="font-medium">{formatDate(session.scheduled_date)}</div>
+                                                <div className="text-sm text-gray-500">{session.scheduled_time}</div>
+                                            </div>
+                                        </div>
+                                        <div className="flex items-center space-x-3">
+                                            <span className={`px-3 py-1 rounded-full text-xs font-medium ${getStatusBadge(session.status)}`}>
+                                                {session.status}
+                                            </span>
+                                            {session.status === 'SCHEDULED' && (
+                                                <button
+                                                    onClick={() => completeSession(session.id)}
+                                                    className="px-3 py-1 bg-green-600 text-white text-xs rounded-lg hover:bg-green-700"
+                                                >
+                                                    Complete
+                                                </button>
+                                            )}
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                        <div className="p-6 border-t">
+                            <button
+                                onClick={() => setShowSessionsModal(false)}
+                                className="w-full py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
+                            >
+                                Close
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
+        </div>
+    );
+};
+
+
+
         const AppointmentsModule = () => {
             const [appointments, setAppointments] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
