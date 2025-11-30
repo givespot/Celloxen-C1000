@@ -1218,12 +1218,26 @@ async function displayIridologyWithPatient(analysis) {
             const fetchChartData = async () => {
                 try {
                     const token = localStorage.getItem('celloxen_token');
+                    console.log('Fetching chart data with token:', token ? 'Present' : 'Missing');
+
+                    if (!token) {
+                        console.warn('No token found - cannot fetch chart data');
+                        return;
+                    }
+
                     const response = await fetch('/api/v1/clinic/dashboard/charts', {
                         headers: { 'Authorization': `Bearer ${token}` }
                     });
+
+                    console.log('Chart API response status:', response.status);
+
                     if (response.ok) {
                         const data = await response.json();
+                        console.log('Chart data received:', data);
                         setChartData(data);
+                    } else {
+                        const errorData = await response.json().catch(() => ({}));
+                        console.error('Chart API error:', response.status, errorData);
                     }
                 } catch (error) {
                     console.error('Error fetching chart data:', error);
@@ -1231,12 +1245,21 @@ async function displayIridologyWithPatient(analysis) {
             };
 
             const renderCharts = () => {
+                console.log('renderCharts called with chartData:', chartData);
+
+                // Check if Chart.js is available
+                if (typeof Chart === 'undefined') {
+                    console.error('Chart.js is not loaded!');
+                    return;
+                }
+
                 // Destroy existing charts
                 Object.values(chartRefs.current).forEach(chart => chart?.destroy());
                 chartRefs.current = {};
 
                 // Patient Registration Trend
                 const patientCtx = document.getElementById('patientTrendChart');
+                console.log('Patient chart canvas:', patientCtx ? 'Found' : 'Not found', 'Data:', chartData?.patient_trend?.length || 0, 'items');
                 if (patientCtx && chartData.patient_trend?.length > 0) {
                     chartRefs.current.patient = new Chart(patientCtx.getContext('2d'), {
                         type: 'line',
@@ -1749,8 +1772,13 @@ async function displayIridologyWithPatient(analysis) {
                                 </svg>
                                 Patient Registrations (6 Months)
                             </h3>
-                            <div style={{height: '200px'}}>
+                            <div style={{height: '200px', position: 'relative'}}>
                                 <canvas id="patientTrendChart"></canvas>
+                                {!chartData?.patient_trend?.length && (
+                                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                        {chartData ? 'No patient data available' : 'Loading chart...'}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1762,8 +1790,13 @@ async function displayIridologyWithPatient(analysis) {
                                 </svg>
                                 Appointments This Week
                             </h3>
-                            <div style={{height: '200px'}}>
+                            <div style={{height: '200px', position: 'relative'}}>
                                 <canvas id="appointmentsWeekChart"></canvas>
+                                {!chartData?.appointments_week?.length && (
+                                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                        {chartData ? 'No appointments this week' : 'Loading chart...'}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1775,8 +1808,13 @@ async function displayIridologyWithPatient(analysis) {
                                 </svg>
                                 Patient Status Distribution
                             </h3>
-                            <div style={{height: '200px'}}>
+                            <div style={{height: '200px', position: 'relative'}}>
                                 <canvas id="patientStatusChart"></canvas>
+                                {!chartData?.patient_status?.length && (
+                                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                        {chartData ? 'No patient status data' : 'Loading chart...'}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -1788,8 +1826,13 @@ async function displayIridologyWithPatient(analysis) {
                                 </svg>
                                 Revenue Trend (6 Months)
                             </h3>
-                            <div style={{height: '200px'}}>
+                            <div style={{height: '200px', position: 'relative'}}>
                                 <canvas id="revenueTrendChart"></canvas>
+                                {!chartData?.revenue_trend?.length && (
+                                    <div className="absolute inset-0 flex items-center justify-center text-gray-400">
+                                        {chartData ? 'No revenue data available' : 'Loading chart...'}
+                                    </div>
+                                )}
                             </div>
                         </div>
                     </div>
