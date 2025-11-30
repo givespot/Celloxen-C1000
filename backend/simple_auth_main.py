@@ -2454,10 +2454,10 @@ async def get_dashboard_charts(current_user: dict = Depends(get_current_user)):
         revenue_trend = await conn.fetch("""
             SELECT
                 DATE_TRUNC('month', paid_at) as month,
-                COALESCE(SUM(total_amount), 0) as revenue
+                COALESCE(SUM(amount), 0) as revenue
             FROM patient_invoices
             WHERE clinic_id = $1
-                AND status = 'PAID'
+                AND status = 'paid'
                 AND paid_at >= NOW() - INTERVAL '6 months'
             GROUP BY DATE_TRUNC('month', paid_at)
             ORDER BY month
