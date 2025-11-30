@@ -140,6 +140,60 @@ def verify_token(token: str):
         print(f"Token verification error: {str(e)}")
         return None
 
+
+# ============================================
+# AUTHENTICATION DEPENDENCY - Multi-tenant security
+# ============================================
+async def get_current_user(authorization: str = Header(None)):
+    """
+    Authentication dependency for protected endpoints.
+    Validates JWT token and returns user info with clinic_id.
+    CRITICAL: All clinic endpoints MUST use this dependency.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+
+    token = authorization.replace("Bearer ", "")
+    token_data = verify_token(token)
+
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user_id = token_data.get('user_id')
+    clinic_id = token_data.get('clinic_id')
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token: missing user_id")
+
+    # Fetch full user info from database
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        user = await conn.fetchrow(
+            "SELECT id, email, full_name, role, clinic_id FROM users WHERE id = $1",
+            user_id
+        )
+        await conn.close()
+
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        return {
+            "id": user['id'],
+            "user_id": user['id'],
+            "email": user['email'],
+            "full_name": user['full_name'],
+            "role": user['role'],
+            "clinic_id": user['clinic_id']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching user: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication error")
+
+
 @app.post("/api/v1/auth/login")
 async def login(user_credentials: dict):
     try:
@@ -188,8 +242,9 @@ async def login(user_credentials: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/auth/me")
-async def get_current_user():
-    return {"id": 1, "email": "admin@celloxen.com", "role": "super_admin"}
+async def get_auth_me(current_user: dict = Depends(get_current_user)):
+    """Get current authenticated user info"""
+    return current_user
 
 
 # Password Reset Endpoints - Added 30/11/2025
@@ -384,39 +439,52 @@ async def get_patient_stats():
 
 
 @app.get("/api/v1/clinic/patients")
-async def get_clinic_patients():
+async def get_clinic_patients(current_user: dict = Depends(get_current_user)):
+    """Get all patients for the authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         patients = await conn.fetch("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
+            SELECT p.*, c.name as clinic_name
+            FROM patients p
             LEFT JOIN clinics c ON p.clinic_id = c.id
+            WHERE p.clinic_id = $1
             ORDER BY p.created_at DESC
-        """)
+        """, clinic_id)
         await conn.close()
         return [dict(patient) for patient in patients]
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error getting clinic patients: {str(e)}")
         return []
 
 
 @app.get("/api/v1/clinic/patients/{patient_id}")
-async def get_patient(patient_id: int):
-    """Get a single patient with all details"""
+async def get_patient(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get a single patient with all details - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get patient data
+
+        # Get patient data - MUST filter by clinic_id for multi-tenant security
         patient = await conn.fetchrow("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
+            SELECT p.*, c.name as clinic_name
+            FROM patients p
             LEFT JOIN clinics c ON p.clinic_id = c.id
-            WHERE p.id = $1
-        """, patient_id)
-        
+            WHERE p.id = $1 AND p.clinic_id = $2
+        """, patient_id, clinic_id)
+
         if not patient:
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
@@ -476,13 +544,26 @@ async def get_patient(patient_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/v1/clinic/patients/{patient_id}")
-async def update_patient(patient_id: int, patient_data: dict):
-    """Update a patient's information"""
+async def update_patient(patient_id: int, patient_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update a patient's information - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
+        # Verify patient belongs to this clinic
+        existing = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not existing:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+
         # Parse date of birth if provided
         dob = None
         if patient_data.get('date_of_birth'):
@@ -553,23 +634,30 @@ async def update_patient(patient_id: int, patient_data: dict):
 
 
 @app.delete("/api/v1/clinic/patients/{patient_id}")
-async def delete_patient(patient_id: int):
-    """Delete a patient (soft delete by setting status to deleted)"""
+async def delete_patient(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a patient (soft delete) - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Check if patient exists
-        patient = await conn.fetchrow("SELECT * FROM patients WHERE id = $1", patient_id)
+
+        # Check if patient exists AND belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
         if not patient:
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
-        
+
         # Soft delete - set status to 'deleted'
         await conn.execute(
-            "UPDATE patients SET status = 'deleted' WHERE id = $1",
-            patient_id
+            "UPDATE patients SET status = 'deleted' WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
         )
         
         await conn.close()
@@ -590,12 +678,25 @@ async def delete_patient(patient_id: int):
 
 
 @app.get("/api/v1/clinic/patients/{patient_id}/assessments")
-async def get_patient_assessments_by_id(patient_id: int):
-    """Get all assessments for a specific patient"""
+async def get_patient_assessments_by_id(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all assessments for a specific patient - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
+
+        # Verify patient belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
 
         # Get comprehensive assessments for this patient
         assessments = await conn.fetch("""
@@ -616,6 +717,8 @@ async def get_patient_assessments_by_id(patient_id: int):
             "assessments": [dict(a) for a in assessments]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ ERROR getting patient assessments: {str(e)}")
         import traceback
@@ -624,12 +727,25 @@ async def get_patient_assessments_by_id(patient_id: int):
 
 
 @app.get("/api/v1/clinic/patients/{patient_id}/iridology")
-async def get_patient_iridology(patient_id: int):
-    """Get all iridology analyses for a specific patient"""
+async def get_patient_iridology(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all iridology analyses for a specific patient - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
+
+        # Verify patient belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
 
         # Get iridology analyses for this patient
         analyses = await conn.fetch("""
@@ -650,6 +766,8 @@ async def get_patient_iridology(patient_id: int):
             "analyses": [dict(a) for a in analyses]
         }
 
+    except HTTPException:
+        raise
     except Exception as e:
         print(f"❌ ERROR getting patient iridology: {str(e)}")
         import traceback
@@ -658,16 +776,17 @@ async def get_patient_iridology(patient_id: int):
 
 
 @app.post("/api/v1/clinic/patients")
-async def create_patient(patient_data: dict):
-    """Create a new patient with UK address fields"""
-    print("🔍 DEBUG: Received patient_data:", patient_data)
+async def create_patient(patient_data: dict, current_user: dict = Depends(get_current_user)):
+    """Create a new patient - automatically assigned to user's clinic"""
     try:
+        # SECURITY: Use authenticated user's clinic_id, NOT from request data
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get clinic_id (default to 1 if not provided)
-        clinic_id = patient_data.get('clinic_id', 1)
         
         # Generate patient number
         count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id)
