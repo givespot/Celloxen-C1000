@@ -1296,28 +1296,35 @@ async def get_assessment_details(assessment_id: int):
 # ============================================================================
 
 @app.get("/api/v1/appointments/stats")
-async def get_appointments_stats():
+async def get_appointments_stats(current_user: dict = Depends(get_current_user)):
     """Get appointment statistics for the clinic"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        total = await conn.fetchval("SELECT COUNT(*) FROM appointments")
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
+        total = await conn.fetchval(
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1", clinic_id
+        )
         today = await conn.fetchval(
-            "SELECT COUNT(*) FROM appointments WHERE appointment_date = CURRENT_DATE"
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1 AND appointment_date = CURRENT_DATE", clinic_id
         )
         scheduled = await conn.fetchval(
-            "SELECT COUNT(*) FROM appointments WHERE status = 'SCHEDULED'"
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1 AND status = 'SCHEDULED'", clinic_id
         )
         this_week = await conn.fetchval(
             """
-            SELECT COUNT(*) FROM appointments 
-            WHERE appointment_date >= date_trunc('week', CURRENT_DATE)
+            SELECT COUNT(*) FROM appointments
+            WHERE clinic_id = $1
+            AND appointment_date >= date_trunc('week', CURRENT_DATE)
             AND appointment_date < date_trunc('week', CURRENT_DATE) + interval '7 days'
-            """
+            """, clinic_id
         )
         await conn.close()
-        
+
         return {
             "success": True,
             "stats": {
@@ -1335,61 +1342,65 @@ async def get_appointments_stats():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/appointments/stats/overview")
-async def get_appointments_stats_overview():
+async def get_appointments_stats_overview(current_user: dict = Depends(get_current_user)):
     """Alias for appointments stats"""
-    return await get_appointments_stats()
+    return await get_appointments_stats(current_user)
 
 @app.get("/api/v1/appointments")
 async def get_appointments(
     status: str = None,
     date: str = None,
-    patient_id: int = None
+    patient_id: int = None,
+    current_user: dict = Depends(get_current_user)
 ):
     """Get all appointments with optional filters"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
         query = """
-            SELECT 
+            SELECT
                 a.*,
                 p.first_name || ' ' || p.last_name as patient_name,
                 p.email as patient_email,
                 p.mobile_phone as patient_phone
             FROM appointments a
             LEFT JOIN patients p ON a.patient_id = p.id
-            WHERE 1=1
+            WHERE a.clinic_id = $1
         """
-        params = []
-        param_count = 1
-        
+        params = [clinic_id]
+        param_count = 2
+
         if status:
             query += f" AND a.status = ${param_count}"
             params.append(status)
             param_count += 1
-            
+
         if date:
             query += f" AND a.appointment_date = ${param_count}"
             params.append(date)
             param_count += 1
-            
+
         if patient_id:
             query += f" AND a.patient_id = ${param_count}"
             params.append(patient_id)
             param_count += 1
-        
+
         query += " ORDER BY a.appointment_date DESC, a.appointment_time DESC"
-        
+
         appointments = await conn.fetch(query, *params)
         await conn.close()
-        
+
         return {
             "success": True,
             "appointments": [dict(a) for a in appointments]
         }
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR fetching appointments: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
@@ -1397,12 +1408,15 @@ async def get_appointments(
 
 
 @app.post("/api/v1/appointments")
-async def create_appointment(appointment: AppointmentCreate):
+async def create_appointment(appointment: AppointmentCreate, current_user: dict = Depends(get_current_user)):
     """Create a new appointment - Now with automatic type validation!"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
+
+        # Use the logged-in user's clinic_id to ensure appointments show on their dashboard
+        clinic_id = current_user.get('clinic_id', 1)
 
         # Generate appointment number
         from datetime import datetime
@@ -1422,7 +1436,7 @@ async def create_appointment(appointment: AppointmentCreate):
             ) VALUES ($1, $2, $3, $4::appointmenttype, $5, $6, $7, $8, $9::appointmentstatus, $10, NOW())
             RETURNING id""",
             appointment_number,
-            appointment.clinic_id,
+            clinic_id,  # Use logged-in user's clinic_id
             appointment.patient_id,  # Already converted to int by Pydantic!
             appointment.appointment_type,  # Already converted to enum format by Pydantic!
             appt_date,
@@ -1450,15 +1464,18 @@ async def create_appointment(appointment: AppointmentCreate):
 
 
 @app.get("/api/v1/appointments/{appointment_id}")
-async def get_appointment(appointment_id: int):
+async def get_appointment(appointment_id: int, current_user: dict = Depends(get_current_user)):
     """Get a specific appointment by ID"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
         appointment = await conn.fetchrow(
-            """SELECT 
+            """SELECT
                 a.*,
                 p.first_name || ' ' || p.last_name as patient_name,
                 p.email as patient_email,
@@ -1466,16 +1483,16 @@ async def get_appointment(appointment_id: int):
                 p.date_of_birth as patient_dob
             FROM appointments a
             LEFT JOIN patients p ON a.patient_id = p.id
-            WHERE a.id = $1""",
-            appointment_id
+            WHERE a.id = $1 AND a.clinic_id = $2""",
+            appointment_id, clinic_id
         )
-        
+
         if not appointment:
             await conn.close()
             raise HTTPException(status_code=404, detail="Appointment not found")
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "appointment": dict(appointment)
@@ -1483,7 +1500,7 @@ async def get_appointment(appointment_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR getting appointment: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
@@ -1491,50 +1508,54 @@ async def get_appointment(appointment_id: int):
 
 
 @app.put("/api/v1/appointments/{appointment_id}")
-async def update_appointment(appointment_id: int, appointment_data: dict):
+async def update_appointment(appointment_id: int, appointment_data: dict, current_user: dict = Depends(get_current_user)):
     """Update an existing appointment"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Check if appointment exists
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
+        # Check if appointment exists and belongs to user's clinic
         exists = await conn.fetchval(
-            "SELECT id FROM appointments WHERE id = $1", appointment_id
+            "SELECT id FROM appointments WHERE id = $1 AND clinic_id = $2", appointment_id, clinic_id
         )
         if not exists:
             await conn.close()
             raise HTTPException(status_code=404, detail="Appointment not found")
-        
+
         # Build update query dynamically
         update_fields = []
         params = []
         param_count = 1
-        
+
         allowed_fields = [
             "appointment_date", "appointment_time", "duration_minutes",
             "practitioner_id", "status", "booking_notes", "cancellation_reason"
         ]
-        
+
         for field in allowed_fields:
             if field in appointment_data:
                 update_fields.append(f"{field} = ${param_count}")
                 params.append(appointment_data[field])
                 param_count += 1
-        
+
         if update_fields:
             update_fields.append(f"updated_at = NOW()")
             query = f"""
-                UPDATE appointments 
+                UPDATE appointments
                 SET {', '.join(update_fields)}
-                WHERE id = ${param_count}
+                WHERE id = ${param_count} AND clinic_id = ${param_count + 1}
             """
             params.append(appointment_id)
-            
+            params.append(clinic_id)
+
             await conn.execute(query, *params)
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Appointment updated successfully"
@@ -1542,7 +1563,7 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR updating appointment: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
@@ -1550,28 +1571,31 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
 
 
 @app.delete("/api/v1/appointments/{appointment_id}")
-async def delete_appointment(appointment_id: int):
+async def delete_appointment(appointment_id: int, current_user: dict = Depends(get_current_user)):
     """Delete an appointment"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Check if appointment exists
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
+        # Check if appointment exists and belongs to user's clinic
         exists = await conn.fetchval(
-            "SELECT id FROM appointments WHERE id = $1", appointment_id
+            "SELECT id FROM appointments WHERE id = $1 AND clinic_id = $2", appointment_id, clinic_id
         )
         if not exists:
             await conn.close()
             raise HTTPException(status_code=404, detail="Appointment not found")
-        
+
         # Delete appointment
         await conn.execute(
-            "DELETE FROM appointments WHERE id = $1", appointment_id
+            "DELETE FROM appointments WHERE id = $1 AND clinic_id = $2", appointment_id, clinic_id
         )
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Appointment deleted successfully"
@@ -1579,7 +1603,7 @@ async def delete_appointment(appointment_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR deleting appointment: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
@@ -1587,33 +1611,37 @@ async def delete_appointment(appointment_id: int):
 
 
 @app.post("/api/v1/appointments/{appointment_id}/cancel")
-async def cancel_appointment(appointment_id: int, cancel_data: dict):
+async def cancel_appointment(appointment_id: int, cancel_data: dict, current_user: dict = Depends(get_current_user)):
     """Cancel an appointment"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Update appointment status to cancelled
-        await conn.execute(
-            """UPDATE appointments 
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
+        # Update appointment status to cancelled (only if it belongs to user's clinic)
+        result = await conn.execute(
+            """UPDATE appointments
                SET status = 'CANCELLED',
                    cancellation_reason = $1,
                    cancelled_at = NOW(),
                    updated_at = NOW()
-               WHERE id = $2""",
+               WHERE id = $2 AND clinic_id = $3""",
             cancel_data.get("reason", "No reason provided"),
-            appointment_id
+            appointment_id,
+            clinic_id
         )
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Appointment cancelled successfully"
         }
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR cancelling appointment: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
@@ -1621,15 +1649,18 @@ async def cancel_appointment(appointment_id: int, cancel_data: dict):
 
 
 @app.get("/api/v1/appointments/calendar/{year}/{month}")
-async def get_calendar_appointments(year: int, month: int):
+async def get_calendar_appointments(year: int, month: int, current_user: dict = Depends(get_current_user)):
     """Get appointments for a specific month (calendar view)"""
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
+        # Filter by user's clinic_id
+        clinic_id = current_user.get('clinic_id', 1)
+
         appointments = await conn.fetch(
-            """SELECT 
+            """SELECT
                 a.id,
                 a.appointment_number,
                 a.appointment_date,
@@ -1640,20 +1671,21 @@ async def get_calendar_appointments(year: int, month: int):
                 p.first_name || ' ' || p.last_name as patient_name
             FROM appointments a
             LEFT JOIN patients p ON a.patient_id = p.id
-            WHERE EXTRACT(YEAR FROM a.appointment_date) = $1
-              AND EXTRACT(MONTH FROM a.appointment_date) = $2
+            WHERE a.clinic_id = $1
+              AND EXTRACT(YEAR FROM a.appointment_date) = $2
+              AND EXTRACT(MONTH FROM a.appointment_date) = $3
             ORDER BY a.appointment_date, a.appointment_time""",
-            year, month
+            clinic_id, year, month
         )
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "appointments": [dict(a) for a in appointments]
         }
     except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
+        print(f"❌ ERROR getting calendar appointments: {str(e)}")
         print(f"❌ ERROR type: {type(e)}")
         import traceback
         traceback.print_exc()
