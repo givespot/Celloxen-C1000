@@ -1558,11 +1558,12 @@ async def get_appointment(appointment_id: int):
 @app.put("/api/v1/appointments/{appointment_id}")
 async def update_appointment(appointment_id: int, appointment_data: dict):
     """Update an existing appointment"""
+    from datetime import datetime, date, time
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         # Check if appointment exists
         exists = await conn.fetchval(
             "SELECT id FROM appointments WHERE id = $1", appointment_id
@@ -1570,17 +1571,28 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
         if not exists:
             await conn.close()
             raise HTTPException(status_code=404, detail="Appointment not found")
-        
+
+        # Convert date/time strings to proper Python objects
+        if "appointment_date" in appointment_data and isinstance(appointment_data["appointment_date"], str):
+            appointment_data["appointment_date"] = datetime.strptime(appointment_data["appointment_date"], "%Y-%m-%d").date()
+
+        if "appointment_time" in appointment_data and isinstance(appointment_data["appointment_time"], str):
+            time_str = appointment_data["appointment_time"]
+            if len(time_str) == 5:  # "HH:MM" format
+                appointment_data["appointment_time"] = datetime.strptime(time_str, "%H:%M").time()
+            else:  # "HH:MM:SS" format
+                appointment_data["appointment_time"] = datetime.strptime(time_str, "%H:%M:%S").time()
+
         # Build update query dynamically
         update_fields = []
         params = []
         param_count = 1
-        
+
         allowed_fields = [
             "appointment_date", "appointment_time", "duration_minutes",
             "practitioner_id", "status", "booking_notes", "cancellation_reason"
         ]
-        
+
         for field in allowed_fields:
             if field in appointment_data:
                 update_fields.append(f"{field} = ${param_count}")
