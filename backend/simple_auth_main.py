@@ -886,25 +886,6 @@ async def update_patient(patient_id: int, patient_data: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/v1/clinic/patients/{patient_id}")
-async def delete_patient(patient_id: int):
-    try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        await conn.execute("DELETE FROM patients WHERE id = $1", patient_id)
-        await conn.close()
-        return {"success": True}
-        
-    except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
-        print(f"❌ ERROR type: {type(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/clinic/patients/{patient_id}")
 
 # ============================================================================
 # CLINIC SUBSCRIPTION INVOICES
@@ -1355,37 +1336,6 @@ async def delete_patient_invoice(invoice_id: int, authorization: str = Header(No
     except Exception as e:
         print(f"Error cancelling invoice: {str(e)}")
         raise HTTPException(status_code=500, detail="Failed to cancel invoice")
-
-
-        raise HTTPException(status_code=500, detail="Failed to fetch invoice")
-
-async def get_patient(patient_id: int):
-    try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        patient = await conn.fetchrow("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
-            LEFT JOIN clinics c ON p.clinic_id = c.id
-            WHERE p.id = $1
-        """, patient_id)
-        
-        await conn.close()
-        if patient:
-            return dict(patient)
-        else:
-            raise HTTPException(status_code=404, detail="Patient not found")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
-        print(f"❌ ERROR type: {type(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
 
 
 # ============= ASSESSMENT MODULE ENDPOINTS =============
