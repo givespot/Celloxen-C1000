@@ -440,9 +440,9 @@ async def get_patient_assessments_by_id(patient_id: int):
 
         # Get comprehensive assessments for this patient
         assessments = await conn.fetch("""
-            SELECT id, assessment_number, overall_wellness_score, status,
+            SELECT id, overall_wellness_score, assessment_status,
                    constitutional_type, constitutional_strength,
-                   created_at, updated_at
+                   assessment_date, created_at, updated_at
             FROM comprehensive_assessments
             WHERE patient_id = $1
             ORDER BY created_at DESC
@@ -476,7 +476,7 @@ async def get_patient_iridology(patient_id: int):
         analyses = await conn.fetch("""
             SELECT id, analysis_number, status, constitutional_type,
                    constitutional_strength, left_eye_image, right_eye_image,
-                   created_at, updated_at, completed_at
+                   created_at, updated_at, processing_completed_at
             FROM iridology_analyses
             WHERE patient_id = $1
             ORDER BY created_at DESC
