@@ -3921,17 +3921,23 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             WHERE clinic_id = $1 AND status = 'COMPLETED'
         """, clinic_id) or 0
 
-        # Get therapy stats
-        therapy_sessions = await conn.fetchval("""
-            SELECT COUNT(*) FROM therapy_sessions ts
-            JOIN therapy_assignments ta ON ts.assignment_id = ta.id
-            WHERE ta.clinic_id = $1
-        """, clinic_id) or 0
+        # Get therapy stats (with error handling for missing tables)
+        try:
+            therapy_sessions = await conn.fetchval("""
+                SELECT COUNT(*) FROM therapy_sessions ts
+                JOIN therapy_assignments ta ON ts.assignment_id = ta.id
+                WHERE ta.clinic_id = $1
+            """, clinic_id) or 0
+        except Exception:
+            therapy_sessions = 0
 
-        active_therapies = await conn.fetchval("""
-            SELECT COUNT(*) FROM therapy_assignments
-            WHERE clinic_id = $1 AND status = 'active'
-        """, clinic_id) or 0
+        try:
+            active_therapies = await conn.fetchval("""
+                SELECT COUNT(*) FROM therapy_assignments
+                WHERE clinic_id = $1 AND status = 'active'
+            """, clinic_id) or 0
+        except Exception:
+            active_therapies = 0
 
         # Get invoice stats
         outstanding_invoices = await conn.fetchrow("""
