@@ -3901,9 +3901,13 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
         ) or 0
 
-        new_assessments = await conn.fetchval(
-            "SELECT COUNT(*) FROM comprehensive_assessments WHERE clinic_id = $1", clinic_id
-        ) or 0
+        # Try to get comprehensive assessments (may have different schema)
+        try:
+            new_assessments = await conn.fetchval(
+                "SELECT COUNT(*) FROM comprehensive_assessments WHERE clinic_id = $1", clinic_id
+            ) or 0
+        except:
+            new_assessments = 0
 
         total_assessments = old_assessments + new_assessments
 
@@ -3912,10 +3916,13 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             WHERE clinic_id = $1 AND status = 'IN_PROGRESS'
         """, clinic_id) or 0
 
-        pending_new = await conn.fetchval("""
-            SELECT COUNT(*) FROM comprehensive_assessments
-            WHERE clinic_id = $1 AND status = 'in_progress'
-        """, clinic_id) or 0
+        try:
+            pending_new = await conn.fetchval("""
+                SELECT COUNT(*) FROM comprehensive_assessments
+                WHERE clinic_id = $1 AND status = 'in_progress'
+            """, clinic_id) or 0
+        except:
+            pending_new = 0
 
         pending_assessments = pending_old + pending_new
 
@@ -3924,10 +3931,13 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             WHERE clinic_id = $1 AND status = 'COMPLETED'
         """, clinic_id) or 0
 
-        completed_new = await conn.fetchval("""
-            SELECT COUNT(*) FROM comprehensive_assessments
-            WHERE clinic_id = $1 AND status = 'completed'
-        """, clinic_id) or 0
+        try:
+            completed_new = await conn.fetchval("""
+                SELECT COUNT(*) FROM comprehensive_assessments
+                WHERE clinic_id = $1 AND status = 'completed'
+            """, clinic_id) or 0
+        except:
+            completed_new = 0
 
         completed_assessments = completed_old + completed_new
         
