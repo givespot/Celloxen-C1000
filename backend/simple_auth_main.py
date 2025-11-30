@@ -2594,7 +2594,8 @@ async def get_clinic_staff(current_user: dict = Depends(get_current_user)):
 
         staff = await conn.fetch("""
             SELECT
-                id, email, full_name, role, is_active,
+                id, email, full_name, role,
+                CASE WHEN status = 'active' THEN true ELSE false END as is_active,
                 created_at, last_login,
                 (SELECT COUNT(*) FROM appointments WHERE practitioner_id = users.id
                  AND appointment_date >= DATE_TRUNC('month', CURRENT_DATE)) as appointments_this_month,
@@ -2666,9 +2667,9 @@ async def create_staff_member(
 
         # Create staff member
         new_staff = await conn.fetchrow("""
-            INSERT INTO users (email, password_hash, full_name, role, clinic_id, is_active, created_at)
-            VALUES ($1, $2, $3, $4, $5, true, NOW())
-            RETURNING id, email, full_name, role, is_active, created_at
+            INSERT INTO users (email, password_hash, full_name, role, clinic_id, status, created_at)
+            VALUES ($1, $2, $3, $4, $5, 'active', NOW())
+            RETURNING id, email, full_name, role, status = 'active' as is_active, created_at
         """, email, password_hash, full_name, role, clinic_id)
 
         await conn.close()
@@ -2729,8 +2730,8 @@ async def update_staff_member(
             param_num += 1
 
         if 'is_active' in data:
-            updates.append(f"is_active = ${param_num}")
-            values.append(data['is_active'])
+            updates.append(f"status = ${param_num}")
+            values.append('active' if data['is_active'] else 'inactive')
             param_num += 1
 
         if 'password' in data and data['password']:
@@ -2742,7 +2743,7 @@ async def update_staff_member(
 
         if updates:
             values.append(staff_id)
-            query = f"UPDATE users SET {', '.join(updates)} WHERE id = ${param_num} RETURNING id, email, full_name, role, is_active"
+            query = f"UPDATE users SET {', '.join(updates)} WHERE id = ${param_num} RETURNING id, email, full_name, role, status = 'active' as is_active"
             updated = await conn.fetchrow(query, *values)
             await conn.close()
             return {"success": True, "staff": dict(updated)}
