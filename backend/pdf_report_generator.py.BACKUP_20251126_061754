@@ -1,0 +1,665 @@
+"""
+Professional PDF Report Generator using WeasyPrint
+VERSION 3: Uses ACTUAL AI-generated report content from database
+"""
+
+from weasyprint import HTML, CSS
+from datetime import datetime
+import json
+
+def get_score_status(score):
+    """Get status and color for a score"""
+    if score >= 75:
+        return 'Excellent', '#10b981', '#d1fae5'
+    elif score >= 50:
+        return 'Moderate', '#f59e0b', '#fef3c7'
+    elif score >= 25:
+        return 'Needs Support', '#ef4444', '#fee2e2'
+    else:
+        return 'Critical', '#dc2626', '#fecaca'
+
+def generate_html_report(patient_data, assessment_data):
+    """Generate HTML content using ACTUAL AI report from database"""
+    
+    # Parse AI report if it exists
+    ai_report = None
+    if assessment_data.get('ai_report'):
+        if isinstance(assessment_data['ai_report'], str):
+            try:
+                ai_report = json.loads(assessment_data['ai_report'])
+            except:
+                ai_report = None
+        else:
+            ai_report = assessment_data['ai_report']
+    
+    # Domain scores
+    scores = {
+        'C-102': {'name': 'Vitality & Energy Support', 'score': float(assessment_data.get('energy_score', 0))},
+        'C-104': {'name': 'Comfort & Mobility Support', 'score': float(assessment_data.get('comfort_score', 0))},
+        'C-105': {'name': 'Circulation & Heart Wellness', 'score': float(assessment_data.get('circulation_score', 0))},
+        'C-107': {'name': 'Stress & Relaxation Support', 'score': float(assessment_data.get('stress_score', 0))},
+        'C-108': {'name': 'Metabolic Balance Support', 'score': float(assessment_data.get('metabolic_score', 0))}
+    }
+    
+    # Overall score
+    overall_score = float(assessment_data.get('overall_score', 0))
+    overall_status, overall_color, overall_bg = get_score_status(overall_score)
+    
+    # Build domain scores table
+    domain_scores_html = ""
+    for code, data in scores.items():
+        status, color, bg_color = get_score_status(data['score'])
+        domain_scores_html += f"""
+        <tr>
+            <td class="domain-name">{code}: {data['name']}</td>
+            <td class="domain-score">{data['score']:.0f}%</td>
+            <td class="domain-status">
+                <span style="background: {bg_color}; color: {color}; padding: 2px 8px; border-radius: 8px; font-weight: 600; font-size: 8pt;">
+                    {status}
+                </span>
+            </td>
+        </tr>
+        """
+    
+    # Build Executive Summary (from AI)
+    executive_summary = ""
+    if ai_report and ai_report.get('executive_summary'):
+        executive_summary = f"""
+        <div class="executive-summary">
+            <h2>Executive Summary</h2>
+            <p>{ai_report['executive_summary']}</p>
+        </div>
+        """
+    
+    # Build Wellness Overview (from AI)
+    wellness_overview_html = ""
+    if ai_report and ai_report.get('wellness_overview'):
+        wo = ai_report['wellness_overview']
+        concerns = wo.get('primary_concerns', [])
+        positives = wo.get('positive_indicators', [])
+        
+        concerns_html = ''.join([f'<li>{c}</li>' for c in concerns[:5]])
+        positives_html = ''.join([f'<li>{p}</li>' for p in positives[:5]])
+        
+        wellness_overview_html = f"""
+        <div class="wellness-overview">
+            <table class="overview-table">
+                <tr>
+                    <td class="concerns-col">
+                        <h4>⚠ Primary Concerns</h4>
+                        <ul>{concerns_html}</ul>
+                    </td>
+                    <td class="positives-col">
+                        <h4>✓ Positive Indicators</h4>
+                        <ul>{positives_html}</ul>
+                    </td>
+                </tr>
+            </table>
+        </div>
+        """
+    
+    # Build Therapy Recommendations (from AI)
+    therapy_html = ""
+    if ai_report and ai_report.get('therapy_recommendations'):
+        for therapy in ai_report['therapy_recommendations'][:3]:  # Top 3
+            code = therapy.get('therapy_code', '')
+            name = therapy.get('therapy_name', '')
+            reason = therapy.get('recommendation_reason', '')
+            urgency = therapy.get('urgency', 'Standard')
+            priority = therapy.get('priority', 0)
+            
+            plan = therapy.get('treatment_plan', {})
+            sessions = plan.get('sessions', 'N/A')
+            frequency = plan.get('frequency', 'N/A')
+            duration = plan.get('duration', 'N/A')
+            
+            benefits = therapy.get('expected_benefits', [])
+            benefits_html = ''.join([f'<li>{b}</li>' for b in benefits])
+            
+            # Get score for this therapy
+            therapy_score = scores.get(code, {}).get('score', 0)
+            status, color, bg_color = get_score_status(therapy_score)
+            
+            therapy_html += f"""
+            <div class="therapy-section">
+                <div class="therapy-header" style="background: {bg_color}; border-left: 4px solid {color};">
+                    <h2>{code}: {name}</h2>
+                    <div class="priority-badge" style="background: {color};">
+                        Priority {priority} | {urgency} | Score: {therapy_score:.0f}%
+                    </div>
+                </div>
+                
+                <div class="therapy-content">
+                    <h3>Why This Therapy Was Selected</h3>
+                    <p>{reason}</p>
+                    
+                    <table class="protocol-table">
+                        <tr>
+                            <th>Sessions</th>
+                            <th>Frequency</th>
+                            <th>Duration</th>
+                        </tr>
+                        <tr>
+                            <td>{sessions} sessions</td>
+                            <td>{frequency}</td>
+                            <td>{duration}</td>
+                        </tr>
+                    </table>
+                    
+                    <h3>Expected Benefits</h3>
+                    <ul class="benefits-list">
+                        {benefits_html}
+                    </ul>
+                </div>
+            </div>
+            """
+    
+    # Build Lifestyle Recommendations (from AI)
+    lifestyle_html = ""
+    if ai_report and ai_report.get('lifestyle_recommendations'):
+        items = ''.join([f'<li>{r}</li>' for r in ai_report['lifestyle_recommendations']])
+        lifestyle_html = f"""
+        <div class="lifestyle-section">
+            <h2 class="section-title">Lifestyle Recommendations</h2>
+            <ul class="lifestyle-list">{items}</ul>
+        </div>
+        """
+    
+    # Build Supplement Recommendations (from AI)
+    supplement_html = ""
+    if ai_report and ai_report.get('supplement_recommendations'):
+        for supp in ai_report['supplement_recommendations']:
+            supplement_html += f"""
+            <div class="supplement-item">
+                <h4>{supp.get('name', '')}</h4>
+                <p><strong>Purpose:</strong> {supp.get('purpose', '')}</p>
+                <p><strong>Suggested Dosage:</strong> {supp.get('suggested_dosage', '')}</p>
+                <p class="supp-notes"><em>{supp.get('notes', '')}</em></p>
+            </div>
+            """
+        supplement_html = f"""
+        <div class="supplements-section">
+            <h2 class="section-title">Supplement Recommendations</h2>
+            {supplement_html}
+        </div>
+        """
+    
+    # Disclaimer
+    disclaimer_text = ai_report.get('disclaimer', 'This assessment provides holistic wellness guidance based on your questionnaire responses and is NOT a medical diagnosis or treatment plan.') if ai_report else 'This assessment provides holistic wellness guidance based on your questionnaire responses and is NOT a medical diagnosis or treatment plan.'
+    
+    # Full HTML
+    html_content = f"""
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset="utf-8">
+        <title>Wellness Assessment Report</title>
+        <style>
+            @page {{
+                size: A4;
+                margin: 1.2cm 1.5cm;
+            }}
+            
+            body {{
+                font-family: 'Helvetica', 'Arial', sans-serif;
+                color: #1f2937;
+                line-height: 1.4;
+                font-size: 9pt;
+            }}
+            
+            .header {{
+                text-align: center;
+                border-bottom: 3px solid #1e3a8a;
+                padding-bottom: 8px;
+                margin-bottom: 12px;
+            }}
+            
+            .header h1 {{
+                color: #1e3a8a;
+                font-size: 20pt;
+                margin: 0 0 3px 0;
+                letter-spacing: 1px;
+            }}
+            
+            .header h2 {{
+                color: #3b82f6;
+                font-size: 11pt;
+                margin: 0;
+                font-weight: normal;
+            }}
+            
+            .summary-table {{
+                width: 100%;
+                border-collapse: collapse;
+                margin-bottom: 12px;
+            }}
+            
+            .summary-table td {{
+                vertical-align: top;
+                padding: 0;
+            }}
+            
+            .patient-cell {{
+                width: 65%;
+                padding-right: 15px;
+            }}
+            
+            .score-cell {{
+                width: 35%;
+            }}
+            
+            .patient-info {{
+                background: #f8fafc;
+                padding: 10px 12px;
+                border-radius: 6px;
+                border: 1px solid #e2e8f0;
+            }}
+            
+            .patient-info table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            
+            .patient-info td {{
+                padding: 4px 6px;
+                border-bottom: 1px solid #e5e7eb;
+                font-size: 8.5pt;
+            }}
+            
+            .patient-info td:first-child {{
+                font-weight: 600;
+                width: 40%;
+                color: #475569;
+            }}
+            
+            .patient-info tr:last-child td {{
+                border-bottom: none;
+            }}
+            
+            .overall-score {{
+                background: linear-gradient(135deg, #3b82f6 0%, #1e3a8a 100%);
+                color: white;
+                padding: 12px;
+                border-radius: 8px;
+                text-align: center;
+            }}
+            
+            .overall-score h2 {{
+                margin: 0 0 2px 0;
+                font-size: 9pt;
+                font-weight: 500;
+                opacity: 0.9;
+            }}
+            
+            .overall-score .score {{
+                font-size: 32pt;
+                font-weight: bold;
+                margin: 3px 0;
+                line-height: 1;
+            }}
+            
+            .overall-score .status {{
+                font-size: 10pt;
+                font-weight: 600;
+                margin-top: 2px;
+            }}
+            
+            .executive-summary {{
+                background: #eff6ff;
+                border: 1px solid #bfdbfe;
+                border-radius: 6px;
+                padding: 12px;
+                margin: 12px 0;
+            }}
+            
+            .executive-summary h2 {{
+                color: #1e3a8a;
+                font-size: 11pt;
+                margin: 0 0 8px 0;
+            }}
+            
+            .executive-summary p {{
+                margin: 0;
+                font-size: 9pt;
+                line-height: 1.5;
+            }}
+            
+            .section-title {{
+                color: #1e3a8a;
+                font-size: 12pt;
+                margin: 15px 0 8px 0;
+                padding-bottom: 4px;
+                border-bottom: 2px solid #3b82f6;
+            }}
+            
+            table.scores {{
+                width: 100%;
+                border-collapse: collapse;
+                margin: 8px 0;
+            }}
+            
+            table.scores th {{
+                background: #1e3a8a;
+                color: white;
+                padding: 6px 8px;
+                text-align: left;
+                font-weight: 600;
+                font-size: 8.5pt;
+            }}
+            
+            table.scores td {{
+                padding: 6px 8px;
+                border-bottom: 1px solid #e5e7eb;
+                font-size: 8.5pt;
+            }}
+            
+            table.scores tr:nth-child(even) {{
+                background: #f9fafb;
+            }}
+            
+            .domain-score {{
+                text-align: center;
+                font-weight: bold;
+            }}
+            
+            .domain-status {{
+                text-align: center;
+            }}
+            
+            .wellness-overview {{
+                margin: 10px 0;
+            }}
+            
+            .overview-table {{
+                width: 100%;
+                border-collapse: collapse;
+            }}
+            
+            .concerns-col, .positives-col {{
+                width: 50%;
+                vertical-align: top;
+                padding: 10px;
+                background: #f8fafc;
+                border-radius: 6px;
+            }}
+            
+            .concerns-col {{
+                background: #fef2f2;
+            }}
+            
+            .positives-col {{
+                background: #f0fdf4;
+            }}
+            
+            .concerns-col h4 {{
+                color: #dc2626;
+                margin: 0 0 8px 0;
+                font-size: 9pt;
+            }}
+            
+            .positives-col h4 {{
+                color: #16a34a;
+                margin: 0 0 8px 0;
+                font-size: 9pt;
+            }}
+            
+            .concerns-col ul, .positives-col ul {{
+                margin: 0;
+                padding-left: 16px;
+            }}
+            
+            .concerns-col li, .positives-col li {{
+                font-size: 8pt;
+                margin: 4px 0;
+            }}
+            
+            .therapy-section {{
+                page-break-inside: avoid;
+                margin: 12px 0;
+            }}
+            
+            .therapy-header {{
+                padding: 10px 12px;
+                border-radius: 6px 6px 0 0;
+            }}
+            
+            .therapy-header h2 {{
+                margin: 0 0 5px 0;
+                color: #1e3a8a;
+                font-size: 11pt;
+            }}
+            
+            .priority-badge {{
+                display: inline-block;
+                color: white;
+                padding: 3px 8px;
+                border-radius: 4px;
+                font-weight: 600;
+                font-size: 7.5pt;
+            }}
+            
+            .therapy-content {{
+                border: 1px solid #e5e7eb;
+                border-top: none;
+                padding: 12px;
+                border-radius: 0 0 6px 6px;
+            }}
+            
+            .therapy-content h3 {{
+                color: #1e3a8a;
+                font-size: 9.5pt;
+                margin: 10px 0 6px 0;
+            }}
+            
+            .therapy-content h3:first-child {{
+                margin-top: 0;
+            }}
+            
+            .therapy-content p {{
+                margin: 0 0 8px 0;
+                font-size: 8.5pt;
+                line-height: 1.4;
+            }}
+            
+            .protocol-table {{
+                width: 100%;
+                margin: 8px 0;
+                border-collapse: collapse;
+            }}
+            
+            .protocol-table th {{
+                background: #f3f4f6;
+                padding: 6px;
+                border: 1px solid #e5e7eb;
+                font-size: 8pt;
+            }}
+            
+            .protocol-table td {{
+                padding: 6px;
+                border: 1px solid #e5e7eb;
+                text-align: center;
+                font-size: 8pt;
+            }}
+            
+            .benefits-list {{
+                margin: 5px 0;
+                padding-left: 18px;
+            }}
+            
+            .benefits-list li {{
+                margin: 4px 0;
+                font-size: 8.5pt;
+            }}
+            
+            .lifestyle-section, .supplements-section {{
+                margin: 15px 0;
+            }}
+            
+            .lifestyle-list {{
+                margin: 8px 0;
+                padding-left: 18px;
+            }}
+            
+            .lifestyle-list li {{
+                margin: 5px 0;
+                font-size: 8.5pt;
+            }}
+            
+            .supplement-item {{
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 6px;
+                padding: 10px;
+                margin: 8px 0;
+            }}
+            
+            .supplement-item h4 {{
+                color: #1e3a8a;
+                margin: 0 0 6px 0;
+                font-size: 9.5pt;
+            }}
+            
+            .supplement-item p {{
+                margin: 4px 0;
+                font-size: 8pt;
+            }}
+            
+            .supp-notes {{
+                color: #6b7280;
+            }}
+            
+            .disclaimer {{
+                background: #fef3c7;
+                border: 2px solid #f59e0b;
+                padding: 12px;
+                border-radius: 6px;
+                margin-top: 15px;
+                page-break-inside: avoid;
+            }}
+            
+            .disclaimer h3 {{
+                color: #92400e;
+                margin: 0 0 8px 0;
+                font-size: 10pt;
+            }}
+            
+            .disclaimer p {{
+                margin: 6px 0;
+                font-size: 8pt;
+                line-height: 1.4;
+            }}
+            
+            .footer {{
+                text-align: center;
+                color: #6b7280;
+                font-size: 7.5pt;
+                margin-top: 15px;
+                padding-top: 8px;
+                border-top: 1px solid #e5e7eb;
+            }}
+            
+            .footer p {{
+                margin: 2px 0;
+            }}
+        </style>
+    </head>
+    <body>
+        <!-- PAGE 1: HEADER + PATIENT INFO + SCORE -->
+        <div class="header">
+            <h1>CELLOXEN HEALTH PORTAL</h1>
+            <h2>Comprehensive Wellness Assessment Report</h2>
+        </div>
+        
+        <table class="summary-table">
+            <tr>
+                <td class="patient-cell">
+                    <div class="patient-info">
+                        <table>
+                            <tr>
+                                <td>Patient Name:</td>
+                                <td>{patient_data.get('first_name', '')} {patient_data.get('last_name', '')}</td>
+                            </tr>
+                            <tr>
+                                <td>Patient Number:</td>
+                                <td>{patient_data.get('patient_number', '')}</td>
+                            </tr>
+                            <tr>
+                                <td>Date of Birth:</td>
+                                <td>{patient_data.get('date_of_birth', 'N/A')}</td>
+                            </tr>
+                            <tr>
+                                <td>Assessment Date:</td>
+                                <td>{datetime.now().strftime('%d %B %Y')}</td>
+                            </tr>
+                            <tr>
+                                <td>Report Generated:</td>
+                                <td>{datetime.now().strftime('%d %B %Y at %H:%M')}</td>
+                            </tr>
+                        </table>
+                    </div>
+                </td>
+                <td class="score-cell">
+                    <div class="overall-score">
+                        <h2>Overall Wellness Score</h2>
+                        <div class="score">{overall_score:.0f}%</div>
+                        <div class="status">{overall_status}</div>
+                    </div>
+                </td>
+            </tr>
+        </table>
+        
+        {executive_summary}
+        
+        <!-- PAGE 2: DOMAIN SCORES + OVERVIEW -->
+        <div style="page-break-before: always;"></div>
+        
+        <h1 class="section-title">Wellness Domain Scores</h1>
+        
+        <table class="scores">
+            <tr>
+                <th>Domain</th>
+                <th style="text-align: center;">Score</th>
+                <th style="text-align: center;">Status</th>
+            </tr>
+            {domain_scores_html}
+        </table>
+        
+        {wellness_overview_html}
+        
+        <!-- THERAPY RECOMMENDATIONS -->
+        <h1 class="section-title">Recommended Therapies</h1>
+        
+        <p style="margin-bottom: 10px; font-size: 8.5pt;">Based on your AI-powered assessment, we recommend the following personalised therapies:</p>
+        
+        {therapy_html}
+        
+        <!-- LIFESTYLE & SUPPLEMENTS -->
+        {lifestyle_html}
+        
+        {supplement_html}
+        
+        <!-- DISCLAIMER -->
+        <div class="disclaimer">
+            <h3>⚠ WELLNESS ASSESSMENT DISCLAIMER</h3>
+            <p><strong>{disclaimer_text}</strong></p>
+            <p>Celloxen therapies are complementary wellness interventions designed to support overall wellbeing. They do not claim to treat, cure, or prevent any disease or medical condition.</p>
+            <p><strong>IMPORTANT:</strong> Please consult your GP or qualified healthcare provider for any medical concerns or before making significant changes to your health regimen.</p>
+        </div>
+        
+        <div class="footer">
+            <p>Report Generated: {datetime.now().strftime('%d %B %Y at %H:%M')} | Assessment ID: {assessment_data.get('id', 'N/A')}</p>
+            <p>Aberdeen Wellness Centre | Tel: 01224 123456 | Email: info@aberdeenwellness.co.uk</p>
+            <p>www.celloxen.co.uk</p>
+        </div>
+    </body>
+    </html>
+    """
+    
+    return html_content
+
+def generate_pdf_report(patient_data, assessment_data):
+    """Generate professional PDF report using WeasyPrint with AI content"""
+    html_content = generate_html_report(patient_data, assessment_data)
+    html = HTML(string=html_content)
+    pdf_bytes = html.write_pdf()
+    return pdf_bytes

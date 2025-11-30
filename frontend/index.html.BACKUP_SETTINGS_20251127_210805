@@ -1764,8 +1764,6 @@ async function displayIridologyWithPatient(analysis) {
             const [editMode, setEditMode] = useState(false);
             const [formData, setFormData] = useState({});
             const [saving, setSaving] = useState(false);
-            const [patientAssessments, setPatientAssessments] = useState([]);
-            const [patientIridology, setPatientIridology] = useState([]);
 
             useEffect(() => {
                 fetchPatientData();
@@ -1773,40 +1771,12 @@ async function displayIridologyWithPatient(analysis) {
 
             const fetchPatientData = async () => {
                 try {
-                    const token = localStorage.getItem('celloxen_token');
-                    const headers = { 'Authorization': `Bearer ${token}` };
-                    
-                    // Fetch patient details
-                    const response = await fetch(`/api/v1/clinic/patients/${patientId}`, { headers });
+                    const response = await fetch(`/api/v1/clinic/patients/${patientId}`);
                     if (response.ok) {
                         const data = await response.json();
                         setPatient(data.patient);
                         setStats(data.stats);
                         setFormData(data.patient);
-                    }
-                    
-                    // Fetch patient assessments
-                    try {
-                        const assessmentsRes = await fetch(`/api/v1/clinic/patients/${patientId}/assessments`, { headers });
-                        if (assessmentsRes.ok) {
-                            const assessmentsData = await assessmentsRes.json();
-                            setPatientAssessments(assessmentsData.assessments || []);
-                        }
-                    } catch (e) {
-                        console.log('No assessments endpoint or error:', e);
-                        setPatientAssessments([]);
-                    }
-                    
-                    // Fetch patient iridology analyses
-                    try {
-                        const iridologyRes = await fetch(`/api/v1/clinic/patients/${patientId}/iridology`, { headers });
-                        if (iridologyRes.ok) {
-                            const iridologyData = await iridologyRes.json();
-                            setPatientIridology(iridologyData.analyses || []);
-                        }
-                    } catch (e) {
-                        console.log('No iridology endpoint or error:', e);
-                        setPatientIridology([]);
                     }
                 } catch (error) {
                     console.error('Error fetching patient:', error);
@@ -4982,18 +4952,7 @@ const IridologyModule = () => {
                                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
                                     </svg>
                                     <span>Appointments</span>
-                                </button>                                <button
-                                    onClick={() => setCurrentPage("therapies")}
-                                    className={`sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${
-                                        currentPage === "therapies" ? "active" : ""
-                                    }`}
-                                >
-                                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                    </svg>
-                                    <span>Therapies</span>
                                 </button>
-
                                 <button
                                     onClick={() => setCurrentPage("patient-invoices")}
                                     className={`sidebar-item w-full text-left px-4 py-3 rounded-lg flex items-center space-x-3 ${
@@ -5041,7 +5000,6 @@ const IridologyModule = () => {
 {currentPage === 'iridology' && <IridologyModule />}
                         {currentPage === 'iridology-new' && <IridologyNew />}
                             {currentPage === 'appointments' && <AppointmentsModule />}
-                            {currentPage === 'therapies' && <TherapiesModule />}
                             {currentPage === 'settings' && <SettingsModule />}
                             {currentPage === 'patient-invoices' && <PatientInvoicesModule />}
                             {currentPage === 'patient-profile' && selectedPatientId && (
@@ -5060,812 +5018,6 @@ const IridologyModule = () => {
         // ============================================
         // APPOINTMENTS MODULE COMPONENT
         // ============================================
-
-// ============================================================================
-// ============================================================================
-// THERAPIES MODULE COMPONENT - COMPREHENSIVE REBUILD 30/11/2025
-// ============================================================================
-
-const TherapiesModule = () => {
-    const [activeTab, setActiveTab] = useState('active');
-    const [loading, setLoading] = useState(true);
-    const [stats, setStats] = useState(null);
-    const [activePlans, setActivePlans] = useState([]);
-    const [therapies, setTherapies] = useState([]);
-    const [todaySessions, setTodaySessions] = useState([]);
-    
-    // Assignment states
-    const [patients, setPatients] = useState([]);
-    const [searchQuery, setSearchQuery] = useState('');
-    const [selectedPatient, setSelectedPatient] = useState(null);
-    const [showAssignModal, setShowAssignModal] = useState(false);
-    const [selectedTherapy, setSelectedTherapy] = useState(null);
-    const [assignmentForm, setAssignmentForm] = useState({
-        num_sessions: 16,
-        session_duration: 30,
-        frequency: '5x_week',
-        start_date: new Date().toISOString().split('T')[0],
-        practitioner_notes: ''
-    });
-    
-    // Session detail states
-    const [showDetailModal, setShowDetailModal] = useState(false);
-    const [selectedItem, setSelectedItem] = useState(null);
-    const [itemSessions, setItemSessions] = useState([]);
-    const [itemDetails, setItemDetails] = useState(null);
-    
-    // Reschedule states
-    const [showRescheduleModal, setShowRescheduleModal] = useState(false);
-    const [rescheduleSession, setRescheduleSession] = useState(null);
-    const [rescheduleForm, setRescheduleForm] = useState({ new_date: '', new_time: '10:00', reason: '' });
-
-    useEffect(() => {
-        fetchAllData();
-    }, []);
-
-    const fetchAllData = async () => {
-        setLoading(true);
-        await Promise.all([
-            fetchStats(),
-            fetchActivePlans(),
-            fetchTherapies(),
-            fetchTodaySessions()
-        ]);
-        setLoading(false);
-    };
-
-    const fetchStats = async () => {
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch('/api/v1/therapies/comprehensive-stats', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) setStats(data.stats);
-        } catch (error) {
-            console.error('Error fetching stats:', error);
-        }
-    };
-
-    const fetchActivePlans = async () => {
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch('/api/v1/therapies/active-plans', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) setActivePlans(data.plans);
-        } catch (error) {
-            console.error('Error fetching active plans:', error);
-        }
-    };
-
-    const fetchTherapies = async () => {
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch('/api/v1/therapies', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) setTherapies(data.therapies);
-        } catch (error) {
-            console.error('Error fetching therapies:', error);
-        }
-    };
-
-    const fetchTodaySessions = async () => {
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch('/api/v1/therapies/today-sessions', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) setTodaySessions(data.sessions);
-        } catch (error) {
-            console.error('Error fetching today sessions:', error);
-        }
-    };
-
-    const fetchItemSessions = async (itemId) => {
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch(`/api/v1/therapy-items/${itemId}/sessions`, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) {
-                setItemSessions(data.sessions);
-                setItemDetails(data);
-            }
-        } catch (error) {
-            console.error('Error fetching sessions:', error);
-        }
-    };
-
-    const searchPatients = async (query) => {
-        if (query.length < 2) { setPatients([]); return; }
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch('/api/v1/clinic/patients', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (Array.isArray(data)) {
-                const filtered = data.filter(p =>
-                    `${p.first_name} ${p.last_name}`.toLowerCase().includes(query.toLowerCase()) ||
-                    (p.patient_number && p.patient_number.toLowerCase().includes(query.toLowerCase()))
-                );
-                setPatients(filtered.slice(0, 10));
-            }
-        } catch (error) {
-            console.error('Error searching patients:', error);
-        }
-    };
-
-    const selectPatient = (patient) => {
-        setSelectedPatient(patient);
-        setSearchQuery(`${patient.first_name} ${patient.last_name}`);
-        setPatients([]);
-    };
-
-    const openAssignModal = (therapy) => {
-        setSelectedTherapy(therapy);
-        const defaultFrequency = therapy.session_frequency?.includes('daily') ? '5x_week' : 
-                                 therapy.session_frequency?.includes('2-3') ? '3x_week' : '5x_week';
-        setAssignmentForm({
-            num_sessions: therapy.recommended_sessions || 16,
-            session_duration: 30,
-            frequency: defaultFrequency,
-            start_date: new Date().toISOString().split('T')[0],
-            practitioner_notes: ''
-        });
-        setShowAssignModal(true);
-    };
-
-    const assignTherapy = async () => {
-        if (!selectedPatient || !selectedTherapy) return;
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch(`/api/v1/patients/${selectedPatient.id}/therapy-assignments`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ therapy_code: selectedTherapy.therapy_code, ...assignmentForm })
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert(`${selectedTherapy.therapy_name} assigned successfully!\n${data.assignment.sessions_created} sessions created.`);
-                setShowAssignModal(false);
-                setSelectedTherapy(null);
-                fetchAllData();
-            } else {
-                alert('Error: ' + (data.detail || 'Failed to assign therapy'));
-            }
-        } catch (error) {
-            console.error('Error assigning therapy:', error);
-            alert('Error assigning therapy');
-        }
-    };
-
-    const viewDetails = async (itemId) => {
-        setSelectedItem(itemId);
-        await fetchItemSessions(itemId);
-        setShowDetailModal(true);
-    };
-
-    const completeSession = async (sessionId) => {
-        const notes = prompt('Enter session notes (optional):');
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch(`/api/v1/therapy-sessions/${sessionId}/complete`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify({ notes: notes || '', patient_feedback: '' })
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert('Session marked as completed!');
-                if (selectedItem) fetchItemSessions(selectedItem);
-                fetchAllData();
-            }
-        } catch (error) {
-            console.error('Error completing session:', error);
-        }
-    };
-
-    const openReschedule = (session) => {
-        setRescheduleSession(session);
-        setRescheduleForm({
-            new_date: session.scheduled_date,
-            new_time: session.scheduled_time || '10:00',
-            reason: ''
-        });
-        setShowRescheduleModal(true);
-    };
-
-    const submitReschedule = async () => {
-        if (!rescheduleSession) return;
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch(`/api/v1/therapy-sessions/${rescheduleSession.id}/reschedule`, {
-                method: 'PUT',
-                headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
-                body: JSON.stringify(rescheduleForm)
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert('Session rescheduled successfully!');
-                setShowRescheduleModal(false);
-                if (selectedItem) fetchItemSessions(selectedItem);
-                fetchAllData();
-            }
-        } catch (error) {
-            console.error('Error rescheduling:', error);
-        }
-    };
-
-    const createAppointments = async (itemId) => {
-        if (!confirm('Create appointments for all scheduled sessions?')) return;
-        try {
-            const token = localStorage.getItem('celloxen_token');
-            const response = await fetch(`/api/v1/therapy-items/${itemId}/create-all-appointments`, {
-                method: 'POST',
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            const data = await response.json();
-            if (data.success) {
-                alert(`${data.appointments_created} appointments created!`);
-            }
-        } catch (error) {
-            console.error('Error creating appointments:', error);
-        }
-    };
-
-    const formatDate = (dateStr) => {
-        if (!dateStr) return '-';
-        const date = new Date(dateStr);
-        return date.toLocaleDateString('en-GB', { weekday: 'short', day: '2-digit', month: '2-digit', year: 'numeric' });
-    };
-
-    const getStatusBadge = (status) => {
-        const styles = {
-            'SCHEDULED': 'bg-blue-100 text-blue-800',
-            'IN_PROGRESS': 'bg-amber-100 text-amber-800',
-            'COMPLETED': 'bg-green-100 text-green-800',
-            'CANCELLED': 'bg-red-100 text-red-800',
-            'NO_SHOW': 'bg-gray-100 text-gray-800'
-        };
-        return styles[status] || 'bg-gray-100 text-gray-800';
-    };
-
-    const getProgressColor = (percent) => {
-        if (percent >= 75) return 'bg-green-500';
-        if (percent >= 50) return 'bg-blue-500';
-        if (percent >= 25) return 'bg-amber-500';
-        return 'bg-gray-300';
-    };
-
-    const getTherapyColor = (code) => {
-        const colors = {
-            'C-102': 'bg-blue-900',
-            'C-104': 'bg-orange-600',
-            'C-105': 'bg-red-600',
-            'C-107': 'bg-purple-600',
-            'C-108': 'bg-green-600'
-        };
-        return colors[code] || 'bg-gray-600';
-    };
-
-    const timeOptions = [];
-    for (let h = 8; h <= 18; h++) {
-        for (let m = 0; m < 60; m += 30) {
-            timeOptions.push(`${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`);
-        }
-    }
-
-    if (loading) {
-        return (
-            <div className="flex items-center justify-center h-64">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-900"></div>
-            </div>
-        );
-    }
-
-    return (
-        <div className="p-6">
-            <div className="mb-6">
-                <h1 className="text-2xl font-bold text-gray-900">Therapies Management</h1>
-                <p className="text-gray-600">Assign therapies, manage sessions, and track patient progress</p>
-            </div>
-
-            {/* Stats Cards */}
-            {stats && (
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
-                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-blue-900">
-                        <div className="text-2xl font-bold text-blue-900">{stats.active_plans}</div>
-                        <div className="text-sm text-gray-600">Active Plans</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-indigo-500">
-                        <div className="text-2xl font-bold text-indigo-600">{stats.patients_with_therapy}</div>
-                        <div className="text-sm text-gray-600">Patients in Therapy</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-green-500">
-                        <div className="text-2xl font-bold text-green-600">{stats.completed_today}</div>
-                        <div className="text-sm text-gray-600">Completed Today</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-amber-500">
-                        <div className="text-2xl font-bold text-amber-600">{stats.today_sessions}</div>
-                        <div className="text-sm text-gray-600">Today's Sessions</div>
-                    </div>
-                    <div className="bg-white rounded-lg shadow p-4 border-l-4 border-purple-500">
-                        <div className="text-2xl font-bold text-purple-600">{stats.week_sessions}</div>
-                        <div className="text-sm text-gray-600">This Week</div>
-                    </div>
-                </div>
-            )}
-
-            {/* Tabs */}
-            <div className="bg-white rounded-lg shadow mb-6">
-                <div className="border-b">
-                    <nav className="flex">
-                        <button onClick={() => setActiveTab('active')} className={`px-6 py-4 font-medium text-sm ${activeTab === 'active' ? 'border-b-2 border-blue-900 text-blue-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                            📋 Active Plans ({activePlans.length})
-                        </button>
-                        <button onClick={() => setActiveTab('assign')} className={`px-6 py-4 font-medium text-sm ${activeTab === 'assign' ? 'border-b-2 border-blue-900 text-blue-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                            ➕ Assign New Therapy
-                        </button>
-                        <button onClick={() => setActiveTab('library')} className={`px-6 py-4 font-medium text-sm ${activeTab === 'library' ? 'border-b-2 border-blue-900 text-blue-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                            📚 Therapy Library
-                        </button>
-                        <button onClick={() => setActiveTab('today')} className={`px-6 py-4 font-medium text-sm ${activeTab === 'today' ? 'border-b-2 border-blue-900 text-blue-900' : 'text-gray-500 hover:text-gray-700'}`}>
-                            📅 Today's Schedule ({todaySessions.length})
-                        </button>
-                    </nav>
-                </div>
-
-                {/* Active Plans Tab */}
-                {activeTab === 'active' && (
-                    <div className="p-6">
-                        {activePlans.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <p className="text-lg">No active therapy plans</p>
-                                <p className="text-sm">Assign a therapy to a patient to get started</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-4">
-                                {activePlans.map(plan => (
-                                    <div key={plan.plan_id} className="border rounded-lg overflow-hidden">
-                                        <div className="bg-gray-50 p-4 flex items-center justify-between">
-                                            <div className="flex items-center space-x-4">
-                                                <div className="w-12 h-12 bg-blue-900 text-white rounded-full flex items-center justify-center font-bold">
-                                                    {plan.patient.initials}
-                                                </div>
-                                                <div>
-                                                    <h3 className="font-semibold text-lg">{plan.patient.first_name} {plan.patient.last_name}</h3>
-                                                    <p className="text-sm text-gray-500">{plan.patient.patient_number} | Started: {formatDate(plan.created_at)}</p>
-                                                </div>
-                                            </div>
-                                            <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm font-medium">{plan.plan_status}</span>
-                                        </div>
-                                        <div className="p-4 space-y-3">
-                                            {plan.therapies.map(therapy => (
-                                                <div key={therapy.item_id} className="flex items-center justify-between p-4 bg-blue-50 rounded-lg">
-                                                    <div className="flex items-center space-x-4">
-                                                        <div className={`w-14 h-14 ${getTherapyColor(therapy.therapy_code)} text-white rounded-lg flex items-center justify-center`}>
-                                                            <span className="text-xs font-bold">{therapy.therapy_code}</span>
-                                                        </div>
-                                                        <div>
-                                                            <h4 className="font-semibold">{therapy.therapy_name}</h4>
-                                                            <p className="text-sm text-gray-600">Duration: {therapy.session_duration_minutes} mins | {therapy.session_frequency}</p>
-                                                            {therapy.next_session_date && (
-                                                                <p className="text-sm text-gray-500">Next: {formatDate(therapy.next_session_date)} at {therapy.next_session_time}</p>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="text-right">
-                                                        <div className="text-2xl font-bold text-blue-900">{therapy.completed_sessions}/{therapy.total_sessions}</div>
-                                                        <div className="text-sm text-gray-500">Sessions</div>
-                                                        <div className="w-32 bg-gray-200 rounded-full h-2 mt-2">
-                                                            <div className={`h-2 rounded-full ${getProgressColor(therapy.progress_percent)}`} style={{ width: `${therapy.progress_percent}%` }}></div>
-                                                        </div>
-                                                        <button onClick={() => viewDetails(therapy.item_id)} className="mt-2 text-blue-900 hover:text-blue-700 text-sm font-medium">
-                                                            View Details →
-                                                        </button>
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-
-                {/* Assign New Therapy Tab */}
-                {activeTab === 'assign' && (
-                    <div className="p-6">
-                        <div className="mb-6">
-                            <label className="block text-sm font-medium text-gray-700 mb-2">Search Patient</label>
-                            <div className="relative">
-                                <input
-                                    type="text"
-                                    value={searchQuery}
-                                    onChange={(e) => { setSearchQuery(e.target.value); searchPatients(e.target.value); }}
-                                    placeholder="Search by name or patient number..."
-                                    className="w-full md:w-96 px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500"
-                                />
-                                {patients.length > 0 && (
-                                    <div className="absolute z-10 w-full md:w-96 mt-1 bg-white border rounded-lg shadow-lg max-h-60 overflow-auto">
-                                        {patients.map(patient => (
-                                            <button key={patient.id} onClick={() => selectPatient(patient)} className="w-full text-left px-4 py-2 hover:bg-gray-100">
-                                                <div className="font-medium">{patient.first_name} {patient.last_name}</div>
-                                                <div className="text-sm text-gray-500">{patient.patient_number}</div>
-                                            </button>
-                                        ))}
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {selectedPatient && (
-                            <div className="mb-6 p-4 bg-blue-50 rounded-lg">
-                                <p className="font-medium">Selected: {selectedPatient.first_name} {selectedPatient.last_name}</p>
-                                <p className="text-sm text-gray-600">{selectedPatient.patient_number}</p>
-                            </div>
-                        )}
-
-                        <h3 className="font-semibold mb-4">Select a Therapy to Assign</h3>
-                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                            {therapies.map(therapy => (
-                                <div key={therapy.id} className="border rounded-lg p-4 hover:shadow-lg transition-shadow">
-                                    <div className="flex items-center justify-between mb-2">
-                                        <span className={`px-2 py-1 ${getTherapyColor(therapy.therapy_code)} text-white text-xs font-bold rounded`}>
-                                            {therapy.therapy_code}
-                                        </span>
-                                        <span className="text-sm text-gray-500">{therapy.recommended_sessions} sessions</span>
-                                    </div>
-                                    <h4 className="font-semibold mb-1">{therapy.therapy_name}</h4>
-                                    <p className="text-sm text-gray-600 mb-2">{therapy.session_duration} | {therapy.session_frequency}</p>
-                                    <p className="text-xs text-gray-500 mb-3">Target: {therapy.target_organs}</p>
-                                    <button
-                                        onClick={() => openAssignModal(therapy)}
-                                        disabled={!selectedPatient}
-                                        className="w-full py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
-                                    >
-                                        {selectedPatient ? 'Assign to Patient' : 'Select Patient First'}
-                                    </button>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Therapy Library Tab */}
-                {activeTab === 'library' && (
-                    <div className="p-6">
-                        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                            {therapies.map(therapy => (
-                                <div key={therapy.id} className="border rounded-lg overflow-hidden">
-                                    <div className={`${getTherapyColor(therapy.therapy_code)} text-white p-4`}>
-                                        <div className="flex justify-between items-start">
-                                            <div>
-                                                <span className="text-sm bg-white/20 px-2 py-1 rounded">{therapy.therapy_code}</span>
-                                                <h3 className="text-xl font-bold mt-2">{therapy.therapy_name}</h3>
-                                                <p className="text-white/80 text-sm">{therapy.subtitle}</p>
-                                            </div>
-                                            <div className="text-right">
-                                                <div className="text-3xl font-bold">{therapy.recommended_sessions}</div>
-                                                <div className="text-sm text-white/80">Sessions</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="p-4">
-                                        <div className="grid grid-cols-2 gap-4 mb-4">
-                                            <div className="bg-gray-50 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500">Duration</p>
-                                                <p className="font-semibold">{therapy.session_duration}</p>
-                                            </div>
-                                            <div className="bg-gray-50 p-3 rounded-lg">
-                                                <p className="text-xs text-gray-500">Frequency</p>
-                                                <p className="font-semibold">{therapy.session_frequency}</p>
-                                            </div>
-                                        </div>
-                                        <div className="mb-4">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Target Areas</p>
-                                            <div className="flex flex-wrap gap-2">
-                                                {therapy.target_organs?.split(',').map((organ, idx) => (
-                                                    <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-800 rounded-full text-sm">{organ.trim()}</span>
-                                                ))}
-                                            </div>
-                                        </div>
-                                        <div className="mb-4">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Applicator Placement</p>
-                                            <p className="text-sm text-gray-600">{therapy.applicator_placement}</p>
-                                        </div>
-                                        
-                                        {/* Diagram Section */}
-                                        <div className="mb-4">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Placement Diagram</p>
-                                            {therapy.diagram_image ? (
-                                                <div className="border rounded-lg p-2">
-                                                    <img src={therapy.diagram_image} alt={`${therapy.therapy_code} placement diagram`} className="w-full h-48 object-contain rounded" />
-                                                    <button 
-                                                        onClick={() => window.open(therapy.diagram_image, '_blank')}
-                                                        className="mt-2 text-blue-600 text-sm hover:underline"
-                                                    >View Full Size →</button>
-                                                </div>
-                                            ) : (
-                                                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
-                                                    <p className="text-gray-500 text-sm mb-2">No diagram uploaded</p>
-                                                    <label className="cursor-pointer">
-                                                        <span className="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm hover:bg-blue-800">Upload Diagram</span>
-                                                        <input type="file" accept="image/*" className="hidden" onChange={(e) => {
-                                                            if (e.target.files[0]) {
-                                                                const formData = new FormData();
-                                                                formData.append('file', e.target.files[0]);
-                                                                fetch(`/api/v1/therapies/${therapy.therapy_code}/upload-diagram`, {
-                                                                    method: 'POST',
-                                                                    headers: { 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
-                                                                    body: formData
-                                                                }).then(r => r.json()).then(data => {
-                                                                    if (data.success) { alert('Diagram uploaded!'); fetchTherapies(); }
-                                                                });
-                                                            }
-                                                        }} />
-                                                    </label>
-                                                </div>
-                                            )}
-                                        </div>
-                                        
-                                        <div className="mb-4">
-                                            <p className="text-sm font-medium text-gray-700 mb-2">Description</p>
-                                            <p className="text-sm text-gray-600 line-clamp-3">{therapy.description}</p>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                )}
-
-                {/* Today's Schedule Tab */}
-                {activeTab === 'today' && (
-                    <div className="p-6">
-                        <h3 className="font-semibold text-lg mb-4">Today's Therapy Sessions - {new Date().toLocaleDateString('en-GB', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}</h3>
-                        {todaySessions.length === 0 ? (
-                            <div className="text-center py-12 text-gray-500">
-                                <p className="text-lg">No therapy sessions scheduled for today</p>
-                            </div>
-                        ) : (
-                            <div className="space-y-3">
-                                {todaySessions.map(session => (
-                                    <div key={session.id} className={`flex items-center justify-between p-4 rounded-lg border-l-4 ${session.status === 'COMPLETED' ? 'bg-green-50 border-green-500' : 'bg-blue-50 border-blue-500'}`}>
-                                        <div className="flex items-center space-x-4">
-                                            <div className="text-center">
-                                                <div className="text-lg font-bold">{session.scheduled_time}</div>
-                                                <div className="text-xs text-gray-500">{session.duration_minutes} mins</div>
-                                            </div>
-                                            <div>
-                                                <h4 className="font-medium">{session.patient.first_name} {session.patient.last_name}</h4>
-                                                <p className="text-sm text-gray-600">{session.therapy_code} - {session.therapy_name} | Session {session.session_sequence} of {session.total_sessions}</p>
-                                            </div>
-                                        </div>
-                                        <div className="flex items-center space-x-2">
-                                            {session.status === 'COMPLETED' ? (
-                                                <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-sm">Completed</span>
-                                            ) : (
-                                                <button onClick={() => completeSession(session.id)} className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm">
-                                                    Mark Complete
-                                                </button>
-                                            )}
-                                        </div>
-                                    </div>
-                                ))}
-                            </div>
-                        )}
-                    </div>
-                )}
-            </div>
-
-            {/* Assign Therapy Modal */}
-            {showAssignModal && selectedTherapy && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
-                        <div className="p-6 border-b">
-                            <h3 className="text-lg font-semibold">Assign Therapy</h3>
-                            <p className="text-sm text-gray-600">{selectedTherapy.therapy_code} - {selectedTherapy.therapy_name}</p>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div className="bg-blue-50 p-3 rounded-lg">
-                                <p className="text-sm text-gray-600">Patient:</p>
-                                <p className="font-medium">{selectedPatient?.first_name} {selectedPatient?.last_name}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Number of Sessions</label>
-                                <div className="flex items-center space-x-3">
-                                    <button onClick={() => setAssignmentForm(f => ({ ...f, num_sessions: Math.max(1, f.num_sessions - 1) }))} className="w-10 h-10 rounded-lg border flex items-center justify-center hover:bg-gray-100">-</button>
-                                    <input type="number" value={assignmentForm.num_sessions} onChange={(e) => setAssignmentForm(f => ({ ...f, num_sessions: parseInt(e.target.value) || 1 }))} className="w-20 text-center px-3 py-2 border rounded-lg" min="1" max="24" />
-                                    <button onClick={() => setAssignmentForm(f => ({ ...f, num_sessions: Math.min(24, f.num_sessions + 1) }))} className="w-10 h-10 rounded-lg border flex items-center justify-center hover:bg-gray-100">+</button>
-                                    <span className="text-sm text-gray-500">(Recommended: {selectedTherapy.recommended_sessions})</span>
-                                </div>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Session Duration</label>
-                                <select value={assignmentForm.session_duration} onChange={(e) => setAssignmentForm(f => ({ ...f, session_duration: parseInt(e.target.value) }))} className="w-full px-3 py-2 border rounded-lg">
-                                    <option value={30}>30 minutes</option>
-                                    <option value={35}>35 minutes</option>
-                                    <option value={40}>40 minutes</option>
-                                    <option value={45}>45 minutes</option>
-                                    <option value={60}>60 minutes</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Session Frequency</label>
-                                <select value={assignmentForm.frequency} onChange={(e) => setAssignmentForm(f => ({ ...f, frequency: e.target.value }))} className="w-full px-3 py-2 border rounded-lg">
-                                    <option value="daily">Daily (7 days/week)</option>
-                                    <option value="5x_week">5 times per week (Mon-Fri)</option>
-                                    <option value="4x_week">4 times per week</option>
-                                    <option value="3x_week">3 times per week</option>
-                                    <option value="2x_week">2 times per week</option>
-                                    <option value="1x_week">Once per week</option>
-                                    <option value="1x_month">Once per month</option>
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Start Date</label>
-                                <input type="date" value={assignmentForm.start_date} onChange={(e) => setAssignmentForm(f => ({ ...f, start_date: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Notes (Optional)</label>
-                                <textarea value={assignmentForm.practitioner_notes} onChange={(e) => setAssignmentForm(f => ({ ...f, practitioner_notes: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" rows="2" placeholder="Any notes for this therapy assignment..." />
-                            </div>
-                            <div className="bg-gray-50 p-3 rounded-lg">
-                                <p className="text-sm font-medium text-gray-700 mb-1">Schedule Preview</p>
-                                <p className="text-sm text-gray-600">{assignmentForm.num_sessions} sessions starting {assignmentForm.start_date}</p>
-                                <p className="text-sm text-gray-500">Duration: {assignmentForm.session_duration} mins | Frequency: {assignmentForm.frequency.replace('_', ' ')}</p>
-                            </div>
-                        </div>
-                        <div className="p-6 border-t flex justify-end space-x-3">
-                            <button onClick={() => { setShowAssignModal(false); setSelectedTherapy(null); }} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                            <button onClick={assignTherapy} className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800">Confirm Assignment</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Session Detail Modal */}
-            {showDetailModal && itemDetails && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-4xl mx-4 max-h-[90vh] overflow-hidden">
-                        <div className="bg-blue-900 text-white p-6">
-                            <div className="flex items-center justify-between">
-                                <div className="flex items-center space-x-4">
-                                    <div className="w-14 h-14 bg-white text-blue-900 rounded-full flex items-center justify-center font-bold text-xl">
-                                        {itemDetails.patient.first_name[0]}{itemDetails.patient.last_name[0]}
-                                    </div>
-                                    <div>
-                                        <h2 className="text-xl font-bold">{itemDetails.patient.first_name} {itemDetails.patient.last_name}</h2>
-                                        <p className="text-blue-200">{itemDetails.patient.patient_number} | {itemDetails.therapy.therapy_code} - {itemDetails.therapy.therapy_name}</p>
-                                    </div>
-                                </div>
-                                <button onClick={() => setShowDetailModal(false)} className="px-4 py-2 bg-white/20 rounded-lg hover:bg-white/30">✕ Close</button>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-3 gap-6 p-6 max-h-[60vh] overflow-y-auto">
-                            <div className="col-span-2">
-                                <div className="flex items-center justify-between mb-4">
-                                    <h3 className="font-semibold text-lg">Session Schedule</h3>
-                                    <div className="flex space-x-2">
-                                        <span className="px-3 py-1 bg-green-100 text-green-700 rounded-full text-xs">{itemDetails.progress.completed} Completed</span>
-                                        <span className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-xs">{itemDetails.progress.total - itemDetails.progress.completed} Scheduled</span>
-                                    </div>
-                                </div>
-                                <div className="space-y-2 max-h-80 overflow-y-auto">
-                                    {itemSessions.map(session => (
-                                        <div key={session.id} className={`flex items-center justify-between p-4 rounded-lg border ${session.status === 'COMPLETED' ? 'bg-green-50 border-green-200' : 'bg-gray-50'}`}>
-                                            <div className="flex items-center space-x-4">
-                                                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold ${session.status === 'COMPLETED' ? 'bg-green-500 text-white' : 'bg-blue-500 text-white'}`}>
-                                                    {session.status === 'COMPLETED' ? '✓' : session.session_sequence}
-                                                </div>
-                                                <div>
-                                                    <div className="font-medium">Session {session.session_sequence}</div>
-                                                    <div className="text-sm text-gray-500">{formatDate(session.scheduled_date)} at {session.scheduled_time}</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex items-center space-x-2">
-                                                {session.status === 'COMPLETED' ? (
-                                                    <span className="px-3 py-1 bg-green-100 text-green-800 rounded-full text-sm">Completed</span>
-                                                ) : (
-                                                    <>
-                                                        <button onClick={() => openReschedule(session)} className="px-3 py-1 bg-amber-100 text-amber-700 rounded-lg text-sm hover:bg-amber-200">📅 Reschedule</button>
-                                                        <button onClick={() => completeSession(session.id)} className="px-3 py-1 bg-green-600 text-white rounded-lg text-sm hover:bg-green-700">✓ Complete</button>
-                                                    </>
-                                                )}
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                                    <div className="flex items-center justify-between">
-                                        <div>
-                                            <p className="font-medium text-blue-900">📅 Appointments Integration</p>
-                                            <p className="text-sm text-gray-600">Create appointments for all scheduled sessions</p>
-                                        </div>
-                                        <button onClick={() => createAppointments(selectedItem)} className="px-4 py-2 bg-blue-900 text-white rounded-lg text-sm hover:bg-blue-800">
-                                            Create Appointments
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            <div className="space-y-4">
-                                <div className="bg-gradient-to-br from-blue-900 to-blue-700 text-white rounded-lg p-6">
-                                    <h4 className="text-lg font-semibold mb-4">Treatment Progress</h4>
-                                    <div className="text-center">
-                                        <div className="text-5xl font-bold mb-2">{itemDetails.progress.percent}%</div>
-                                        <div className="text-blue-200">{itemDetails.progress.completed} of {itemDetails.progress.total} sessions completed</div>
-                                    </div>
-                                    <div className="w-full bg-blue-800 rounded-full h-3 mt-4">
-                                        <div className="bg-green-400 h-3 rounded-full" style={{ width: `${itemDetails.progress.percent}%` }}></div>
-                                    </div>
-                                </div>
-                                <div className="bg-white border rounded-lg p-4">
-                                    <h4 className="font-semibold mb-3">Target Areas</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                        {itemDetails.therapy.target_organs?.split(',').map((organ, idx) => (
-                                            <span key={idx} className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm">{organ.trim()}</span>
-                                        ))}
-                                    </div>
-                                </div>
-                                <div className="bg-white border rounded-lg p-4">
-                                    <h4 className="font-semibold mb-3">Applicator Placement</h4>
-                                    <p className="text-sm text-gray-600">{itemDetails.therapy.applicator_placement}</p>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Reschedule Modal */}
-            {showRescheduleModal && rescheduleSession && (
-                <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-                    <div className="bg-white rounded-lg shadow-xl w-full max-w-md mx-4">
-                        <div className="p-6 border-b">
-                            <h3 className="text-lg font-semibold">Reschedule Session {rescheduleSession.session_sequence}</h3>
-                        </div>
-                        <div className="p-6 space-y-4">
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Current Date</label>
-                                <p className="text-gray-600">{formatDate(rescheduleSession.scheduled_date)} at {rescheduleSession.scheduled_time}</p>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">New Date</label>
-                                <input type="date" value={rescheduleForm.new_date} onChange={(e) => setRescheduleForm(f => ({ ...f, new_date: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" />
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">New Time</label>
-                                <select value={rescheduleForm.new_time} onChange={(e) => setRescheduleForm(f => ({ ...f, new_time: e.target.value }))} className="w-full px-3 py-2 border rounded-lg">
-                                    {timeOptions.map(t => <option key={t} value={t}>{t}</option>)}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-sm font-medium text-gray-700 mb-1">Reason (Optional)</label>
-                                <textarea value={rescheduleForm.reason} onChange={(e) => setRescheduleForm(f => ({ ...f, reason: e.target.value }))} className="w-full px-3 py-2 border rounded-lg" rows="2" placeholder="Reason for rescheduling..." />
-                            </div>
-                        </div>
-                        <div className="p-6 border-t flex justify-end space-x-3">
-                            <button onClick={() => setShowRescheduleModal(false)} className="px-4 py-2 border rounded-lg hover:bg-gray-50">Cancel</button>
-                            <button onClick={submitReschedule} className="px-4 py-2 bg-blue-900 text-white rounded-lg hover:bg-blue-800">Confirm Reschedule</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    );
-};
-
-
-
         const AppointmentsModule = () => {
             const [appointments, setAppointments] = React.useState([]);
             const [loading, setLoading] = React.useState(true);
@@ -5880,7 +5032,6 @@ const TherapiesModule = () => {
                 duration_minutes: 60,
                 booking_notes: ''
             });
-            const [editingAppointmentId, setEditingAppointmentId] = React.useState(null);
 
             React.useEffect(() => {
                 loadAppointments();
@@ -5929,24 +5080,15 @@ const TherapiesModule = () => {
             const handleSubmit = async (e) => {
                 e.preventDefault();
                 try {
-                    let url = '/api/v1/appointments';
-                    let method = 'POST';
-                    
-                    if (editingAppointmentId) {
-                        url = `/api/v1/appointments/${editingAppointmentId}`;
-                        method = 'PUT';
-                    }
-                    
-                    const response = await fetch(url, {
-                        method: method,
+                    const response = await fetch('/api/v1/appointments', {
+                        method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` },
                         body: JSON.stringify(formData)
                     });
                     const data = await response.json();
-                    if (data.success || response.ok) {
-                        alert(editingAppointmentId ? 'Appointment updated successfully!' : 'Appointment created successfully!');
+                    if (data.success) {
+                        alert('Appointment created successfully!');
                         setShowForm(false);
-                        setEditingAppointmentId(null);
                         loadAppointments();
                         loadStats();
                         setFormData({
@@ -5958,49 +5100,10 @@ const TherapiesModule = () => {
                             booking_notes: ''
                         });
                     } else {
-                        alert('Error: ' + (data.error || data.detail || 'Operation failed'));
+                        alert('Error: ' + data.error);
                     }
                 } catch (error) {
-                    alert(editingAppointmentId ? 'Error updating appointment' : 'Error creating appointment');
-                }
-            };
-
-            const handleEditAppointment = (apt) => {
-                setFormData({
-                    patient_id: apt.patient_id,
-                    appointment_type: apt.appointment_type,
-                    appointment_date: apt.appointment_date,
-                    appointment_time: apt.appointment_time,
-                    duration_minutes: apt.duration_minutes || 60,
-                    booking_notes: apt.booking_notes || ''
-                });
-                setEditingAppointmentId(apt.id);
-                setShowForm(true);
-            };
-
-            const handleCancelAppointment = async (appointmentId) => {
-                if (!confirm('Are you sure you want to cancel this appointment?')) return;
-                
-                try {
-                    const response = await fetch(`/api/v1/appointments/${appointmentId}/cancel`, {
-                        method: 'POST',
-                        headers: { 
-                            'Content-Type': 'application/json',
-                            'Authorization': `Bearer ${localStorage.getItem('celloxen_token')}` 
-                        },
-                        body: JSON.stringify({ reason: 'Cancelled by clinic admin' })
-                    });
-                    const data = await response.json();
-                    if (data.success || response.ok) {
-                        alert('Appointment cancelled successfully');
-                        loadAppointments();
-                        loadStats();
-                    } else {
-                        alert('Error: ' + (data.detail || data.error || 'Failed to cancel appointment'));
-                    }
-                } catch (error) {
-                    console.error('Error cancelling appointment:', error);
-                    alert('Error cancelling appointment');
+                    alert('Error creating appointment');
                 }
             };
 
@@ -6067,7 +5170,7 @@ const TherapiesModule = () => {
                     {/* New Appointment Form */}
                     {showForm && (
                         <div className="bg-white rounded-lg p-6 shadow-md border border-gray-200 mb-6">
-                            <h2 className="text-xl font-bold mb-4">{editingAppointmentId ? "Update Appointment" : "Create New Appointment"}</h2>
+                            <h2 className="text-xl font-bold mb-4">Create New Appointment</h2>
                             <form onSubmit={handleSubmit}>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
@@ -6143,7 +5246,7 @@ const TherapiesModule = () => {
                                 </div>
                                 <div className="mt-4 flex gap-2">
                                     <button type="submit" className="btn-navy text-white px-6 py-2 rounded-lg font-semibold">
-                                        {editingAppointmentId ? "Update Appointment" : "Create Appointment"}
+                                        Create Appointment
                                     </button>
                                     <button
                                         type="button"
@@ -6175,7 +5278,6 @@ const TherapiesModule = () => {
                                                 <th className="text-left py-3 px-4">Type</th>
                                                 <th className="text-left py-3 px-4">Duration</th>
                                                 <th className="text-left py-3 px-4">Status</th>
-                                                <th className="text-left py-3 px-4">Actions</th>
                                             </tr>
                                         </thead>
                                         <tbody>
@@ -6192,26 +5294,6 @@ const TherapiesModule = () => {
                                                             {formatType(apt.status)}
                                                         </span>
                                                     </td>
-                                                    <td className="py-3 px-4">
-                                                        <div className="flex items-center space-x-2">
-                                                            <button
-                                                                onClick={() => handleEditAppointment(apt)}
-                                                                className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-                                                                title="Edit Appointment"
-                                                            >
-                                                                Edit
-                                                            </button>
-                                                            {apt.status !== 'CANCELLED' && (
-                                                                <button
-                                                                    onClick={() => handleCancelAppointment(apt.id)}
-                                                                    className="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700 text-xs"
-                                                                    title="Cancel Appointment"
-                                                                >
-                                                                    Cancel
-                                                                </button>
-                                                            )}
-                                                        </div>
-                                                    </td>
                                                 </tr>
                                             ))}
                                         </tbody>
@@ -6225,27 +5307,26 @@ const TherapiesModule = () => {
         };
 
         // Settings Component
-        // Settings Component - Professional Enterprise Design
         const SettingsModule = () => {
             const [activeTab, setActiveTab] = React.useState('profile');
             const [loading, setLoading] = React.useState(true);
             const [saving, setSaving] = React.useState(false);
             const [message, setMessage] = React.useState({ type: '', text: '' });
-
+            
             // Profile state
             const [profile, setProfile] = React.useState({
                 name: '', email: '', phone: '', address_line1: '', address_line2: '',
                 city: '', county: '', postcode: '', website: ''
             });
-
-            // Opening hours state
+            
+            // Opening hours state (0=Sunday, 1=Monday, etc.)
             const [hours, setHours] = React.useState([]);
-
+            
             // Password state
             const [passwordData, setPasswordData] = React.useState({
                 current_password: '', new_password: '', confirm_password: ''
             });
-
+            
             // Notifications state
             const [notifications, setNotifications] = React.useState({
                 appointment_reminders: true,
@@ -6314,7 +5395,7 @@ const TherapiesModule = () => {
                 try {
                     const dayData = hours.find(h => h.day === day);
                     const updatedDay = { ...dayData, [field]: value };
-
+                    
                     const response = await fetch('/api/v1/clinic/settings/hours', {
                         method: 'PATCH',
                         headers: {
@@ -6328,7 +5409,7 @@ const TherapiesModule = () => {
                             close_time: updatedDay.close_time
                         })
                     });
-
+                    
                     if (response.ok) {
                         setHours(hours.map(h => h.day === day ? updatedDay : h));
                         showMessage('success', 'Hours updated successfully');
@@ -6391,7 +5472,7 @@ const TherapiesModule = () => {
                         },
                         body: JSON.stringify(updated)
                     });
-
+                    
                     if (response.ok) {
                         setNotifications(updated);
                         showMessage('success', 'Notification preferences updated');
@@ -6405,429 +5486,326 @@ const TherapiesModule = () => {
                 }
             };
 
-            // Tab configuration with icons
-            const tabs = [
-                { id: 'profile', label: 'Clinic Profile', icon: '🏥' },
-                { id: 'hours', label: 'Opening Hours', icon: '🕐' },
-                { id: 'password', label: 'Security', icon: '🔒' },
-                { id: 'notifications', label: 'Notifications', icon: '🔔' }
-            ];
-
             if (loading) {
                 return (
-                    <div className="flex items-center justify-center h-96">
-                        <div className="text-center">
-                            <div className="w-16 h-16 border-4 border-blue-200 border-t-blue-900 rounded-full animate-spin mx-auto mb-4"></div>
-                            <p className="text-gray-600 font-medium">Loading settings...</p>
-                        </div>
+                    <div className="flex items-center justify-center h-64">
+                        <div className="text-gray-600">Loading settings...</div>
                     </div>
                 );
             }
 
             return (
-                <div className="p-6 bg-gray-50 min-h-screen">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <div className="flex items-center space-x-3 mb-2">
-                            <div className="w-10 h-10 bg-gradient-to-br from-blue-900 to-blue-700 rounded-xl flex items-center justify-center">
-                                <span className="text-white text-xl">⚙️</span>
-                            </div>
-                            <div>
-                                <h1 className="text-2xl font-bold text-gray-900">Settings</h1>
-                                <p className="text-sm text-gray-500">Manage your clinic preferences and configuration</p>
-                            </div>
+                <div className="p-6">
+                    <h1 className="text-2xl font-bold text-gray-900 mb-6">⚙️ Settings</h1>
+
+                    {message.text && (
+                        <div className={`mb-4 p-4 rounded-lg ${
+                            message.type === 'success' ? 'bg-green-50 text-green-800' : 'bg-red-50 text-red-800'
+                        }`}>
+                            {message.text}
+                        </div>
+                    )}
+
+                    {/* Tabs */}
+                    <div className="border-b border-gray-200 mb-6">
+                        <div className="flex space-x-8">
+                            {['profile', 'hours', 'password', 'notifications'].map(tab => (
+                                <button
+                                    key={tab}
+                                    onClick={() => setActiveTab(tab)}
+                                    className={`pb-4 px-1 border-b-2 font-medium text-sm ${
+                                        activeTab === tab
+                                            ? 'border-blue-600 text-blue-600'
+                                            : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                                    }`}
+                                >
+                                    {tab === 'profile' && 'Clinic Profile'}
+                                    {tab === 'hours' && 'Opening Hours'}
+                                    {tab === 'password' && 'Change Password'}
+                                    {tab === 'notifications' && 'Email Notifications'}
+                                </button>
+                            ))}
                         </div>
                     </div>
 
-                    {/* Alert Message */}
-                    {message.text && (
-                        <div className={`mb-6 p-4 rounded-xl border-l-4 ${
-                            message.type === 'success' 
-                                ? 'bg-green-50 border-green-500 text-green-800' 
-                                : 'bg-red-50 border-red-500 text-red-800'
-                        }`}>
-                            <div className="flex items-center">
-                                <span className="mr-2">{message.type === 'success' ? '✓' : '⚠'}</span>
-                                <span className="font-medium">{message.text}</span>
+                    {/* Profile Tab */}
+                    {activeTab === 'profile' && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold mb-4">Clinic Information</h2>
+                            <form onSubmit={handleProfileUpdate} className="space-y-4">
+                                <div className="grid grid-cols-2 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Clinic Name</label>
+                                        <input
+                                            type="text"
+                                            value={profile.name || ''}
+                                            onChange={(e) => setProfile({...profile, name: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Phone</label>
+                                        <input
+                                            type="tel"
+                                            value={profile.phone || ''}
+                                            onChange={(e) => setProfile({...profile, phone: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Email (Read-only)</label>
+                                    <input
+                                        type="email"
+                                        value={profile.email || ''}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg bg-gray-50"
+                                        disabled
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Contact support to change your email address</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 1</label>
+                                    <input
+                                        type="text"
+                                        value={profile.address_line1 || ''}
+                                        onChange={(e) => setProfile({...profile, address_line1: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Address Line 2</label>
+                                    <input
+                                        type="text"
+                                        value={profile.address_line2 || ''}
+                                        onChange={(e) => setProfile({...profile, address_line2: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                    />
+                                </div>
+                                <div className="grid grid-cols-3 gap-4">
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">City</label>
+                                        <input
+                                            type="text"
+                                            value={profile.city || ''}
+                                            onChange={(e) => setProfile({...profile, city: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">County</label>
+                                        <input
+                                            type="text"
+                                            value={profile.county || ''}
+                                            onChange={(e) => setProfile({...profile, county: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        />
+                                    </div>
+                                    <div>
+                                        <label className="block text-sm font-medium text-gray-700 mb-1">Postcode</label>
+                                        <input
+                                            type="text"
+                                            value={profile.postcode || ''}
+                                            onChange={(e) => setProfile({...profile, postcode: e.target.value})}
+                                            className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                            required
+                                        />
+                                    </div>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Website</label>
+                                    <input
+                                        type="url"
+                                        value={profile.website || ''}
+                                        onChange={(e) => setProfile({...profile, website: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        placeholder="https://www.example.com"
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {saving ? 'Saving...' : 'Save Changes'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Opening Hours Tab */}
+                    {activeTab === 'hours' && (
+                        <div className="bg-white rounded-lg shadow p-6">
+                            <h2 className="text-lg font-semibold mb-4">Clinic Opening Hours</h2>
+                            <p className="text-sm text-gray-600 mb-6">Set your clinic hours for each day of the week</p>
+                            <div className="space-y-4">
+                                {hours.map(day => (
+                                    <div key={day.day} className="flex items-center space-x-4 p-4 border border-gray-200 rounded-lg">
+                                        <div className="w-32">
+                                            <span className="font-medium">{dayNames[day.day]}</span>
+                                        </div>
+                                        <div className="flex items-center">
+                                            <input
+                                                type="checkbox"
+                                                checked={day.is_open}
+                                                onChange={(e) => handleHoursUpdate(day.day, 'is_open', e.target.checked)}
+                                                className="w-4 h-4 text-blue-600"
+                                            />
+                                            <span className="ml-2 text-sm">Open</span>
+                                        </div>
+                                        {day.is_open && (
+                                            <>
+                                                <div>
+                                                    <input
+                                                        type="time"
+                                                        value={day.open_time || '09:00'}
+                                                        onChange={(e) => handleHoursUpdate(day.day, 'open_time', e.target.value)}
+                                                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                                                    />
+                                                </div>
+                                                <span className="text-gray-500">to</span>
+                                                <div>
+                                                    <input
+                                                        type="time"
+                                                        value={day.close_time || '17:00'}
+                                                        onChange={(e) => handleHoursUpdate(day.day, 'close_time', e.target.value)}
+                                                        className="px-3 py-2 border border-gray-300 rounded-lg"
+                                                    />
+                                                </div>
+                                            </>
+                                        )}
+                                        {!day.is_open && (
+                                            <span className="text-gray-400">Closed</span>
+                                        )}
+                                    </div>
+                                ))}
                             </div>
                         </div>
                     )}
 
-                    <div className="flex gap-6">
-                        {/* Sidebar Navigation */}
-                        <div className="w-64 flex-shrink-0">
-                            <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                <div className="p-4 bg-gradient-to-r from-blue-900 to-blue-800">
-                                    <h3 className="text-white font-semibold text-sm uppercase tracking-wider">Configuration</h3>
+                    {/* Change Password Tab */}
+                    {activeTab === 'password' && (
+                        <div className="bg-white rounded-lg shadow p-6 max-w-md">
+                            <h2 className="text-lg font-semibold mb-4">Change Password</h2>
+                            <form onSubmit={handlePasswordChange} className="space-y-4">
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Current Password</label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.current_password}
+                                        onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
                                 </div>
-                                <nav className="p-2">
-                                    {tabs.map(tab => (
-                                        <button
-                                            key={tab.id}
-                                            onClick={() => setActiveTab(tab.id)}
-                                            className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl text-left transition-all duration-200 mb-1 ${
-                                                activeTab === tab.id
-                                                    ? 'bg-blue-50 text-blue-900 font-semibold border-l-4 border-blue-900'
-                                                    : 'text-gray-600 hover:bg-gray-50 hover:text-gray-900'
-                                            }`}
-                                        >
-                                            <span className="text-lg">{tab.icon}</span>
-                                            <span>{tab.label}</span>
-                                        </button>
-                                    ))}
-                                </nav>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">New Password</label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.new_password}
+                                        onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                        minLength="6"
+                                    />
+                                    <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
+                                </div>
+                                <div>
+                                    <label className="block text-sm font-medium text-gray-700 mb-1">Confirm New Password</label>
+                                    <input
+                                        type="password"
+                                        value={passwordData.confirm_password}
+                                        onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
+                                        className="w-full px-3 py-2 border border-gray-300 rounded-lg"
+                                        required
+                                    />
+                                </div>
+                                <button
+                                    type="submit"
+                                    disabled={saving}
+                                    className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                                >
+                                    {saving ? 'Changing...' : 'Change Password'}
+                                </button>
+                            </form>
+                        </div>
+                    )}
+
+                    {/* Email Notifications Tab */}
+                    {activeTab === 'notifications' && (
+                        <div className="bg-white rounded-lg shadow p-6 max-w-2xl">
+                            <h2 className="text-lg font-semibold mb-4">Email Notification Preferences</h2>
+                            <p className="text-sm text-gray-600 mb-6">Choose which email notifications you want to receive</p>
+                            <div className="space-y-4">
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h3 className="font-medium">Appointment Reminders</h3>
+                                        <p className="text-sm text-gray-600">Receive reminders for upcoming appointments</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={notifications.appointment_reminders}
+                                        onChange={(e) => handleNotificationsUpdate('appointment_reminders', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h3 className="font-medium">Appointment Confirmations</h3>
+                                        <p className="text-sm text-gray-600">Get notified when appointments are booked</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={notifications.appointment_confirmations}
+                                        onChange={(e) => handleNotificationsUpdate('appointment_confirmations', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h3 className="font-medium">New Patient Alerts</h3>
+                                        <p className="text-sm text-gray-600">Be notified when new patients register</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={notifications.new_patient_alerts}
+                                        onChange={(e) => handleNotificationsUpdate('new_patient_alerts', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h3 className="font-medium">Invoice Notifications</h3>
+                                        <p className="text-sm text-gray-600">Receive notifications for new invoices and payments</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={notifications.invoice_notifications}
+                                        onChange={(e) => handleNotificationsUpdate('invoice_notifications', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600"
+                                    />
+                                </div>
+                                <div className="flex items-center justify-between p-4 border border-gray-200 rounded-lg">
+                                    <div>
+                                        <h3 className="font-medium">Marketing Emails</h3>
+                                        <p className="text-sm text-gray-600">Receive updates and promotional content from Celloxen</p>
+                                    </div>
+                                    <input
+                                        type="checkbox"
+                                        checked={notifications.marketing}
+                                        onChange={(e) => handleNotificationsUpdate('marketing', e.target.checked)}
+                                        className="w-5 h-5 text-blue-600"
+                                    />
+                                </div>
                             </div>
                         </div>
-
-                        {/* Main Content Area */}
-                        <div className="flex-1">
-                            {/* Profile Tab */}
-                            {activeTab === 'profile' && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center">
-                                                <span className="text-2xl">🏥</span>
-                                            </div>
-                                            <div>
-                                                <h2 className="text-xl font-bold text-gray-900">Clinic Profile</h2>
-                                                <p className="text-sm text-gray-500">Update your clinic information and contact details</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <form onSubmit={handleProfileUpdate} className="p-6 space-y-6">
-                                        {/* Basic Info Section */}
-                                        <div className="grid grid-cols-2 gap-6">
-                                            <div>
-                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Clinic Name</label>
-                                                <input
-                                                    type="text"
-                                                    value={profile.name || ''}
-                                                    onChange={(e) => setProfile({...profile, name: e.target.value})}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                    placeholder="Enter clinic name"
-                                                    required
-                                                />
-                                            </div>
-                                            <div>
-                                                <label className="block text-sm font-semibold text-gray-700 mb-2">Phone Number</label>
-                                                <input
-                                                    type="tel"
-                                                    value={profile.phone || ''}
-                                                    onChange={(e) => setProfile({...profile, phone: e.target.value})}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                    placeholder="+44 xxx xxx xxxx"
-                                                    required
-                                                />
-                                            </div>
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Email Address</label>
-                                            <div className="relative">
-                                                <input
-                                                    type="email"
-                                                    value={profile.email || ''}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl bg-gray-50 text-gray-500 cursor-not-allowed"
-                                                    disabled
-                                                />
-                                                <span className="absolute right-3 top-1/2 transform -translate-y-1/2 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-md">Read-only</span>
-                                            </div>
-                                            <p className="text-xs text-gray-500 mt-2 flex items-center">
-                                                <span className="mr-1">ℹ️</span>
-                                                Contact support to change your email address
-                                            </p>
-                                        </div>
-
-                                        {/* Address Section */}
-                                        <div className="pt-4 border-t border-gray-100">
-                                            <h3 className="text-sm font-semibold text-gray-700 mb-4 flex items-center">
-                                                <span className="mr-2">📍</span>
-                                                Clinic Address
-                                            </h3>
-                                            <div className="space-y-4">
-                                                <input
-                                                    type="text"
-                                                    value={profile.address_line1 || ''}
-                                                    onChange={(e) => setProfile({...profile, address_line1: e.target.value})}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                    placeholder="Address Line 1"
-                                                    required
-                                                />
-                                                <input
-                                                    type="text"
-                                                    value={profile.address_line2 || ''}
-                                                    onChange={(e) => setProfile({...profile, address_line2: e.target.value})}
-                                                    className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                    placeholder="Address Line 2 (Optional)"
-                                                />
-                                                <div className="grid grid-cols-3 gap-4">
-                                                    <input
-                                                        type="text"
-                                                        value={profile.city || ''}
-                                                        onChange={(e) => setProfile({...profile, city: e.target.value})}
-                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        placeholder="City"
-                                                        required
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={profile.county || ''}
-                                                        onChange={(e) => setProfile({...profile, county: e.target.value})}
-                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        placeholder="County"
-                                                    />
-                                                    <input
-                                                        type="text"
-                                                        value={profile.postcode || ''}
-                                                        onChange={(e) => setProfile({...profile, postcode: e.target.value})}
-                                                        className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                        placeholder="Postcode"
-                                                        required
-                                                    />
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Website */}
-                                        <div className="pt-4 border-t border-gray-100">
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2 flex items-center">
-                                                <span className="mr-2">🌐</span>
-                                                Website
-                                            </label>
-                                            <input
-                                                type="url"
-                                                value={profile.website || ''}
-                                                onChange={(e) => setProfile({...profile, website: e.target.value})}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="https://www.yourclinic.com"
-                                            />
-                                        </div>
-
-                                        {/* Save Button */}
-                                        <div className="pt-6 border-t border-gray-100">
-                                            <button
-                                                type="submit"
-                                                disabled={saving}
-                                                className="px-8 py-3 bg-gradient-to-r from-blue-900 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-800 hover:to-blue-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-blue-900/20"
-                                            >
-                                                {saving ? (
-                                                    <span className="flex items-center">
-                                                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                                                        Saving...
-                                                    </span>
-                                                ) : 'Save Changes'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
-
-                            {/* Opening Hours Tab */}
-                            {activeTab === 'hours' && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden">
-                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center">
-                                                <span className="text-2xl">🕐</span>
-                                            </div>
-                                            <div>
-                                                <h2 className="text-xl font-bold text-gray-900">Opening Hours</h2>
-                                                <p className="text-sm text-gray-500">Configure your clinic's operating schedule</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="p-6">
-                                        <div className="space-y-3">
-                                            {hours.map(day => (
-                                                <div 
-                                                    key={day.day} 
-                                                    className={`flex items-center justify-between p-4 rounded-xl border-2 transition-all duration-200 ${
-                                                        day.is_open 
-                                                            ? 'border-green-200 bg-green-50/50' 
-                                                            : 'border-gray-200 bg-gray-50'
-                                                    }`}
-                                                >
-                                                    <div className="flex items-center space-x-4">
-                                                        <div className={`w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm ${
-                                                            day.is_open 
-                                                                ? 'bg-green-500 text-white' 
-                                                                : 'bg-gray-300 text-gray-600'
-                                                        }`}>
-                                                            {dayNames[day.day].substring(0, 2)}
-                                                        </div>
-                                                        <div>
-                                                            <span className="font-semibold text-gray-900">{dayNames[day.day]}</span>
-                                                            {!day.is_open && (
-                                                                <span className="ml-3 text-xs bg-gray-200 text-gray-600 px-2 py-1 rounded-full">Closed</span>
-                                                            )}
-                                                        </div>
-                                                    </div>
-                                                    <div className="flex items-center space-x-4">
-                                                        <label className="flex items-center cursor-pointer">
-                                                            <div className="relative">
-                                                                <input
-                                                                    type="checkbox"
-                                                                    checked={day.is_open}
-                                                                    onChange={(e) => handleHoursUpdate(day.day, 'is_open', e.target.checked)}
-                                                                    className="sr-only"
-                                                                />
-                                                                <div className={`w-12 h-6 rounded-full transition-all duration-200 ${day.is_open ? 'bg-green-500' : 'bg-gray-300'}`}></div>
-                                                                <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${day.is_open ? 'translate-x-6' : ''}`}></div>
-                                                            </div>
-                                                            <span className="ml-2 text-sm text-gray-600">{day.is_open ? 'Open' : 'Closed'}</span>
-                                                        </label>
-                                                        {day.is_open && (
-                                                            <div className="flex items-center space-x-2 ml-4">
-                                                                <input
-                                                                    type="time"
-                                                                    value={day.open_time || '09:00'}
-                                                                    onChange={(e) => handleHoursUpdate(day.day, 'open_time', e.target.value)}
-                                                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                />
-                                                                <span className="text-gray-400 font-medium">to</span>
-                                                                <input
-                                                                    type="time"
-                                                                    value={day.close_time || '17:00'}
-                                                                    onChange={(e) => handleHoursUpdate(day.day, 'close_time', e.target.value)}
-                                                                    className="px-3 py-2 border border-gray-200 rounded-lg text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-                                                                />
-                                                            </div>
-                                                        )}
-                                                    </div>
-                                                </div>
-                                            ))}
-                                        </div>
-                                    </div>
-                                </div>
-                            )}
-
-                            {/* Security/Password Tab */}
-                            {activeTab === 'password' && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-xl">
-                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-12 h-12 bg-amber-100 rounded-xl flex items-center justify-center">
-                                                <span className="text-2xl">🔒</span>
-                                            </div>
-                                            <div>
-                                                <h2 className="text-xl font-bold text-gray-900">Security Settings</h2>
-                                                <p className="text-sm text-gray-500">Update your password and security preferences</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <form onSubmit={handlePasswordChange} className="p-6 space-y-5">
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Current Password</label>
-                                            <input
-                                                type="password"
-                                                value={passwordData.current_password}
-                                                onChange={(e) => setPasswordData({...passwordData, current_password: e.target.value})}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="Enter current password"
-                                                required
-                                            />
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">New Password</label>
-                                            <input
-                                                type="password"
-                                                value={passwordData.new_password}
-                                                onChange={(e) => setPasswordData({...passwordData, new_password: e.target.value})}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="Enter new password"
-                                                required
-                                                minLength="6"
-                                            />
-                                            <p className="text-xs text-gray-500 mt-2 flex items-center">
-                                                <span className="mr-1">ℹ️</span>
-                                                Minimum 6 characters required
-                                            </p>
-                                        </div>
-                                        <div>
-                                            <label className="block text-sm font-semibold text-gray-700 mb-2">Confirm New Password</label>
-                                            <input
-                                                type="password"
-                                                value={passwordData.confirm_password}
-                                                onChange={(e) => setPasswordData({...passwordData, confirm_password: e.target.value})}
-                                                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="Confirm new password"
-                                                required
-                                            />
-                                        </div>
-                                        <div className="pt-4">
-                                            <button
-                                                type="submit"
-                                                disabled={saving}
-                                                className="px-8 py-3 bg-gradient-to-r from-blue-900 to-blue-700 text-white font-semibold rounded-xl hover:from-blue-800 hover:to-blue-600 disabled:opacity-50 transition-all duration-200 shadow-lg shadow-blue-900/20"
-                                            >
-                                                {saving ? (
-                                                    <span className="flex items-center">
-                                                        <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin mr-2"></span>
-                                                        Updating...
-                                                    </span>
-                                                ) : 'Update Password'}
-                                            </button>
-                                        </div>
-                                    </form>
-                                </div>
-                            )}
-
-                            {/* Notifications Tab */}
-                            {activeTab === 'notifications' && (
-                                <div className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden max-w-2xl">
-                                    <div className="p-6 border-b border-gray-100 bg-gradient-to-r from-gray-50 to-white">
-                                        <div className="flex items-center space-x-3">
-                                            <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center">
-                                                <span className="text-2xl">🔔</span>
-                                            </div>
-                                            <div>
-                                                <h2 className="text-xl font-bold text-gray-900">Notification Preferences</h2>
-                                                <p className="text-sm text-gray-500">Choose which email notifications you want to receive</p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                    <div className="p-6 space-y-4">
-                                        {[
-                                            { key: 'appointment_reminders', title: 'Appointment Reminders', desc: 'Receive reminders for upcoming appointments', icon: '📅' },
-                                            { key: 'appointment_confirmations', title: 'Appointment Confirmations', desc: 'Get notified when appointments are booked', icon: '✅' },
-                                            { key: 'new_patient_alerts', title: 'New Patient Alerts', desc: 'Be notified when new patients register', icon: '👤' },
-                                            { key: 'invoice_notifications', title: 'Invoice Notifications', desc: 'Receive notifications for new invoices and payments', icon: '💳' },
-                                            { key: 'marketing', title: 'Marketing & Updates', desc: 'Receive updates and promotional content from Celloxen', icon: '📢' }
-                                        ].map(item => (
-                                            <div key={item.key} className="flex items-center justify-between p-4 rounded-xl border border-gray-200 hover:border-blue-200 hover:bg-blue-50/30 transition-all duration-200">
-                                                <div className="flex items-center space-x-4">
-                                                    <div className="w-10 h-10 bg-gray-100 rounded-lg flex items-center justify-center">
-                                                        <span className="text-lg">{item.icon}</span>
-                                                    </div>
-                                                    <div>
-                                                        <h3 className="font-semibold text-gray-900">{item.title}</h3>
-                                                        <p className="text-sm text-gray-500">{item.desc}</p>
-                                                    </div>
-                                                </div>
-                                                <label className="flex items-center cursor-pointer">
-                                                    <div className="relative">
-                                                        <input
-                                                            type="checkbox"
-                                                            checked={notifications[item.key]}
-                                                            onChange={(e) => handleNotificationsUpdate(item.key, e.target.checked)}
-                                                            className="sr-only"
-                                                        />
-                                                        <div className={`w-12 h-6 rounded-full transition-all duration-200 ${notifications[item.key] ? 'bg-blue-900' : 'bg-gray-300'}`}></div>
-                                                        <div className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-all duration-200 ${notifications[item.key] ? 'translate-x-6' : ''}`}></div>
-                                                    </div>
-                                                </label>
-                                            </div>
-                                        ))}
-                                    </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
+                    )}
                 </div>
             );
         };
-
 
 
         // Invoices Component
@@ -7032,32 +6010,16 @@ const TherapiesModule = () => {
                                                 {invoice.description || 'N/A'}
                                             </td>
                                             <td className="px-6 py-4 whitespace-nowrap text-sm">
-                                                <div className="flex items-center space-x-2">
-                                                    <button
-                                                        onClick={() => window.open(`/patient_invoice_view.html?invoiceId=${invoice.id}`, '_blank')}
-                                                        className="px-3 py-1 bg-blue-600 text-white rounded hover:bg-blue-700 text-xs"
-                                                        title="View Invoice"
-                                                    >
-                                                        View
-                                                    </button>
-                                                    <button
-                                                        onClick={() => window.open(`/patient_invoice_view.html?invoiceId=${invoice.id}`, '_blank')}
-                                                        className="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700 text-xs"
-                                                        title="Download PDF"
-                                                    >
-                                                        PDF
-                                                    </button>
-                                                    <select
-                                                        value={invoice.status}
-                                                        onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
-                                                        className="px-2 py-1 border border-gray-300 rounded text-xs"
-                                                    >
-                                                        <option value="pending">Pending</option>
-                                                        <option value="paid">Paid</option>
-                                                        <option value="overdue">Overdue</option>
-                                                        <option value="cancelled">Cancelled</option>
-                                                    </select>
-                                                </div>
+                                                <select
+                                                    value={invoice.status}
+                                                    onChange={(e) => handleStatusChange(invoice.id, e.target.value)}
+                                                    className="px-3 py-1 border border-gray-300 rounded-lg text-sm"
+                                                >
+                                                    <option value="pending">Pending</option>
+                                                    <option value="paid">Paid</option>
+                                                    <option value="overdue">Overdue</option>
+                                                    <option value="cancelled">Cancelled</option>
+                                                </select>
                                             </td>
                                         </tr>
                                     ))}
