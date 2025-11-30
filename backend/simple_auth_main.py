@@ -429,6 +429,75 @@ async def delete_patient(patient_id: int):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/v1/clinic/patients/{patient_id}/assessments")
+async def get_patient_assessments_by_id(patient_id: int):
+    """Get all assessments for a specific patient"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Get comprehensive assessments for this patient
+        assessments = await conn.fetch("""
+            SELECT id, assessment_number, overall_wellness_score, status,
+                   constitutional_type, constitutional_strength,
+                   created_at, updated_at
+            FROM comprehensive_assessments
+            WHERE patient_id = $1
+            ORDER BY created_at DESC
+        """, patient_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "patient_id": patient_id,
+            "total": len(assessments),
+            "assessments": [dict(a) for a in assessments]
+        }
+
+    except Exception as e:
+        print(f"❌ ERROR getting patient assessments: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/patients/{patient_id}/iridology")
+async def get_patient_iridology(patient_id: int):
+    """Get all iridology analyses for a specific patient"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Get iridology analyses for this patient
+        analyses = await conn.fetch("""
+            SELECT id, analysis_number, status, constitutional_type,
+                   constitutional_strength, left_eye_image, right_eye_image,
+                   created_at, updated_at, completed_at
+            FROM iridology_analyses
+            WHERE patient_id = $1
+            ORDER BY created_at DESC
+        """, patient_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "patient_id": patient_id,
+            "total": len(analyses),
+            "analyses": [dict(a) for a in analyses]
+        }
+
+    except Exception as e:
+        print(f"❌ ERROR getting patient iridology: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.post("/api/v1/clinic/patients")
 async def create_patient(patient_data: dict):
     """Create a new patient with UK address fields"""
