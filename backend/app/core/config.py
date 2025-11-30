@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     DESCRIPTION: str = "Multi-tenant clinic management system for Celloxen therapies"
     
     # Security
-    SECRET_KEY: str = "your_super_secret_key_change_in_production_celloxen_2025"
+    SECRET_KEY: str = "celloxen_secret_key_2025"  # Must match simple_auth_main.py
     ALGORITHM: str = "HS256"
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480  # 8 hours
     
     # Database
     DATABASE_URL: str = "postgresql://celloxen_user:CelloxenSecure2025@localhost:5432/celloxen_portal"

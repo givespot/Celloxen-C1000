@@ -106,38 +106,42 @@ from datetime import datetime, timedelta
 
 SECRET_KEY = os.getenv("SECRET_KEY", "celloxen_secret_key_2025")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = 480  # 8 hours
 
 def create_access_token(data: dict):
     """Create JWT access token"""
     to_encode = data.copy()
     expire = datetime.utcnow() + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
     to_encode.update({"exp": expire})
+    print(f"🔑 Creating token with SECRET_KEY: {SECRET_KEY[:20]}... | expires: {expire}")
     encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
     return encoded_jwt
 
 def verify_token(token: str):
     """Verify JWT token and return user info"""
     try:
+        print(f"🔐 Verifying token with SECRET_KEY: {SECRET_KEY[:20]}...")
         payload = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
         user_id = payload.get("sub")
         clinic_id = payload.get("clinic_id")
-        
+        print(f"✅ Token valid - user_id: {user_id}, clinic_id: {clinic_id}")
+
         if user_id is None:
+            print("❌ Token missing 'sub' claim")
             return None
-            
+
         return {
             "user_id": int(user_id),
             "clinic_id": int(clinic_id) if clinic_id else None
         }
     except jwt.ExpiredSignatureError:
-        print("Token expired")
+        print("❌ Token expired")
         return None
     except jwt.InvalidTokenError as e:
-        print(f"Invalid token: {str(e)}")
+        print(f"❌ Invalid token signature: {str(e)}")
         return None
     except Exception as e:
-        print(f"Token verification error: {str(e)}")
+        print(f"❌ Token verification error: {str(e)}")
         return None
 
 @app.post("/api/v1/auth/login")
