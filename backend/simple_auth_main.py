@@ -3896,20 +3896,40 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             ORDER BY a.appointment_time
         """, clinic_id)
         
-        # Get assessment counts
-        total_assessments = await conn.fetchval(
+        # Get assessment counts (from both assessments and comprehensive_assessments tables)
+        old_assessments = await conn.fetchval(
             "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
         ) or 0
-        
-        pending_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
+
+        new_assessments = await conn.fetchval(
+            "SELECT COUNT(*) FROM comprehensive_assessments WHERE clinic_id = $1", clinic_id
+        ) or 0
+
+        total_assessments = old_assessments + new_assessments
+
+        pending_old = await conn.fetchval("""
+            SELECT COUNT(*) FROM assessments
             WHERE clinic_id = $1 AND status = 'IN_PROGRESS'
         """, clinic_id) or 0
-        
-        completed_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
+
+        pending_new = await conn.fetchval("""
+            SELECT COUNT(*) FROM comprehensive_assessments
+            WHERE clinic_id = $1 AND status = 'in_progress'
+        """, clinic_id) or 0
+
+        pending_assessments = pending_old + pending_new
+
+        completed_old = await conn.fetchval("""
+            SELECT COUNT(*) FROM assessments
             WHERE clinic_id = $1 AND status = 'COMPLETED'
         """, clinic_id) or 0
+
+        completed_new = await conn.fetchval("""
+            SELECT COUNT(*) FROM comprehensive_assessments
+            WHERE clinic_id = $1 AND status = 'completed'
+        """, clinic_id) or 0
+
+        completed_assessments = completed_old + completed_new
         
         # Get iridology counts
         total_iridology = await conn.fetchval(
