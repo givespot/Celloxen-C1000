@@ -3996,8 +3996,8 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         ) or 0
         
         completed_iridology = await conn.fetchval("""
-            SELECT COUNT(*) FROM iridology_analyses 
-            WHERE clinic_id = $1 AND status = 'COMPLETED'
+            SELECT COUNT(*) FROM iridology_analyses
+            WHERE clinic_id = $1 AND status = 'completed'
         """, clinic_id) or 0
         
         # Get invoice stats
