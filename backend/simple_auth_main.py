@@ -2219,50 +2219,64 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
 # ============================================================================
 
 @app.get("/api/v1/reports/overview")
-async def get_reports_overview():
-    """Get overall system statistics"""
+async def get_reports_overview(current_user: dict = Depends(get_current_user)):
+    """Get overall system statistics for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get counts
-        total_patients = await conn.fetchval("SELECT COUNT(*) FROM patients")
+
+        # Get counts - filtered by clinic_id
+        total_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id
+        )
         active_patients = await conn.fetchval(
-            "SELECT COUNT(*) FROM patients WHERE status = 'active'"
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1 AND status = 'active'", clinic_id
         )
         total_assessments = await conn.fetchval(
-            "SELECT COUNT(*) FROM comprehensive_assessments"
+            """SELECT COUNT(*) FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1""", clinic_id
         )
-        total_appointments = await conn.fetchval("SELECT COUNT(*) FROM appointments")
-        total_therapy_plans = await conn.fetchval("SELECT COUNT(*) FROM therapy_plans")
-        
-        # Appointments by status
+        total_appointments = await conn.fetchval(
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1", clinic_id
+        )
+        total_therapy_plans = await conn.fetchval(
+            "SELECT COUNT(*) FROM therapy_plans WHERE clinic_id = $1", clinic_id
+        )
+
+        # Appointments by status - filtered by clinic_id
         appointments_by_status = await conn.fetch(
-            "SELECT status, COUNT(*) as count FROM appointments GROUP BY status"
+            "SELECT status, COUNT(*) as count FROM appointments WHERE clinic_id = $1 GROUP BY status", clinic_id
         )
-        
-        # Therapy plans by status
+
+        # Therapy plans by status - filtered by clinic_id
         plans_by_status = await conn.fetch(
-            "SELECT status, COUNT(*) as count FROM therapy_plans GROUP BY status"
+            "SELECT status, COUNT(*) as count FROM therapy_plans WHERE clinic_id = $1 GROUP BY status", clinic_id
         )
-        
-        # Average wellness scores
+
+        # Average wellness scores - filtered by clinic_id
         avg_wellness = await conn.fetchval(
-            """SELECT AVG(overall_wellness_score) 
-               FROM comprehensive_assessments 
-               WHERE overall_wellness_score > 0"""
+            """SELECT AVG(overall_wellness_score)
+               FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1 AND overall_wellness_score > 0""", clinic_id
         )
-        
-        # Recent activity
+
+        # Recent activity - filtered by clinic_id
         recent_assessments = await conn.fetchval(
-            """SELECT COUNT(*) FROM comprehensive_assessments 
-               WHERE assessment_date >= NOW() - INTERVAL '30 days'"""
+            """SELECT COUNT(*) FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1 AND assessment_date >= NOW() - INTERVAL '30 days'""", clinic_id
         )
-        
+
         recent_appointments = await conn.fetchval(
-            """SELECT COUNT(*) FROM appointments 
-               WHERE created_at >= NOW() - INTERVAL '30 days'"""
+            """SELECT COUNT(*) FROM appointments
+               WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '30 days'""", clinic_id
         )
         
         await conn.close()
@@ -2299,16 +2313,20 @@ async def get_reports_overview():
 
 
 @app.get("/api/v1/reports/patient-activity")
-async def get_patient_activity():
-    """Get patient activity report"""
+async def get_patient_activity(current_user: dict = Depends(get_current_user)):
+    """Get patient activity report for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Patient activity with assessment and appointment counts
+
+        # Patient activity with assessment and appointment counts - filtered by clinic_id
         activity = await conn.fetch("""
-            SELECT 
+            SELECT
                 p.id,
                 p.first_name || ' ' || p.last_name as patient_name,
                 p.mobile_phone,
@@ -2323,9 +2341,10 @@ async def get_patient_activity():
             LEFT JOIN comprehensive_assessments ca ON p.id = ca.patient_id
             LEFT JOIN appointments a ON p.id = a.patient_id
             LEFT JOIN therapy_plans tp ON p.id = tp.patient_id
+            WHERE p.clinic_id = $1
             GROUP BY p.id, p.first_name, p.last_name, p.mobile_phone, p.email, p.status
             ORDER BY p.id DESC
-        """)
+        """, clinic_id)
         
         await conn.close()
         
@@ -2342,25 +2361,30 @@ async def get_patient_activity():
 
 
 @app.get("/api/v1/reports/wellness-trends")
-async def get_wellness_trends():
-    """Get wellness score trends over time"""
+async def get_wellness_trends(current_user: dict = Depends(get_current_user)):
+    """Get wellness score trends over time for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Monthly wellness trends
+
+        # Monthly wellness trends - filtered by clinic_id
         trends = await conn.fetch("""
-            SELECT 
-                DATE_TRUNC('month', assessment_date) as month,
-                AVG(overall_wellness_score) as avg_score,
+            SELECT
+                DATE_TRUNC('month', ca.assessment_date) as month,
+                AVG(ca.overall_wellness_score) as avg_score,
                 COUNT(*) as assessment_count
-            FROM comprehensive_assessments
-            WHERE overall_wellness_score > 0
-            GROUP BY DATE_TRUNC('month', assessment_date)
+            FROM comprehensive_assessments ca
+            JOIN patients p ON ca.patient_id = p.id
+            WHERE ca.overall_wellness_score > 0 AND p.clinic_id = $1
+            GROUP BY DATE_TRUNC('month', ca.assessment_date)
             ORDER BY month DESC
             LIMIT 12
-        """)
+        """, clinic_id)
         
         await conn.close()
         
