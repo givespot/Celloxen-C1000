@@ -1583,6 +1583,10 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
             else:  # "HH:MM:SS" format
                 appointment_data["appointment_time"] = datetime.strptime(time_str, "%H:%M:%S").time()
 
+        # Convert status to uppercase (enum expects UPPERCASE values)
+        if "status" in appointment_data and isinstance(appointment_data["status"], str):
+            appointment_data["status"] = appointment_data["status"].upper()
+
         # Build update query dynamically
         update_fields = []
         params = []
