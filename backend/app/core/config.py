@@ -10,13 +10,13 @@ class Settings(BaseSettings):
     VERSION: str = "1.0.0"
     DESCRIPTION: str = "Multi-tenant clinic management system for Celloxen therapies"
     
-    # Security
-    SECRET_KEY: str = "your_super_secret_key_change_in_production_celloxen_2025"
+    # Security - MUST be set via environment variables
+    SECRET_KEY: str = ""  # Required: set via SECRET_KEY env var
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    # Database
-    DATABASE_URL: str = "postgresql://celloxen_user:CelloxenSecure2025@localhost:5432/celloxen_portal"
+
+    # Database - MUST be set via environment variables
+    DATABASE_URL: str = ""  # Required: set via DATABASE_URL env var
     
     # Environment
     ENVIRONMENT: str = "development"
