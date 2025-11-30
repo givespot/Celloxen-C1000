@@ -2596,7 +2596,7 @@ async def get_clinic_staff(current_user: dict = Depends(get_current_user)):
             SELECT
                 id, email, full_name, role,
                 CASE WHEN status = 'active' THEN true ELSE false END as is_active,
-                created_at, last_login,
+                created_at,
                 (SELECT COUNT(*) FROM appointments WHERE practitioner_id = users.id
                  AND appointment_date >= DATE_TRUNC('month', CURRENT_DATE)) as appointments_this_month,
                 (SELECT COUNT(DISTINCT patient_id) FROM appointments WHERE practitioner_id = users.id) as total_patients
