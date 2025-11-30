@@ -3901,11 +3901,13 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
         ) or 0
 
-        # Try to get comprehensive assessments (may have different schema)
+        # comprehensive_assessments links through patient_id, not clinic_id
         try:
-            new_assessments = await conn.fetchval(
-                "SELECT COUNT(*) FROM comprehensive_assessments WHERE clinic_id = $1", clinic_id
-            ) or 0
+            new_assessments = await conn.fetchval("""
+                SELECT COUNT(*) FROM comprehensive_assessments ca
+                JOIN patients p ON ca.patient_id = p.id
+                WHERE p.clinic_id = $1
+            """, clinic_id) or 0
         except:
             new_assessments = 0
 
@@ -3918,8 +3920,9 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
 
         try:
             pending_new = await conn.fetchval("""
-                SELECT COUNT(*) FROM comprehensive_assessments
-                WHERE clinic_id = $1 AND status = 'in_progress'
+                SELECT COUNT(*) FROM comprehensive_assessments ca
+                JOIN patients p ON ca.patient_id = p.id
+                WHERE p.clinic_id = $1 AND ca.status = 'in_progress'
             """, clinic_id) or 0
         except:
             pending_new = 0
@@ -3933,8 +3936,9 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
 
         try:
             completed_new = await conn.fetchval("""
-                SELECT COUNT(*) FROM comprehensive_assessments
-                WHERE clinic_id = $1 AND status = 'completed'
+                SELECT COUNT(*) FROM comprehensive_assessments ca
+                JOIN patients p ON ca.patient_id = p.id
+                WHERE p.clinic_id = $1 AND ca.status = 'completed'
             """, clinic_id) or 0
         except:
             completed_new = 0
