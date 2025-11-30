@@ -191,6 +191,166 @@ async def login(user_credentials: dict):
 async def get_current_user():
     return {"id": 1, "email": "admin@celloxen.com", "role": "super_admin"}
 
+
+# Password Reset Endpoints - Added 30/11/2025
+import secrets
+
+@app.post("/api/v1/auth/forgot-password")
+async def forgot_password(request_data: dict):
+    """Request password reset - sends reset token"""
+    try:
+        email = request_data.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Check if user exists
+        user = await conn.fetchrow("SELECT id, email, full_name FROM users WHERE email = $1", email)
+
+        if not user:
+            await conn.close()
+            # Return success even if user not found (security best practice)
+            return {"success": True, "message": "If the email exists, a reset link has been sent"}
+
+        # Generate reset token
+        reset_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
+        # Store reset token in database (create table if needed via try/except)
+        try:
+            await conn.execute("""
+                INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3, created_at = NOW()
+            """, user['id'], reset_token, expires_at)
+        except Exception as e:
+            # Table might not exist, create it
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER UNIQUE REFERENCES users(id),
+                    token VARCHAR(255) NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            await conn.execute("""
+                INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3, created_at = NOW()
+            """, user['id'], reset_token, expires_at)
+
+        await conn.close()
+
+        # In production, send email here. For now, return token in response for testing
+        print(f"Password reset token for {email}: {reset_token}")
+
+        return {
+            "success": True,
+            "message": "If the email exists, a reset link has been sent",
+            # Remove token from response in production
+            "debug_token": reset_token
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in forgot-password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Verify password reset token is valid"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        reset_request = await conn.fetchrow("""
+            SELECT prt.*, u.email, u.full_name
+            FROM password_reset_tokens prt
+            JOIN users u ON prt.user_id = u.id
+            WHERE prt.token = $1 AND prt.expires_at > NOW()
+        """, token)
+
+        await conn.close()
+
+        if not reset_request:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+        return {
+            "valid": True,
+            "email": reset_request['email']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in verify-reset-token: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/auth/reset-password")
+async def reset_password(request_data: dict):
+    """Reset password using token"""
+    try:
+        token = request_data.get("token")
+        new_password = request_data.get("password")
+
+        if not token or not new_password:
+            raise HTTPException(status_code=400, detail="Token and new password are required")
+
+        if len(new_password) < 8:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Verify token
+        reset_request = await conn.fetchrow("""
+            SELECT user_id FROM password_reset_tokens
+            WHERE token = $1 AND expires_at > NOW()
+        """, token)
+
+        if not reset_request:
+            await conn.close()
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+        # Hash new password
+        password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+        # Update password
+        await conn.execute(
+            "UPDATE users SET password_hash = $1 WHERE id = $2",
+            password_hash, reset_request['user_id']
+        )
+
+        # Delete used token
+        await conn.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = $1",
+            reset_request['user_id']
+        )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "message": "Password reset successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in reset-password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/v1/patients/stats/overview")
 async def get_patient_stats():
     try:
@@ -5535,6 +5695,64 @@ async def get_patient_invoices_v2(current_user: dict = Depends(get_current_user)
         }
     except Exception as e:
         print(f"❌ ERROR getting patient invoices v2: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/v1/clinic/patient-invoices/{invoice_id}/status")
+async def update_patient_invoice_status(invoice_id: int, status_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update patient invoice status"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        new_status = status_data.get('status')
+
+        if not new_status:
+            raise HTTPException(status_code=400, detail="Status is required")
+
+        # Valid statuses for invoices
+        valid_statuses = ['pending', 'paid', 'overdue', 'cancelled']
+        if new_status.lower() not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Verify invoice belongs to clinic
+        invoice = await conn.fetchrow(
+            "SELECT id, status FROM patient_invoices WHERE id = $1 AND clinic_id = $2",
+            invoice_id, clinic_id
+        )
+
+        if not invoice:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        # Update status and set paid_at if marking as paid
+        if new_status.lower() == 'paid':
+            await conn.execute(
+                "UPDATE patient_invoices SET status = $1, paid_at = NOW(), payment_date = NOW() WHERE id = $2",
+                new_status.lower(), invoice_id
+            )
+        else:
+            await conn.execute(
+                "UPDATE patient_invoices SET status = $1 WHERE id = $2",
+                new_status.lower(), invoice_id
+            )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "message": f"Invoice status updated to {new_status}",
+            "invoice_id": invoice_id,
+            "new_status": new_status.lower()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR updating invoice status: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
