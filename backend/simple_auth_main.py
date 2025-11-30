@@ -206,8 +206,9 @@ async def get_patient_stats():
         )
         assessments_completed = await conn.fetchval(
             """
-            SELECT COUNT(*) FROM comprehensive_assessments 
-            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            SELECT COUNT(*) FROM patient_assessments
+            WHERE status = 'completed'
+            AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
             """
         )
         await conn.close()
@@ -3975,19 +3976,23 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             ORDER BY a.appointment_time
         """, clinic_id)
         
-        # Get assessment counts
-        total_assessments = await conn.fetchval(
-            "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
-        ) or 0
-        
-        pending_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
-            WHERE clinic_id = $1 AND status = 'IN_PROGRESS'
+        # Get assessment counts (from patient_assessments table)
+        total_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
         """, clinic_id) or 0
-        
+
+        pending_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.status = 'in_progress'
+        """, clinic_id) or 0
+
         completed_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
-            WHERE clinic_id = $1 AND status = 'COMPLETED'
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.status = 'completed'
         """, clinic_id) or 0
         
         # Get iridology counts
@@ -4026,11 +4031,11 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         """, clinic_id)
         
         recent_assessments = await conn.fetch("""
-            SELECT a.id, a.status, a.created_at, p.first_name, p.last_name
-            FROM assessments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.clinic_id = $1
-            ORDER BY a.created_at DESC LIMIT 5
+            SELECT pa.id, pa.status, pa.created_at, p.first_name, p.last_name
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
+            ORDER BY pa.created_at DESC LIMIT 5
         """, clinic_id)
         
         recent_iridology = await conn.fetch("""
