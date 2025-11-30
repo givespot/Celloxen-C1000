@@ -3917,10 +3917,22 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         ) or 0
         
         completed_iridology = await conn.fetchval("""
-            SELECT COUNT(*) FROM iridology_analyses 
+            SELECT COUNT(*) FROM iridology_analyses
             WHERE clinic_id = $1 AND status = 'COMPLETED'
         """, clinic_id) or 0
-        
+
+        # Get therapy stats
+        therapy_sessions = await conn.fetchval("""
+            SELECT COUNT(*) FROM therapy_sessions ts
+            JOIN therapy_assignments ta ON ts.assignment_id = ta.id
+            WHERE ta.clinic_id = $1
+        """, clinic_id) or 0
+
+        active_therapies = await conn.fetchval("""
+            SELECT COUNT(*) FROM therapy_assignments
+            WHERE clinic_id = $1 AND status = 'active'
+        """, clinic_id) or 0
+
         # Get invoice stats
         outstanding_invoices = await conn.fetchrow("""
             SELECT COUNT(*) as count, COALESCE(SUM(amount), 0) as total
@@ -4001,7 +4013,9 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
                 "outstanding_invoices_count": outstanding_invoices['count'] if outstanding_invoices else 0,
                 "outstanding_invoices_total": float(outstanding_invoices['total']) if outstanding_invoices else 0,
                 "overdue_invoices": overdue_invoices,
-                "revenue_this_month": float(revenue_this_month)
+                "revenue_this_month": float(revenue_this_month),
+                "therapy_sessions": therapy_sessions,
+                "active_therapies": active_therapies
             },
             "today_schedule": [
                 {
