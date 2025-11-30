@@ -4049,6 +4049,93 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to load dashboard: {str(e)}")
 
 
+@app.get("/api/v1/clinic/dashboard/charts")
+async def get_clinic_dashboard_charts(current_user: dict = Depends(get_current_user)):
+    """Get chart data for clinic dashboard"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        clinic_id = current_user.get('clinic_id', 1)
+
+        # Patient trend (last 6 months)
+        patient_trend = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('month', created_at) as month,
+                COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1 AND created_at >= CURRENT_DATE - INTERVAL '6 months'
+            GROUP BY DATE_TRUNC('month', created_at)
+            ORDER BY month
+        """, clinic_id)
+
+        # Appointments this week by day
+        appointments_week = await conn.fetch("""
+            SELECT
+                appointment_date,
+                COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1
+                AND appointment_date >= CURRENT_DATE
+                AND appointment_date <= CURRENT_DATE + INTERVAL '7 days'
+            GROUP BY appointment_date
+            ORDER BY appointment_date
+        """, clinic_id)
+
+        # Patient status distribution
+        patient_status = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Revenue trend (last 6 months)
+        revenue_trend = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('month', created_at) as month,
+                SUM(total_amount) as total
+            FROM clinic_invoices
+            WHERE clinic_id = $1
+                AND status = 'paid'
+                AND created_at >= CURRENT_DATE - INTERVAL '6 months'
+            GROUP BY DATE_TRUNC('month', created_at)
+            ORDER BY month
+        """, clinic_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "patient_trend": [
+                {"month": r['month'].strftime('%Y-%m') if r['month'] else '', "count": r['count']}
+                for r in patient_trend
+            ],
+            "appointments_week": [
+                {"date": str(r['appointment_date']), "count": r['count']}
+                for r in appointments_week
+            ],
+            "patient_status": [
+                {"status": r['status'], "count": r['count']}
+                for r in patient_status
+            ],
+            "revenue_trend": [
+                {"month": r['month'].strftime('%Y-%m') if r['month'] else '', "total": float(r['total']) if r['total'] else 0}
+                for r in revenue_trend
+            ]
+        }
+
+    except Exception as e:
+        print(f"Charts error: {e}")
+        return {
+            "success": True,
+            "patient_trend": [],
+            "appointments_week": [],
+            "patient_status": [{"status": "active", "count": 0}, {"status": "inactive", "count": 0}],
+            "revenue_trend": []
+        }
+
 
 # ============================================
 # THERAPY ASSIGNMENTS API - Added 30/11/2025
