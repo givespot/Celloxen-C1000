@@ -2599,10 +2599,10 @@ async def get_appointment_reports(
 
         # Appointment types
         type_breakdown = await conn.fetch("""
-            SELECT COALESCE(appointment_type, 'General') as type, COUNT(*) as count
+            SELECT COALESCE(appointment_type::text, 'General') as type, COUNT(*) as count
             FROM appointments
             WHERE clinic_id = $1
-            GROUP BY appointment_type
+            GROUP BY appointment_type::text
         """, clinic_id)
 
         # No-show rate (last 3 months)
@@ -2705,11 +2705,11 @@ async def get_assessment_reports(
 
         # Status breakdown
         status_breakdown = await conn.fetch("""
-            SELECT status, COUNT(*) as count
+            SELECT pa.status, COUNT(*) as count
             FROM patient_assessments pa
             JOIN patients p ON pa.patient_id = p.id
             WHERE p.clinic_id = $1
-            GROUP BY status
+            GROUP BY pa.status
         """, clinic_id)
 
         await conn.close()
