@@ -12,23 +12,41 @@ import jwt
 import bcrypt
 from psycopg2.extras import RealDictCursor
 import psycopg2
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter(prefix="/api/v1/patient", tags=["Patient Portal"])
 
-# JWT Configuration
-SECRET_KEY = "celloxen-patient-portal-secret-key-2025"
+# JWT Configuration - Load from environment variables
+SECRET_KEY = os.getenv("PATIENT_PORTAL_SECRET_KEY", os.getenv("SECRET_KEY", ""))
+if not SECRET_KEY:
+    raise ValueError("SECRET_KEY or PATIENT_PORTAL_SECRET_KEY environment variable must be set")
+
 ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 10080  # 7 days
 
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/patient/login")
 
+# Database configuration from environment variables
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_PORT = os.getenv("DB_PORT", "5432")
+DB_USER = os.getenv("DB_USER", "")
+DB_PASSWORD = os.getenv("DB_PASSWORD", "")
+DB_NAME = os.getenv("DB_NAME", "")
+
+if not all([DB_USER, DB_PASSWORD, DB_NAME]):
+    raise ValueError("Database environment variables (DB_USER, DB_PASSWORD, DB_NAME) must be set")
+
 # Database connection
 def get_db():
     conn = psycopg2.connect(
-        dbname="celloxen_portal",
-        user="celloxen_user",
-        password="CelloxenSecure2025",
-        host="localhost"
+        dbname=DB_NAME,
+        user=DB_USER,
+        password=DB_PASSWORD,
+        host=DB_HOST,
+        port=DB_PORT
     )
     return conn
 

@@ -140,6 +140,60 @@ def verify_token(token: str):
         print(f"Token verification error: {str(e)}")
         return None
 
+
+# ============================================
+# AUTHENTICATION DEPENDENCY - Multi-tenant security
+# ============================================
+async def get_current_user(authorization: str = Header(None)):
+    """
+    Authentication dependency for protected endpoints.
+    Validates JWT token and returns user info with clinic_id.
+    CRITICAL: All clinic endpoints MUST use this dependency.
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(status_code=401, detail="Missing or invalid authorization header")
+
+    token = authorization.replace("Bearer ", "")
+    token_data = verify_token(token)
+
+    if not token_data:
+        raise HTTPException(status_code=401, detail="Invalid or expired token")
+
+    user_id = token_data.get('user_id')
+    clinic_id = token_data.get('clinic_id')
+
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Invalid token: missing user_id")
+
+    # Fetch full user info from database
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+        user = await conn.fetchrow(
+            "SELECT id, email, full_name, role, clinic_id FROM users WHERE id = $1",
+            user_id
+        )
+        await conn.close()
+
+        if not user:
+            raise HTTPException(status_code=401, detail="User not found")
+
+        return {
+            "id": user['id'],
+            "user_id": user['id'],
+            "email": user['email'],
+            "full_name": user['full_name'],
+            "role": user['role'],
+            "clinic_id": user['clinic_id']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"Error fetching user: {str(e)}")
+        raise HTTPException(status_code=500, detail="Authentication error")
+
+
 @app.post("/api/v1/auth/login")
 async def login(user_credentials: dict):
     try:
@@ -188,8 +242,169 @@ async def login(user_credentials: dict):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/v1/auth/me")
-async def get_current_user():
-    return {"id": 1, "email": "admin@celloxen.com", "role": "super_admin"}
+async def get_auth_me(current_user: dict = Depends(get_current_user)):
+    """Get current authenticated user info"""
+    return current_user
+
+
+# Password Reset Endpoints - Added 30/11/2025
+import secrets
+
+@app.post("/api/v1/auth/forgot-password")
+async def forgot_password(request_data: dict):
+    """Request password reset - sends reset token"""
+    try:
+        email = request_data.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email is required")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Check if user exists
+        user = await conn.fetchrow("SELECT id, email, full_name FROM users WHERE email = $1", email)
+
+        if not user:
+            await conn.close()
+            # Return success even if user not found (security best practice)
+            return {"success": True, "message": "If the email exists, a reset link has been sent"}
+
+        # Generate reset token
+        reset_token = secrets.token_urlsafe(32)
+        expires_at = datetime.utcnow() + timedelta(hours=1)
+
+        # Store reset token in database (create table if needed via try/except)
+        try:
+            await conn.execute("""
+                INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3, created_at = NOW()
+            """, user['id'], reset_token, expires_at)
+        except Exception as e:
+            # Table might not exist, create it
+            await conn.execute("""
+                CREATE TABLE IF NOT EXISTS password_reset_tokens (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER UNIQUE REFERENCES users(id),
+                    token VARCHAR(255) NOT NULL,
+                    expires_at TIMESTAMP NOT NULL,
+                    created_at TIMESTAMP DEFAULT NOW()
+                )
+            """)
+            await conn.execute("""
+                INSERT INTO password_reset_tokens (user_id, token, expires_at, created_at)
+                VALUES ($1, $2, $3, NOW())
+                ON CONFLICT (user_id) DO UPDATE SET token = $2, expires_at = $3, created_at = NOW()
+            """, user['id'], reset_token, expires_at)
+
+        await conn.close()
+
+        # In production, send email here. For now, return token in response for testing
+        print(f"Password reset token for {email}: {reset_token}")
+
+        return {
+            "success": True,
+            "message": "If the email exists, a reset link has been sent",
+            # Remove token from response in production
+            "debug_token": reset_token
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in forgot-password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/auth/verify-reset-token/{token}")
+async def verify_reset_token(token: str):
+    """Verify password reset token is valid"""
+    try:
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        reset_request = await conn.fetchrow("""
+            SELECT prt.*, u.email, u.full_name
+            FROM password_reset_tokens prt
+            JOIN users u ON prt.user_id = u.id
+            WHERE prt.token = $1 AND prt.expires_at > NOW()
+        """, token)
+
+        await conn.close()
+
+        if not reset_request:
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+        return {
+            "valid": True,
+            "email": reset_request['email']
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in verify-reset-token: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/auth/reset-password")
+async def reset_password(request_data: dict):
+    """Reset password using token"""
+    try:
+        token = request_data.get("token")
+        new_password = request_data.get("password")
+
+        if not token or not new_password:
+            raise HTTPException(status_code=400, detail="Token and new password are required")
+
+        if len(new_password) < 8:
+            raise HTTPException(status_code=400, detail="Password must be at least 8 characters")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Verify token
+        reset_request = await conn.fetchrow("""
+            SELECT user_id FROM password_reset_tokens
+            WHERE token = $1 AND expires_at > NOW()
+        """, token)
+
+        if not reset_request:
+            await conn.close()
+            raise HTTPException(status_code=400, detail="Invalid or expired reset token")
+
+        # Hash new password
+        password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+        # Update password
+        await conn.execute(
+            "UPDATE users SET password_hash = $1 WHERE id = $2",
+            password_hash, reset_request['user_id']
+        )
+
+        # Delete used token
+        await conn.execute(
+            "DELETE FROM password_reset_tokens WHERE user_id = $1",
+            reset_request['user_id']
+        )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "message": "Password reset successfully"
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in reset-password: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 @app.get("/api/v1/patients/stats/overview")
 async def get_patient_stats():
@@ -206,8 +421,9 @@ async def get_patient_stats():
         )
         assessments_completed = await conn.fetchval(
             """
-            SELECT COUNT(*) FROM comprehensive_assessments 
-            WHERE DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
+            SELECT COUNT(*) FROM patient_assessments
+            WHERE status = 'completed'
+            AND DATE_TRUNC('month', created_at) = DATE_TRUNC('month', CURRENT_DATE)
             """
         )
         await conn.close()
@@ -221,43 +437,54 @@ async def get_patient_stats():
         print(f"Error in patient stats: {str(e)}")
         return {"total_patients": 0, "active_patients": 0, "new_this_month": 0, "assessments_completed": 0}
 
-    except Exception as e:
-        return {"total_patients": 1, "active_patients": 1, "new_this_month": 0, "assessments_completed": 0}
 
 @app.get("/api/v1/clinic/patients")
-async def get_clinic_patients():
+async def get_clinic_patients(current_user: dict = Depends(get_current_user)):
+    """Get all patients for the authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
         patients = await conn.fetch("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
+            SELECT p.*, c.name as clinic_name
+            FROM patients p
             LEFT JOIN clinics c ON p.clinic_id = c.id
+            WHERE p.clinic_id = $1
             ORDER BY p.created_at DESC
-        """)
+        """, clinic_id)
         await conn.close()
         return [dict(patient) for patient in patients]
+    except HTTPException:
+        raise
     except Exception as e:
+        print(f"Error getting clinic patients: {str(e)}")
         return []
 
 
 @app.get("/api/v1/clinic/patients/{patient_id}")
-async def get_patient(patient_id: int):
-    """Get a single patient with all details"""
+async def get_patient(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get a single patient with all details - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get patient data
+
+        # Get patient data - MUST filter by clinic_id for multi-tenant security
         patient = await conn.fetchrow("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
+            SELECT p.*, c.name as clinic_name
+            FROM patients p
             LEFT JOIN clinics c ON p.clinic_id = c.id
-            WHERE p.id = $1
-        """, patient_id)
-        
+            WHERE p.id = $1 AND p.clinic_id = $2
+        """, patient_id, clinic_id)
+
         if not patient:
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
@@ -317,13 +544,26 @@ async def get_patient(patient_id: int):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.put("/api/v1/clinic/patients/{patient_id}")
-async def update_patient(patient_id: int, patient_data: dict):
-    """Update a patient's information"""
+async def update_patient(patient_id: int, patient_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update a patient's information - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
+        # Verify patient belongs to this clinic
+        existing = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not existing:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+
         # Parse date of birth if provided
         dob = None
         if patient_data.get('date_of_birth'):
@@ -394,23 +634,30 @@ async def update_patient(patient_id: int, patient_data: dict):
 
 
 @app.delete("/api/v1/clinic/patients/{patient_id}")
-async def delete_patient(patient_id: int):
-    """Delete a patient (soft delete by setting status to deleted)"""
+async def delete_patient(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Delete a patient (soft delete) - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Check if patient exists
-        patient = await conn.fetchrow("SELECT * FROM patients WHERE id = $1", patient_id)
+
+        # Check if patient exists AND belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
         if not patient:
             await conn.close()
             raise HTTPException(status_code=404, detail="Patient not found")
-        
+
         # Soft delete - set status to 'deleted'
         await conn.execute(
-            "UPDATE patients SET status = 'deleted' WHERE id = $1",
-            patient_id
+            "UPDATE patients SET status = 'deleted' WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
         )
         
         await conn.close()
@@ -429,17 +676,117 @@ async def delete_patient(patient_id: int):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/clinic/patients")
-async def create_patient(patient_data: dict):
-    """Create a new patient with UK address fields"""
-    print("🔍 DEBUG: Received patient_data:", patient_data)
+
+@app.get("/api/v1/clinic/patients/{patient_id}/assessments")
+async def get_patient_assessments_by_id(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all assessments for a specific patient - must belong to user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get clinic_id (default to 1 if not provided)
-        clinic_id = patient_data.get('clinic_id', 1)
+
+        # Verify patient belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Get comprehensive assessments for this patient
+        assessments = await conn.fetch("""
+            SELECT id, overall_wellness_score, assessment_status,
+                   constitutional_type, constitutional_strength,
+                   assessment_date, created_at, updated_at
+            FROM comprehensive_assessments
+            WHERE patient_id = $1
+            ORDER BY created_at DESC
+        """, patient_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "patient_id": patient_id,
+            "total": len(assessments),
+            "assessments": [dict(a) for a in assessments]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR getting patient assessments: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/patients/{patient_id}/iridology")
+async def get_patient_iridology(patient_id: int, current_user: dict = Depends(get_current_user)):
+    """Get all iridology analyses for a specific patient - must belong to user's clinic"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Verify patient belongs to this clinic
+        patient = await conn.fetchrow(
+            "SELECT id FROM patients WHERE id = $1 AND clinic_id = $2",
+            patient_id, clinic_id
+        )
+        if not patient:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Patient not found")
+
+        # Get iridology analyses for this patient
+        analyses = await conn.fetch("""
+            SELECT id, analysis_number, status, constitutional_type,
+                   constitutional_strength, left_eye_image, right_eye_image,
+                   created_at, updated_at, processing_completed_at
+            FROM iridology_analyses
+            WHERE patient_id = $1
+            ORDER BY created_at DESC
+        """, patient_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "patient_id": patient_id,
+            "total": len(analyses),
+            "analyses": [dict(a) for a in analyses]
+        }
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR getting patient iridology: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/v1/clinic/patients")
+async def create_patient(patient_data: dict, current_user: dict = Depends(get_current_user)):
+    """Create a new patient - automatically assigned to user's clinic"""
+    try:
+        # SECURITY: Use authenticated user's clinic_id, NOT from request data
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
         
         # Generate patient number
         count = await conn.fetchval("SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id)
@@ -539,25 +886,6 @@ async def update_patient(patient_id: int, patient_data: dict):
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.delete("/api/v1/clinic/patients/{patient_id}")
-async def delete_patient(patient_id: int):
-    try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        await conn.execute("DELETE FROM patients WHERE id = $1", patient_id)
-        await conn.close()
-        return {"success": True}
-        
-    except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
-        print(f"❌ ERROR type: {type(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/clinic/patients/{patient_id}")
 
 # ============================================================================
 # CLINIC SUBSCRIPTION INVOICES
@@ -1010,37 +1338,6 @@ async def delete_patient_invoice(invoice_id: int, authorization: str = Header(No
         raise HTTPException(status_code=500, detail="Failed to cancel invoice")
 
 
-        raise HTTPException(status_code=500, detail="Failed to fetch invoice")
-
-async def get_patient(patient_id: int):
-    try:
-        conn = await asyncpg.connect(
-            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
-        )
-        
-        patient = await conn.fetchrow("""
-            SELECT p.*, c.name as clinic_name 
-            FROM patients p 
-            LEFT JOIN clinics c ON p.clinic_id = c.id
-            WHERE p.id = $1
-        """, patient_id)
-        
-        await conn.close()
-        if patient:
-            return dict(patient)
-        else:
-            raise HTTPException(status_code=404, detail="Patient not found")
-        
-    except HTTPException:
-        raise
-    except Exception as e:
-        print(f"❌ ERROR creating appointment: {str(e)}")
-        print(f"❌ ERROR type: {type(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 # ============= ASSESSMENT MODULE ENDPOINTS =============
 
 @app.get("/api/v1/assessments/questions")
@@ -1489,11 +1786,12 @@ async def get_appointment(appointment_id: int):
 @app.put("/api/v1/appointments/{appointment_id}")
 async def update_appointment(appointment_id: int, appointment_data: dict):
     """Update an existing appointment"""
+    from datetime import datetime, date, time
     try:
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         # Check if appointment exists
         exists = await conn.fetchval(
             "SELECT id FROM appointments WHERE id = $1", appointment_id
@@ -1501,17 +1799,32 @@ async def update_appointment(appointment_id: int, appointment_data: dict):
         if not exists:
             await conn.close()
             raise HTTPException(status_code=404, detail="Appointment not found")
-        
+
+        # Convert date/time strings to proper Python objects
+        if "appointment_date" in appointment_data and isinstance(appointment_data["appointment_date"], str):
+            appointment_data["appointment_date"] = datetime.strptime(appointment_data["appointment_date"], "%Y-%m-%d").date()
+
+        if "appointment_time" in appointment_data and isinstance(appointment_data["appointment_time"], str):
+            time_str = appointment_data["appointment_time"]
+            if len(time_str) == 5:  # "HH:MM" format
+                appointment_data["appointment_time"] = datetime.strptime(time_str, "%H:%M").time()
+            else:  # "HH:MM:SS" format
+                appointment_data["appointment_time"] = datetime.strptime(time_str, "%H:%M:%S").time()
+
+        # Convert status to uppercase (enum expects UPPERCASE values)
+        if "status" in appointment_data and isinstance(appointment_data["status"], str):
+            appointment_data["status"] = appointment_data["status"].upper()
+
         # Build update query dynamically
         update_fields = []
         params = []
         param_count = 1
-        
+
         allowed_fields = [
             "appointment_date", "appointment_time", "duration_minutes",
             "practitioner_id", "status", "booking_notes", "cancellation_reason"
         ]
-        
+
         for field in allowed_fields:
             if field in appointment_data:
                 update_fields.append(f"{field} = ${param_count}")
@@ -1906,50 +2219,64 @@ async def update_therapy_plan_status(plan_id: int, status_data: dict):
 # ============================================================================
 
 @app.get("/api/v1/reports/overview")
-async def get_reports_overview():
-    """Get overall system statistics"""
+async def get_reports_overview(current_user: dict = Depends(get_current_user)):
+    """Get overall system statistics for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Get counts
-        total_patients = await conn.fetchval("SELECT COUNT(*) FROM patients")
+
+        # Get counts - filtered by clinic_id
+        total_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id
+        )
         active_patients = await conn.fetchval(
-            "SELECT COUNT(*) FROM patients WHERE status = 'active'"
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1 AND status = 'active'", clinic_id
         )
         total_assessments = await conn.fetchval(
-            "SELECT COUNT(*) FROM comprehensive_assessments"
+            """SELECT COUNT(*) FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1""", clinic_id
         )
-        total_appointments = await conn.fetchval("SELECT COUNT(*) FROM appointments")
-        total_therapy_plans = await conn.fetchval("SELECT COUNT(*) FROM therapy_plans")
-        
-        # Appointments by status
+        total_appointments = await conn.fetchval(
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1", clinic_id
+        )
+        total_therapy_plans = await conn.fetchval(
+            "SELECT COUNT(*) FROM therapy_plans WHERE clinic_id = $1", clinic_id
+        )
+
+        # Appointments by status - filtered by clinic_id
         appointments_by_status = await conn.fetch(
-            "SELECT status, COUNT(*) as count FROM appointments GROUP BY status"
+            "SELECT status, COUNT(*) as count FROM appointments WHERE clinic_id = $1 GROUP BY status", clinic_id
         )
-        
-        # Therapy plans by status
+
+        # Therapy plans by status - filtered by clinic_id
         plans_by_status = await conn.fetch(
-            "SELECT status, COUNT(*) as count FROM therapy_plans GROUP BY status"
+            "SELECT status, COUNT(*) as count FROM therapy_plans WHERE clinic_id = $1 GROUP BY status", clinic_id
         )
-        
-        # Average wellness scores
+
+        # Average wellness scores - filtered by clinic_id
         avg_wellness = await conn.fetchval(
-            """SELECT AVG(overall_wellness_score) 
-               FROM comprehensive_assessments 
-               WHERE overall_wellness_score > 0"""
+            """SELECT AVG(overall_wellness_score)
+               FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1 AND overall_wellness_score > 0""", clinic_id
         )
-        
-        # Recent activity
+
+        # Recent activity - filtered by clinic_id
         recent_assessments = await conn.fetchval(
-            """SELECT COUNT(*) FROM comprehensive_assessments 
-               WHERE assessment_date >= NOW() - INTERVAL '30 days'"""
+            """SELECT COUNT(*) FROM comprehensive_assessments ca
+               JOIN patients p ON ca.patient_id = p.id
+               WHERE p.clinic_id = $1 AND assessment_date >= NOW() - INTERVAL '30 days'""", clinic_id
         )
-        
+
         recent_appointments = await conn.fetchval(
-            """SELECT COUNT(*) FROM appointments 
-               WHERE created_at >= NOW() - INTERVAL '30 days'"""
+            """SELECT COUNT(*) FROM appointments
+               WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '30 days'""", clinic_id
         )
         
         await conn.close()
@@ -1986,16 +2313,20 @@ async def get_reports_overview():
 
 
 @app.get("/api/v1/reports/patient-activity")
-async def get_patient_activity():
-    """Get patient activity report"""
+async def get_patient_activity(current_user: dict = Depends(get_current_user)):
+    """Get patient activity report for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Patient activity with assessment and appointment counts
+
+        # Patient activity with assessment and appointment counts - filtered by clinic_id
         activity = await conn.fetch("""
-            SELECT 
+            SELECT
                 p.id,
                 p.first_name || ' ' || p.last_name as patient_name,
                 p.mobile_phone,
@@ -2010,9 +2341,10 @@ async def get_patient_activity():
             LEFT JOIN comprehensive_assessments ca ON p.id = ca.patient_id
             LEFT JOIN appointments a ON p.id = a.patient_id
             LEFT JOIN therapy_plans tp ON p.id = tp.patient_id
+            WHERE p.clinic_id = $1
             GROUP BY p.id, p.first_name, p.last_name, p.mobile_phone, p.email, p.status
             ORDER BY p.id DESC
-        """)
+        """, clinic_id)
         
         await conn.close()
         
@@ -2029,25 +2361,30 @@ async def get_patient_activity():
 
 
 @app.get("/api/v1/reports/wellness-trends")
-async def get_wellness_trends():
-    """Get wellness score trends over time"""
+async def get_wellness_trends(current_user: dict = Depends(get_current_user)):
+    """Get wellness score trends over time for authenticated user's clinic"""
     try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
-        # Monthly wellness trends
+
+        # Monthly wellness trends - filtered by clinic_id
         trends = await conn.fetch("""
-            SELECT 
-                DATE_TRUNC('month', assessment_date) as month,
-                AVG(overall_wellness_score) as avg_score,
+            SELECT
+                DATE_TRUNC('month', ca.assessment_date) as month,
+                AVG(ca.overall_wellness_score) as avg_score,
                 COUNT(*) as assessment_count
-            FROM comprehensive_assessments
-            WHERE overall_wellness_score > 0
-            GROUP BY DATE_TRUNC('month', assessment_date)
+            FROM comprehensive_assessments ca
+            JOIN patients p ON ca.patient_id = p.id
+            WHERE ca.overall_wellness_score > 0 AND p.clinic_id = $1
+            GROUP BY DATE_TRUNC('month', ca.assessment_date)
             ORDER BY month DESC
             LIMIT 12
-        """)
+        """, clinic_id)
         
         await conn.close()
         
@@ -2062,6 +2399,828 @@ async def get_wellness_trends():
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
 
+
+# ============================================================================
+# DASHBOARD CHARTS API - Visual Analytics for Main Dashboard
+# ============================================================================
+
+@app.get("/api/v1/clinic/dashboard/charts")
+async def get_dashboard_charts(current_user: dict = Depends(get_current_user)):
+    """Get chart data for the main clinic dashboard"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Patient registration trend (last 6 months)
+        patient_trend = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('month', created_at) as month,
+                COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '6 months'
+            GROUP BY DATE_TRUNC('month', created_at)
+            ORDER BY month
+        """, clinic_id)
+
+        # Appointments this week (by day)
+        appointments_week = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('day', appointment_date) as day,
+                COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1
+                AND appointment_date >= DATE_TRUNC('week', CURRENT_DATE)
+                AND appointment_date < DATE_TRUNC('week', CURRENT_DATE) + INTERVAL '7 days'
+            GROUP BY DATE_TRUNC('day', appointment_date)
+            ORDER BY day
+        """, clinic_id)
+
+        # Patient status distribution
+        patient_status = await conn.fetch("""
+            SELECT
+                COALESCE(status, 'active') as status,
+                COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Revenue trend (last 6 months)
+        revenue_trend = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('month', paid_at) as month,
+                COALESCE(SUM(amount), 0) as revenue
+            FROM patient_invoices
+            WHERE clinic_id = $1
+                AND status = 'paid'
+                AND paid_at >= NOW() - INTERVAL '6 months'
+            GROUP BY DATE_TRUNC('month', paid_at)
+            ORDER BY month
+        """, clinic_id)
+
+        # Appointment status breakdown
+        appointment_status = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Average wellness score trend (last 6 months)
+        wellness_trend = await conn.fetch("""
+            SELECT
+                DATE_TRUNC('month', pa.created_at) as month,
+                ROUND(AVG(pa.overall_score)::numeric, 1) as avg_score
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
+                AND pa.created_at >= NOW() - INTERVAL '6 months'
+                AND pa.overall_score IS NOT NULL
+            GROUP BY DATE_TRUNC('month', pa.created_at)
+            ORDER BY month
+        """, clinic_id)
+
+        # Top practitioners by appointments this month
+        top_practitioners = await conn.fetch("""
+            SELECT
+                u.full_name as name,
+                COUNT(a.id) as appointment_count
+            FROM users u
+            LEFT JOIN appointments a ON a.practitioner_id = u.id
+                AND a.appointment_date >= DATE_TRUNC('month', CURRENT_DATE)
+            WHERE u.clinic_id = $1 AND u.role IN ('practitioner', 'clinic_admin')
+            GROUP BY u.id, u.full_name
+            ORDER BY appointment_count DESC
+            LIMIT 5
+        """, clinic_id)
+
+        # Patient retention (returning patients in last 3 months)
+        retention_data = await conn.fetchrow("""
+            SELECT
+                COUNT(DISTINCT patient_id) FILTER (
+                    WHERE patient_id IN (
+                        SELECT patient_id FROM appointments
+                        WHERE clinic_id = $1
+                        AND appointment_date < NOW() - INTERVAL '3 months'
+                    )
+                ) as returning_patients,
+                COUNT(DISTINCT patient_id) as total_patients
+            FROM appointments
+            WHERE clinic_id = $1 AND appointment_date >= NOW() - INTERVAL '3 months'
+        """, clinic_id)
+
+        # Upcoming patient birthdays (next 30 days)
+        upcoming_birthdays = await conn.fetch("""
+            SELECT
+                first_name || ' ' || last_name as name,
+                date_of_birth,
+                EXTRACT(DAY FROM date_of_birth) as day,
+                EXTRACT(MONTH FROM date_of_birth) as month
+            FROM patients
+            WHERE clinic_id = $1
+                AND date_of_birth IS NOT NULL
+                AND (
+                    (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE)
+                     AND EXTRACT(DAY FROM date_of_birth) >= EXTRACT(DAY FROM CURRENT_DATE))
+                    OR
+                    (EXTRACT(MONTH FROM date_of_birth) = EXTRACT(MONTH FROM CURRENT_DATE + INTERVAL '1 month')
+                     AND EXTRACT(DAY FROM date_of_birth) <= EXTRACT(DAY FROM CURRENT_DATE))
+                )
+            ORDER BY EXTRACT(MONTH FROM date_of_birth), EXTRACT(DAY FROM date_of_birth)
+            LIMIT 5
+        """, clinic_id)
+
+        await conn.close()
+
+        # Calculate retention rate
+        retention_rate = 0
+        if retention_data and retention_data['total_patients'] > 0:
+            retention_rate = round((retention_data['returning_patients'] / retention_data['total_patients']) * 100, 1)
+
+        return {
+            "success": True,
+            "patient_trend": [
+                {"month": r['month'].strftime('%b %Y') if r['month'] else None, "count": r['count']}
+                for r in patient_trend
+            ],
+            "appointments_week": [
+                {"day": r['day'].strftime('%a') if r['day'] else None, "count": r['count']}
+                for r in appointments_week
+            ],
+            "patient_status": [dict(r) for r in patient_status],
+            "revenue_trend": [
+                {"month": r['month'].strftime('%b %Y') if r['month'] else None, "revenue": float(r['revenue'] or 0)}
+                for r in revenue_trend
+            ],
+            "appointment_status": [dict(r) for r in appointment_status],
+            "wellness_trend": [
+                {"month": r['month'].strftime('%b %Y') if r['month'] else None, "avg_score": float(r['avg_score'] or 0)}
+                for r in wellness_trend
+            ],
+            "top_practitioners": [dict(r) for r in top_practitioners],
+            "retention_rate": retention_rate,
+            "upcoming_birthdays": [
+                {"name": r['name'], "date": f"{int(r['day'])}/{int(r['month'])}"}
+                for r in upcoming_birthdays
+            ]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in dashboard charts: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# AUDIT LOGGING SYSTEM
+# ============================================================================
+
+async def log_audit_event(
+    conn,
+    clinic_id: int,
+    user_id: int,
+    action: str,
+    entity_type: str,
+    entity_id: int = None,
+    details: dict = None
+):
+    """Log an audit event to the database"""
+    try:
+        import json
+        await conn.execute("""
+            INSERT INTO audit_logs (clinic_id, user_id, action, entity_type, entity_id, details, created_at)
+            VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        """, clinic_id, user_id, action, entity_type, entity_id, json.dumps(details) if details else None)
+    except Exception as e:
+        print(f"⚠️ Audit log failed: {str(e)}")
+
+
+@app.get("/api/v1/clinic/audit-logs")
+async def get_audit_logs(
+    page: int = 1,
+    limit: int = 50,
+    action: str = None,
+    entity_type: str = None,
+    current_user: dict = Depends(get_current_user)
+):
+    """Get audit logs for the clinic"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        user_role = current_user.get('role')
+
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        if user_role != 'clinic_admin':
+            raise HTTPException(status_code=403, detail="Only clinic admins can view audit logs")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Check if audit_logs table exists, create if not
+        await conn.execute("""
+            CREATE TABLE IF NOT EXISTS audit_logs (
+                id SERIAL PRIMARY KEY,
+                clinic_id INTEGER NOT NULL,
+                user_id INTEGER,
+                action VARCHAR(100) NOT NULL,
+                entity_type VARCHAR(50),
+                entity_id INTEGER,
+                details JSONB,
+                ip_address VARCHAR(45),
+                created_at TIMESTAMP DEFAULT NOW()
+            )
+        """)
+        await conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_audit_logs_clinic ON audit_logs(clinic_id)
+        """)
+
+        # Build query
+        query = """
+            SELECT
+                al.id, al.action, al.entity_type, al.entity_id,
+                al.details, al.created_at, al.ip_address,
+                u.full_name as user_name, u.email as user_email
+            FROM audit_logs al
+            LEFT JOIN users u ON al.user_id = u.id
+            WHERE al.clinic_id = $1
+        """
+        params = [clinic_id]
+        param_num = 2
+
+        if action:
+            query += f" AND al.action = ${param_num}"
+            params.append(action)
+            param_num += 1
+
+        if entity_type:
+            query += f" AND al.entity_type = ${param_num}"
+            params.append(entity_type)
+            param_num += 1
+
+        query += f" ORDER BY al.created_at DESC LIMIT ${param_num} OFFSET ${param_num + 1}"
+        params.extend([limit, (page - 1) * limit])
+
+        logs = await conn.fetch(query, *params)
+
+        # Get total count
+        count_query = "SELECT COUNT(*) FROM audit_logs WHERE clinic_id = $1"
+        count_params = [clinic_id]
+        if action:
+            count_query += " AND action = $2"
+            count_params.append(action)
+        if entity_type:
+            count_query += f" AND entity_type = ${len(count_params) + 1}"
+            count_params.append(entity_type)
+
+        total = await conn.fetchval(count_query, *count_params)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "logs": [
+                {
+                    **dict(log),
+                    "created_at": log['created_at'].isoformat() if log['created_at'] else None
+                }
+                for log in logs
+            ],
+            "total": total,
+            "page": page,
+            "pages": (total + limit - 1) // limit
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR fetching audit logs: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ============================================================================
+# CLINIC REPORTS MODULE - Comprehensive Analytics
+# ============================================================================
+
+@app.get("/api/v1/clinic/reports/dashboard")
+async def get_reports_dashboard(current_user: dict = Depends(get_current_user)):
+    """Get comprehensive dashboard data for reports module"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Key metrics
+        total_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1", clinic_id
+        )
+        active_patients = await conn.fetchval(
+            "SELECT COUNT(*) FROM patients WHERE clinic_id = $1 AND status = 'active'", clinic_id
+        )
+        total_appointments = await conn.fetchval(
+            "SELECT COUNT(*) FROM appointments WHERE clinic_id = $1", clinic_id
+        )
+        total_assessments = await conn.fetchval(
+            """SELECT COUNT(*) FROM patient_assessments pa
+               JOIN patients p ON pa.patient_id = p.id
+               WHERE p.clinic_id = $1""", clinic_id
+        )
+        total_therapy_plans = await conn.fetchval(
+            "SELECT COUNT(*) FROM therapy_plans WHERE clinic_id = $1", clinic_id
+        )
+        total_invoices = await conn.fetchval(
+            "SELECT COUNT(*) FROM patient_invoices WHERE clinic_id = $1", clinic_id
+        )
+        total_revenue = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM patient_invoices WHERE clinic_id = $1 AND status = 'paid'", clinic_id
+        )
+        pending_revenue = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM patient_invoices WHERE clinic_id = $1 AND status IN ('pending', 'overdue')", clinic_id
+        )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "metrics": {
+                "patients": {"total": total_patients, "active": active_patients},
+                "appointments": {"total": total_appointments},
+                "assessments": {"total": total_assessments},
+                "therapy_plans": {"total": total_therapy_plans},
+                "invoices": {"total": total_invoices},
+                "revenue": {
+                    "collected": float(total_revenue or 0),
+                    "pending": float(pending_revenue or 0)
+                }
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in reports dashboard: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/reports/patients")
+async def get_patient_reports(
+    period: str = "monthly",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get patient analytics - registrations over time, demographics"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Patient registrations over time
+        if period == "daily":
+            date_trunc = "day"
+            interval = "30 days"
+        elif period == "weekly":
+            date_trunc = "week"
+            interval = "12 weeks"
+        else:
+            date_trunc = "month"
+            interval = "12 months"
+
+        registrations = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', created_at) as period,
+                COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', created_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Patient status distribution
+        status_distribution = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Age distribution
+        age_distribution = await conn.fetch("""
+            SELECT
+                CASE
+                    WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) < 18 THEN 'Under 18'
+                    WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) BETWEEN 18 AND 30 THEN '18-30'
+                    WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) BETWEEN 31 AND 45 THEN '31-45'
+                    WHEN EXTRACT(YEAR FROM AGE(date_of_birth)) BETWEEN 46 AND 60 THEN '46-60'
+                    ELSE 'Over 60'
+                END as age_group,
+                COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1 AND date_of_birth IS NOT NULL
+            GROUP BY age_group
+            ORDER BY age_group
+        """, clinic_id)
+
+        # Gender distribution
+        gender_distribution = await conn.fetch("""
+            SELECT COALESCE(gender, 'Not specified') as gender, COUNT(*) as count
+            FROM patients
+            WHERE clinic_id = $1
+            GROUP BY gender
+        """, clinic_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "registrations": [{"period": r['period'].isoformat() if r['period'] else None, "count": r['count']} for r in registrations],
+            "status_distribution": [dict(r) for r in status_distribution],
+            "age_distribution": [dict(r) for r in age_distribution],
+            "gender_distribution": [dict(r) for r in gender_distribution]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in patient reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/reports/appointments")
+async def get_appointment_reports(
+    period: str = "monthly",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get appointment analytics - trends, status breakdown"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Time interval setup
+        if period == "daily":
+            date_trunc = "day"
+            interval = "30 days"
+        elif period == "weekly":
+            date_trunc = "week"
+            interval = "12 weeks"
+        else:
+            date_trunc = "month"
+            interval = "12 months"
+
+        # Appointments over time
+        appointments_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', appointment_date) as period,
+                COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1 AND appointment_date >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', appointment_date)
+            ORDER BY period
+        """, clinic_id)
+
+        # Status breakdown
+        status_breakdown = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Appointment types
+        type_breakdown = await conn.fetch("""
+            SELECT COALESCE(appointment_type::text, 'General') as type, COUNT(*) as count
+            FROM appointments
+            WHERE clinic_id = $1
+            GROUP BY appointment_type::text
+        """, clinic_id)
+
+        # No-show rate (last 3 months)
+        no_show_data = await conn.fetchrow("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'NO_SHOW') as no_shows,
+                COUNT(*) as total
+            FROM appointments
+            WHERE clinic_id = $1 AND appointment_date >= NOW() - INTERVAL '3 months'
+        """, clinic_id)
+
+        await conn.close()
+
+        no_show_rate = 0
+        if no_show_data and no_show_data['total'] > 0:
+            no_show_rate = round((no_show_data['no_shows'] / no_show_data['total']) * 100, 1)
+
+        return {
+            "success": True,
+            "appointments_trend": [{"period": a['period'].isoformat() if a['period'] else None, "count": a['count']} for a in appointments_trend],
+            "status_breakdown": [dict(s) for s in status_breakdown],
+            "type_breakdown": [dict(t) for t in type_breakdown],
+            "no_show_rate": no_show_rate
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in appointment reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/reports/assessments")
+async def get_assessment_reports(
+    period: str = "monthly",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get assessment analytics - completion trends, wellness scores"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Time interval setup
+        if period == "daily":
+            date_trunc = "day"
+            interval = "30 days"
+        elif period == "weekly":
+            date_trunc = "week"
+            interval = "12 weeks"
+        else:
+            date_trunc = "month"
+            interval = "12 months"
+
+        # Assessments over time
+        assessments_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', pa.created_at) as period,
+                COUNT(*) as count
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.created_at >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', pa.created_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Average wellness scores over time
+        wellness_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', pa.created_at) as period,
+                ROUND(AVG(pa.overall_score)::numeric, 1) as avg_score
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.created_at >= NOW() - INTERVAL '{interval}'
+                AND pa.overall_score IS NOT NULL
+            GROUP BY DATE_TRUNC('{date_trunc}', pa.created_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Wellness score distribution
+        score_distribution = await conn.fetch("""
+            SELECT
+                CASE
+                    WHEN overall_score < 30 THEN 'Poor (0-29)'
+                    WHEN overall_score BETWEEN 30 AND 49 THEN 'Fair (30-49)'
+                    WHEN overall_score BETWEEN 50 AND 69 THEN 'Good (50-69)'
+                    WHEN overall_score BETWEEN 70 AND 84 THEN 'Very Good (70-84)'
+                    ELSE 'Excellent (85+)'
+                END as score_range,
+                COUNT(*) as count
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.overall_score IS NOT NULL
+            GROUP BY score_range
+            ORDER BY score_range
+        """, clinic_id)
+
+        # Status breakdown
+        status_breakdown = await conn.fetch("""
+            SELECT pa.status, COUNT(*) as count
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
+            GROUP BY pa.status
+        """, clinic_id)
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "assessments_trend": [{"period": a['period'].isoformat() if a['period'] else None, "count": a['count']} for a in assessments_trend],
+            "wellness_trend": [{"period": w['period'].isoformat() if w['period'] else None, "avg_score": float(w['avg_score'] or 0)} for w in wellness_trend],
+            "score_distribution": [dict(s) for s in score_distribution],
+            "status_breakdown": [dict(s) for s in status_breakdown]
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in assessment reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/reports/therapy")
+async def get_therapy_reports(
+    period: str = "monthly",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get therapy analytics - plans, sessions, completion rates"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Time interval setup
+        if period == "daily":
+            date_trunc = "day"
+            interval = "30 days"
+        elif period == "weekly":
+            date_trunc = "week"
+            interval = "12 weeks"
+        else:
+            date_trunc = "month"
+            interval = "12 months"
+
+        # Therapy plans over time
+        plans_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', created_at) as period,
+                COUNT(*) as count
+            FROM therapy_plans
+            WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', created_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Plan status breakdown
+        plan_status = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM therapy_plans
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Session status breakdown
+        session_status = await conn.fetch("""
+            SELECT status, COUNT(*) as count
+            FROM therapy_sessions
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Therapy type popularity
+        therapy_types = await conn.fetch("""
+            SELECT t.therapy_name, COUNT(tpi.id) as count
+            FROM therapy_plan_items tpi
+            JOIN therapy_plans tp ON tpi.therapy_plan_id = tp.id
+            JOIN therapies t ON tpi.therapy_code = t.therapy_code
+            WHERE tp.clinic_id = $1
+            GROUP BY t.therapy_name
+            ORDER BY count DESC
+            LIMIT 10
+        """, clinic_id)
+
+        # Completion rate
+        completion_data = await conn.fetchrow("""
+            SELECT
+                COUNT(*) FILTER (WHERE status = 'COMPLETED') as completed,
+                COUNT(*) as total
+            FROM therapy_sessions
+            WHERE clinic_id = $1
+        """, clinic_id)
+
+        await conn.close()
+
+        completion_rate = 0
+        if completion_data and completion_data['total'] > 0:
+            completion_rate = round((completion_data['completed'] / completion_data['total']) * 100, 1)
+
+        return {
+            "success": True,
+            "plans_trend": [{"period": p['period'].isoformat() if p['period'] else None, "count": p['count']} for p in plans_trend],
+            "plan_status": [dict(s) for s in plan_status],
+            "session_status": [dict(s) for s in session_status],
+            "therapy_types": [dict(t) for t in therapy_types],
+            "completion_rate": completion_rate
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in therapy reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/v1/clinic/reports/financial")
+async def get_financial_reports(
+    period: str = "monthly",
+    current_user: dict = Depends(get_current_user)
+):
+    """Get financial analytics - revenue, invoices, payment trends"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        if not clinic_id:
+            raise HTTPException(status_code=403, detail="No clinic associated with user")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Time interval setup
+        if period == "daily":
+            date_trunc = "day"
+            interval = "30 days"
+        elif period == "weekly":
+            date_trunc = "week"
+            interval = "12 weeks"
+        else:
+            date_trunc = "month"
+            interval = "12 months"
+
+        # Revenue over time
+        revenue_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', paid_at) as period,
+                SUM(amount) as revenue
+            FROM patient_invoices
+            WHERE clinic_id = $1 AND status = 'paid'
+                AND paid_at >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', paid_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Invoice count over time
+        invoices_trend = await conn.fetch(f"""
+            SELECT
+                DATE_TRUNC('{date_trunc}', created_at) as period,
+                COUNT(*) as count
+            FROM patient_invoices
+            WHERE clinic_id = $1 AND created_at >= NOW() - INTERVAL '{interval}'
+            GROUP BY DATE_TRUNC('{date_trunc}', created_at)
+            ORDER BY period
+        """, clinic_id)
+
+        # Invoice status breakdown
+        status_breakdown = await conn.fetch("""
+            SELECT status, COUNT(*) as count, SUM(amount) as total_amount
+            FROM patient_invoices
+            WHERE clinic_id = $1
+            GROUP BY status
+        """, clinic_id)
+
+        # Payment method breakdown
+        payment_methods = await conn.fetch("""
+            SELECT COALESCE(payment_method, 'Not specified') as method, COUNT(*) as count
+            FROM patient_invoices
+            WHERE clinic_id = $1 AND status = 'paid'
+            GROUP BY payment_method
+        """, clinic_id)
+
+        # Summary stats
+        total_revenue = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM patient_invoices WHERE clinic_id = $1 AND status = 'paid'", clinic_id
+        )
+        pending_amount = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM patient_invoices WHERE clinic_id = $1 AND status = 'pending'", clinic_id
+        )
+        overdue_amount = await conn.fetchval(
+            "SELECT COALESCE(SUM(amount), 0) FROM patient_invoices WHERE clinic_id = $1 AND status = 'overdue'", clinic_id
+        )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "revenue_trend": [{"period": r['period'].isoformat() if r['period'] else None, "revenue": float(r['revenue'] or 0)} for r in revenue_trend],
+            "invoices_trend": [{"period": i['period'].isoformat() if i['period'] else None, "count": i['count']} for i in invoices_trend],
+            "status_breakdown": [{"status": s['status'], "count": s['count'], "total_amount": float(s['total_amount'] or 0)} for s in status_breakdown],
+            "payment_methods": [dict(p) for p in payment_methods],
+            "summary": {
+                "total_revenue": float(total_revenue or 0),
+                "pending": float(pending_amount or 0),
+                "overdue": float(overdue_amount or 0)
+            }
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR in financial reports: {str(e)}")
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/health")
@@ -3892,19 +5051,23 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
             ORDER BY a.appointment_time
         """, clinic_id)
         
-        # Get assessment counts
-        total_assessments = await conn.fetchval(
-            "SELECT COUNT(*) FROM assessments WHERE clinic_id = $1", clinic_id
-        ) or 0
-        
-        pending_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
-            WHERE clinic_id = $1 AND status = 'IN_PROGRESS'
+        # Get assessment counts (from patient_assessments table)
+        total_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
         """, clinic_id) or 0
-        
+
+        pending_assessments = await conn.fetchval("""
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.status = 'in_progress'
+        """, clinic_id) or 0
+
         completed_assessments = await conn.fetchval("""
-            SELECT COUNT(*) FROM assessments 
-            WHERE clinic_id = $1 AND status = 'COMPLETED'
+            SELECT COUNT(*) FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1 AND pa.status = 'completed'
         """, clinic_id) or 0
         
         # Get iridology counts
@@ -3913,8 +5076,8 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         ) or 0
         
         completed_iridology = await conn.fetchval("""
-            SELECT COUNT(*) FROM iridology_analyses 
-            WHERE clinic_id = $1 AND status = 'COMPLETED'
+            SELECT COUNT(*) FROM iridology_analyses
+            WHERE clinic_id = $1 AND status = 'completed'
         """, clinic_id) or 0
         
         # Get invoice stats
@@ -3943,11 +5106,11 @@ async def get_clinic_dashboard(current_user: dict = Depends(get_current_user)):
         """, clinic_id)
         
         recent_assessments = await conn.fetch("""
-            SELECT a.id, a.status, a.created_at, p.first_name, p.last_name
-            FROM assessments a
-            JOIN patients p ON a.patient_id = p.id
-            WHERE a.clinic_id = $1
-            ORDER BY a.created_at DESC LIMIT 5
+            SELECT pa.id, pa.status, pa.created_at, p.first_name, p.last_name
+            FROM patient_assessments pa
+            JOIN patients p ON pa.patient_id = p.id
+            WHERE p.clinic_id = $1
+            ORDER BY pa.created_at DESC LIMIT 5
         """, clinic_id)
         
         recent_iridology = await conn.fetch("""
@@ -5447,6 +6610,64 @@ async def get_patient_invoices_v2(current_user: dict = Depends(get_current_user)
         }
     except Exception as e:
         print(f"❌ ERROR getting patient invoices v2: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.patch("/api/v1/clinic/patient-invoices/{invoice_id}/status")
+async def update_patient_invoice_status(invoice_id: int, status_data: dict, current_user: dict = Depends(get_current_user)):
+    """Update patient invoice status"""
+    try:
+        clinic_id = current_user.get('clinic_id')
+        new_status = status_data.get('status')
+
+        if not new_status:
+            raise HTTPException(status_code=400, detail="Status is required")
+
+        # Valid statuses for invoices
+        valid_statuses = ['pending', 'paid', 'overdue', 'cancelled']
+        if new_status.lower() not in valid_statuses:
+            raise HTTPException(status_code=400, detail=f"Invalid status. Must be one of: {', '.join(valid_statuses)}")
+
+        conn = await asyncpg.connect(
+            host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
+        )
+
+        # Verify invoice belongs to clinic
+        invoice = await conn.fetchrow(
+            "SELECT id, status FROM patient_invoices WHERE id = $1 AND clinic_id = $2",
+            invoice_id, clinic_id
+        )
+
+        if not invoice:
+            await conn.close()
+            raise HTTPException(status_code=404, detail="Invoice not found")
+
+        # Update status and set paid_at if marking as paid
+        if new_status.lower() == 'paid':
+            await conn.execute(
+                "UPDATE patient_invoices SET status = $1, paid_at = NOW(), payment_date = NOW() WHERE id = $2",
+                new_status.lower(), invoice_id
+            )
+        else:
+            await conn.execute(
+                "UPDATE patient_invoices SET status = $1 WHERE id = $2",
+                new_status.lower(), invoice_id
+            )
+
+        await conn.close()
+
+        return {
+            "success": True,
+            "message": f"Invoice status updated to {new_status}",
+            "invoice_id": invoice_id,
+            "new_status": new_status.lower()
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"❌ ERROR updating invoice status: {str(e)}")
         import traceback
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))

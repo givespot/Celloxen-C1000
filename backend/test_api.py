@@ -91,20 +91,37 @@ async def create_sample_data():
         
         print(f"✅ Sample super admin created with ID: {user_id}")
         
-        # Insert sample clinic user
+        # Insert sample clinic admin
+        clinic_admin_id = await conn.fetchval('''
+            INSERT INTO users (email, password_hash, full_name, role, clinic_id, status)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING id
+        ''',
+        "admin@aberdeenwellness.co.uk",
+        "$2b$12$LQv3c1yqBwfNp1cT8MEVUOGdlEzGYKj1OZF7VJcK8GGlEkJyPtf4.", # "password123"
+        "Aberdeen Clinic Admin",
+        "clinic_admin",
+        clinic_id,
+        "active"
+        )
+
+        print(f"✅ Sample clinic admin created with ID: {clinic_admin_id}")
+
+        # Insert sample clinic staff user
         clinic_user_id = await conn.fetchval('''
-            INSERT INTO users (email, password_hash, full_name, role, clinic_id)
-            VALUES ($1, $2, $3, $4, $5)
+            INSERT INTO users (email, password_hash, full_name, role, clinic_id, status)
+            VALUES ($1, $2, $3, $4, $5, $6)
             RETURNING id
         ''',
         "staff@aberdeenwellness.co.uk",
         "$2b$12$LQv3c1yqBwfNp1cT8MEVUOGdlEzGYKj1OZF7VJcK8GGlEkJyPtf4.", # "password123"
         "Aberdeen Clinic Staff",
-        "clinic_user",
-        clinic_id
+        "practitioner",
+        clinic_id,
+        "active"
         )
-        
-        print(f"✅ Sample clinic user created with ID: {clinic_user_id}")
+
+        print(f"✅ Sample clinic staff created with ID: {clinic_user_id}")
         
         # Insert sample patient
         patient_id = await conn.fetchval('''

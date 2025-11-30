@@ -1,72 +1,77 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
-import asyncpg
 from ....core.database import get_db
-from ....core.security import verify_password, create_access_token
+from ....core.security import verify_password, create_access_token, get_current_active_user
 from ....schemas.user import UserLogin, Token
+from ....models.user import User
 
 router = APIRouter()
 
+
 @router.post("/login")
-async def login(user_credentials: UserLogin):
+async def login(
+    user_credentials: UserLogin,
+    db: AsyncSession = Depends(get_db)
+):
     """
-    Login endpoint with real authentication
+    Login endpoint with proper authentication
     """
-    try:
-        # Connect directly to database for now
-        conn = await asyncpg.connect(
-            host="localhost",
-            port=5432,
-            user="celloxen_user", 
-            password="CelloxenSecure2025",
-            database="celloxen_portal"
+    # Get user from database using injected session
+    result = await db.execute(
+        select(User).where(User.email == user_credentials.email)
+    )
+    user = result.scalar_one_or_none()
+
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
         )
-        
-        # Get user from database
-        user = await conn.fetchrow(
-            "SELECT * FROM users WHERE email = $1", 
-            user_credentials.email
+
+    # Verify password using bcrypt
+    if not verify_password(user_credentials.password, user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid credentials"
         )
-        
-        if not user:
-            await conn.close()
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # Verify password (for now, check if it matches "password123")
-        if user_credentials.password != "password123":
-            await conn.close()
-            raise HTTPException(status_code=401, detail="Invalid credentials")
-        
-        # Create access token
-        access_token = create_access_token(subject=user['email'])
-        
-        await conn.close()
-        
-        return {
-            "access_token": access_token,
-            "token_type": "bearer",
-            "expires_in": 1800,
-            "user": {
-                "id": user['id'],
-                "email": user['email'],
-                "full_name": user['full_name'],
-                "role": user['role'],
-                "status": user['status']
-            }
+
+    # Check if user is active
+    if not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Account is inactive"
+        )
+
+    # Create access token
+    access_token = create_access_token(subject=user.email)
+
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": 1800,
+        "user": {
+            "id": user.id,
+            "email": user.email,
+            "full_name": user.full_name,
+            "role": user.role.value,
+            "status": user.status.value
         }
-        
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    }
+
 
 @router.get("/me")
-async def get_current_user():
+async def get_current_user_info(
+    current_user: User = Depends(get_current_active_user)
+):
     """
-    Get current user endpoint
+    Get current authenticated user info
     """
     return {
-        "id": 1,
-        "email": "admin@celloxen.com",
-        "full_name": "Celloxen Admin",
-        "role": "super_admin"
+        "id": current_user.id,
+        "email": current_user.email,
+        "full_name": current_user.full_name,
+        "role": current_user.role.value,
+        "status": current_user.status.value,
+        "clinic_id": current_user.clinic_id
     }
