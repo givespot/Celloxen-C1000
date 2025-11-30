@@ -221,8 +221,6 @@ async def get_patient_stats():
         print(f"Error in patient stats: {str(e)}")
         return {"total_patients": 0, "active_patients": 0, "new_this_month": 0, "assessments_completed": 0}
 
-    except Exception as e:
-        return {"total_patients": 1, "active_patients": 1, "new_this_month": 0, "assessments_completed": 0}
 
 @app.get("/api/v1/clinic/patients")
 async def get_clinic_patients():
