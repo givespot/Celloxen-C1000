@@ -3101,10 +3101,12 @@ async def get_available_appointment_slots(
         token = authorization.replace("Bearer ", "")
         
         try:
-            # Decode JWT token
-            decoded = jwt.decode(token, options={"verify_signature": False})
+            # Decode JWT token with signature verification
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             patient_id = int(decoded.get("sub"))
-        except:
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
         
         # Get clinic_id from patient record
@@ -3203,28 +3205,31 @@ async def book_patient_appointment(data: dict, authorization: str = Header(None)
         token = authorization.replace("Bearer ", "")
         
         try:
-            decoded = jwt.decode(token, options={"verify_signature": False})
+            # Decode JWT token with signature verification
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             patient_id = int(decoded.get("sub"))
-        except:
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
+
         # Get clinic_id from patient record
         conn_temp = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER,
             password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         patient_info = await conn_temp.fetchrow(
             "SELECT clinic_id FROM patients WHERE id = $1", patient_id
         )
-        
+
         await conn_temp.close()
-        
+
         if not patient_info:
             raise HTTPException(status_code=403, detail="Patient not found")
-        
+
         clinic_id = patient_info['clinic_id']
-        
+
         appointment_date = data.get("appointment_date")
         appointment_time = data.get("appointment_time")
         appointment_type = data.get("appointment_type", "CONSULTATION")
@@ -3335,33 +3340,36 @@ async def cancel_patient_appointment(appointment_id: int, authorization: str = H
         token = authorization.replace("Bearer ", "")
         
         try:
-            decoded = jwt.decode(token, options={"verify_signature": False})
+            # Decode JWT token with signature verification
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
             patient_id = int(decoded.get("sub"))
-        except:
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
             raise HTTPException(status_code=401, detail="Invalid token")
-        
+
         # Get clinic_id from patient record
         conn_temp = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER,
             password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         patient_info = await conn_temp.fetchrow(
             "SELECT clinic_id FROM patients WHERE id = $1", patient_id
         )
-        
+
         await conn_temp.close()
-        
+
         if not patient_info:
             raise HTTPException(status_code=403, detail="Patient not found")
-        
+
         clinic_id = patient_info['clinic_id']
-        
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER,
             password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         # Verify this appointment belongs to this patient
         appointment = await conn.fetchrow("""
             SELECT id FROM appointments
@@ -5094,97 +5102,169 @@ async def create_all_appointments_for_therapy(item_id: int, current_user: dict =
 from fastapi import File, UploadFile
 import base64
 import os
+import re
+
+# Security constants for file uploads
+MAX_FILE_SIZE = 5 * 1024 * 1024  # 5MB max
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'gif', 'webp'}
+UPLOAD_BASE_DIR = "/var/www/Celloxen-C1000/frontend/uploads/therapy_diagrams"
+
+def validate_therapy_code(therapy_code: str) -> bool:
+    """Validate therapy code format to prevent path traversal"""
+    return bool(re.match(r'^[A-Za-z0-9_-]+$', therapy_code))
+
+def sanitize_filename(filename: str) -> str:
+    """Sanitize filename to prevent path traversal"""
+    # Remove any path components and only keep the basename
+    basename = os.path.basename(filename)
+    # Only allow alphanumeric, dash, underscore, and dot
+    sanitized = re.sub(r'[^a-zA-Z0-9_.-]', '', basename)
+    return sanitized
+
+def get_safe_extension(filename: str, content_type: str) -> str:
+    """Get file extension safely based on content type, not filename"""
+    content_type_map = {
+        'image/png': 'png',
+        'image/jpeg': 'jpg',
+        'image/jpg': 'jpg',
+        'image/gif': 'gif',
+        'image/webp': 'webp'
+    }
+    return content_type_map.get(content_type, 'png')
 
 @app.post("/api/v1/therapies/{therapy_code}/upload-diagram")
 async def upload_therapy_diagram(therapy_code: str, file: UploadFile = File(...), current_user: dict = Depends(get_current_user)):
     """Upload a diagram image for a therapy"""
     try:
-        # Validate file type
+        # Validate therapy_code to prevent path traversal
+        if not validate_therapy_code(therapy_code):
+            raise HTTPException(status_code=400, detail="Invalid therapy code format")
+
+        # Validate file type by content-type header
         allowed_types = ['image/png', 'image/jpeg', 'image/jpg', 'image/gif', 'image/webp']
         if file.content_type not in allowed_types:
             raise HTTPException(status_code=400, detail="Invalid file type. Only PNG, JPEG, GIF, WEBP allowed.")
-        
-        # Read file content
+
+        # Read file content with size limit
         content = await file.read()
-        
-        # Generate filename
+        if len(content) > MAX_FILE_SIZE:
+            raise HTTPException(status_code=400, detail=f"File too large. Maximum size is {MAX_FILE_SIZE // (1024*1024)}MB")
+
+        # Validate file content (check magic bytes for image files)
+        image_signatures = {
+            b'\x89PNG': 'png',
+            b'\xff\xd8\xff': 'jpg',
+            b'GIF87a': 'gif',
+            b'GIF89a': 'gif',
+            b'RIFF': 'webp'
+        }
+        is_valid_image = False
+        for sig in image_signatures:
+            if content.startswith(sig):
+                is_valid_image = True
+                break
+        if not is_valid_image:
+            raise HTTPException(status_code=400, detail="Invalid image file content")
+
+        # Generate secure filename using UUID and validated extension
         import uuid
-        ext = file.filename.split('.')[-1] if '.' in file.filename else 'png'
+        ext = get_safe_extension(file.filename, file.content_type)
+        if ext not in ALLOWED_EXTENSIONS:
+            raise HTTPException(status_code=400, detail="Invalid file extension")
+
         filename = f"{therapy_code}_{uuid.uuid4().hex[:8]}.{ext}"
-        
-        # Save to uploads directory
-        upload_dir = "/var/www/Celloxen-C1000/frontend/uploads/therapy_diagrams"
-        filepath = os.path.join(upload_dir, filename)
-        
+
+        # Ensure upload directory exists and is safe
+        upload_dir = UPLOAD_BASE_DIR
+        os.makedirs(upload_dir, exist_ok=True)
+
+        # Build filepath and validate it's within upload directory
+        filepath = os.path.normpath(os.path.join(upload_dir, filename))
+        if not filepath.startswith(os.path.normpath(upload_dir)):
+            raise HTTPException(status_code=400, detail="Invalid file path")
+
         with open(filepath, 'wb') as f:
             f.write(content)
-        
+
         # Update database with image path
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         image_url = f"/uploads/therapy_diagrams/{filename}"
-        
+
         await conn.execute("""
             UPDATE therapies SET diagram_image = $1, updated_at = NOW()
             WHERE therapy_code = $2
         """, image_url, therapy_code)
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Diagram uploaded successfully",
             "image_url": image_url,
             "therapy_code": therapy_code
         }
-        
+
     except HTTPException:
         raise
     except Exception as e:
-        print(f"❌ ERROR uploading diagram: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"ERROR uploading diagram: {str(e)}")
+        raise HTTPException(status_code=500, detail="File upload failed")
 
 
 @app.delete("/api/v1/therapies/{therapy_code}/diagram")
 async def delete_therapy_diagram(therapy_code: str, current_user: dict = Depends(get_current_user)):
     """Delete the diagram for a therapy"""
     try:
+        # Validate therapy_code to prevent path traversal
+        if not validate_therapy_code(therapy_code):
+            raise HTTPException(status_code=400, detail="Invalid therapy code format")
+
         conn = await asyncpg.connect(
             host=DB_HOST, port=int(DB_PORT), user=DB_USER, password=DB_PASSWORD, database=DB_NAME
         )
-        
+
         # Get current image path
         current_image = await conn.fetchval(
             "SELECT diagram_image FROM therapies WHERE therapy_code = $1",
             therapy_code
         )
-        
-        # Delete file if exists
+
+        # Delete file if exists - with path traversal protection
         if current_image:
-            filepath = f"/var/www/Celloxen-C1000/frontend{current_image}"
-            if os.path.exists(filepath):
-                os.remove(filepath)
-        
+            # Only allow deletion from uploads directory
+            allowed_base = "/var/www/Celloxen-C1000/frontend/uploads/therapy_diagrams"
+            # Extract just the filename and rebuild safe path
+            image_filename = os.path.basename(current_image)
+            # Validate filename format
+            if not re.match(r'^[A-Za-z0-9_-]+\.(png|jpg|jpeg|gif|webp)$', image_filename):
+                print(f"Invalid filename format for deletion: {image_filename}")
+            else:
+                filepath = os.path.normpath(os.path.join(allowed_base, image_filename))
+                # Ensure the path is still within allowed directory
+                if filepath.startswith(os.path.normpath(allowed_base)) and os.path.exists(filepath):
+                    os.remove(filepath)
+
         # Clear database
         await conn.execute("""
             UPDATE therapies SET diagram_image = NULL, updated_at = NOW()
             WHERE therapy_code = $1
         """, therapy_code)
-        
+
         await conn.close()
-        
+
         return {
             "success": True,
             "message": "Diagram deleted successfully"
         }
-        
+
+    except HTTPException:
+        raise
     except Exception as e:
-        print(f"❌ ERROR deleting diagram: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        print(f"ERROR deleting diagram: {str(e)}")
+        raise HTTPException(status_code=500, detail="Diagram deletion failed")
 
 
 

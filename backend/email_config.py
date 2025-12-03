@@ -1,17 +1,18 @@
 """
 Email System Configuration for Super Admin - IONOS
 """
+import os
 import smtplib
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-# IONOS SMTP Settings
-SMTP_SERVER = "smtp.ionos.co.uk"
-SMTP_PORT = 587
-SMTP_USERNAME = "health@celloxen.com"
-SMTP_PASSWORD = "Kuwait1000$$"
-FROM_EMAIL = "health@celloxen.com"
-FROM_NAME = "Celloxen Health Portal"
+# IONOS SMTP Settings - credentials from environment
+SMTP_SERVER = os.getenv("SMTP_HOST", "smtp.ionos.co.uk")
+SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
+SMTP_USERNAME = os.getenv("SMTP_USER", "health@celloxen.com")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")  # Must be set via environment
+FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "health@celloxen.com")
+FROM_NAME = os.getenv("SMTP_FROM_NAME", "Celloxen Health Portal")
 
 def send_email(to_email, subject, html_body, text_body=None):
     """
@@ -276,8 +277,8 @@ def create_welcome_email_html(clinic_name, login_url, email, temp_password):
     
     return html
 
-# Database Settings
-DB_HOST = "localhost"
-DB_NAME = "celloxen_portal"
-DB_USER = "celloxen_user"
-DB_PASSWORD = "CelloxenSecure2025"
+# Database Settings - from environment
+DB_HOST = os.getenv("DB_HOST", "localhost")
+DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
+DB_USER = os.getenv("DB_USER", "celloxen_user")
+DB_PASSWORD = os.getenv("DB_PASSWORD")  # Must be set via environment

@@ -14,6 +14,7 @@ from reportlab.pdfgen import canvas
 from datetime import datetime
 import asyncpg
 import json
+import os
 
 async def generate_wellness_report(assessment_id: int) -> str:
     """
@@ -24,7 +25,7 @@ async def generate_wellness_report(assessment_id: int) -> str:
     # Connect to database and fetch all data
     conn = await asyncpg.connect(
         host="localhost", port=5432, user="celloxen_user",
-        password="CelloxenSecure2025", database="celloxen_portal"
+        password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
     )
     
     # Get assessment data with patient info

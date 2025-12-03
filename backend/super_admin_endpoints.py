@@ -2,8 +2,9 @@ from email_config import send_email, create_welcome_email_html
 from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import psycopg2
+import os
 from super_admin_auth import (
-    verify_super_admin_password, 
+    verify_super_admin_password,
     create_super_admin_token,
     verify_super_admin_token
 )
@@ -16,7 +17,7 @@ def get_db_connection():
         host="localhost",
         database="celloxen_portal",
         user="celloxen_user",
-        password="CelloxenSecure2025"
+        password=os.getenv("DB_PASSWORD")
     )
 
 # ============================================================================

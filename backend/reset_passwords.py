@@ -2,6 +2,7 @@
 """Reset passwords for both users"""
 import bcrypt
 import psycopg2
+import os
 
 # New password for both users
 NEW_PASSWORD = "password"
@@ -13,7 +14,7 @@ password_hash = bcrypt.hashpw(NEW_PASSWORD.encode('utf-8'), bcrypt.gensalt()).de
 conn = psycopg2.connect(
     dbname="celloxen_portal",
     user="celloxen_user",
-    password="CelloxenSecure2025",
+    password=os.getenv("DB_PASSWORD"),
     host="localhost"
 )
 

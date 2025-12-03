@@ -10,6 +10,7 @@ from datetime import datetime
 import asyncpg
 import json
 import io
+import os
 
 
 def format_british_date(date_obj=None):
@@ -126,7 +127,7 @@ async def generate_iridology_pdf(analysis_id: int) -> bytes:
     
     conn = await asyncpg.connect(
         host="localhost", port=5432, user="celloxen_user",
-        password="CelloxenSecure2025", database="celloxen_portal"
+        password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
     )
     
     try:

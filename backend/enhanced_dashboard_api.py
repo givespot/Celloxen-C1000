@@ -1,13 +1,14 @@
 from fastapi import APIRouter
 from datetime import datetime, timedelta
 import asyncpg
+import os
 
 router = APIRouter(prefix="/api/v1/dashboard", tags=["Dashboard"])
 
 async def get_db_connection():
     conn = await asyncpg.connect(
         host="localhost", port=5432, user="celloxen_user",
-        password="CelloxenSecure2025", database="celloxen_portal"
+        password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
     )
     return conn
 

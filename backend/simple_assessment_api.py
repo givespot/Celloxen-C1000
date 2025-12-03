@@ -19,7 +19,7 @@ async def get_db():
         host="localhost",
         port=5432,
         user="celloxen_user",
-        password="CelloxenSecure2025",
+        password=os.getenv("DB_PASSWORD"),
         database="celloxen_portal"
     )
 

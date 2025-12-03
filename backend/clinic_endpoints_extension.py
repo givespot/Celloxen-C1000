@@ -8,10 +8,15 @@ async def change_password(request: Request, password_data: dict):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing authorization")
-        
+
         token = auth_header.split(" ")[1]
         import jwt
-        decoded = jwt.decode(token, options={"verify_signature": False})
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
         clinic_email = decoded.get("email")
         
         current_password = password_data.get("current_password")
@@ -59,10 +64,15 @@ async def get_clinic_invoices(request: Request):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing authorization")
-        
+
         token = auth_header.split(" ")[1]
         import jwt
-        decoded = jwt.decode(token, options={"verify_signature": False})
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
         clinic_email = decoded.get("email")
         
         conn = await asyncpg.connect(
@@ -119,10 +129,15 @@ async def get_patient_invoices(request: Request):
         auth_header = request.headers.get("Authorization")
         if not auth_header or not auth_header.startswith("Bearer "):
             raise HTTPException(status_code=401, detail="Missing authorization")
-        
+
         token = auth_header.split(" ")[1]
         import jwt
-        decoded = jwt.decode(token, options={"verify_signature": False})
+        try:
+            decoded = jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+        except jwt.ExpiredSignatureError:
+            raise HTTPException(status_code=401, detail="Token expired")
+        except jwt.InvalidTokenError:
+            raise HTTPException(status_code=401, detail="Invalid token")
         clinic_email = decoded.get("email")
         
         conn = await asyncpg.connect(

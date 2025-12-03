@@ -8,6 +8,7 @@ from pydantic import BaseModel
 from typing import List, Dict, Optional
 import asyncpg
 from datetime import datetime
+import os
 
 router = APIRouter(prefix="/api/v1/new-assessment", tags=["new-assessment"])
 
@@ -38,7 +39,7 @@ async def get_db():
         host="localhost",
         port=5432,
         user="celloxen_user",
-        password="CelloxenSecure2025",
+        password=os.getenv("DB_PASSWORD"),
         database="celloxen_portal"
     )
 

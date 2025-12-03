@@ -12,6 +12,7 @@ import jwt
 import bcrypt
 from psycopg2.extras import RealDictCursor
 import psycopg2
+import os
 
 router = APIRouter(prefix="/api/v1/patient", tags=["Patient Portal"])
 
@@ -27,7 +28,7 @@ def get_db():
     conn = psycopg2.connect(
         dbname="celloxen_portal",
         user="celloxen_user",
-        password="CelloxenSecure2025",
+        password=os.getenv("DB_PASSWORD"),
         host="localhost"
     )
     return conn

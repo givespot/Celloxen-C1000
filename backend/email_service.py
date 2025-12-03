@@ -16,20 +16,26 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv('/var/www/.env')
 
-# SMTP Configuration from environment
+# SMTP Configuration from environment - NO DEFAULTS for passwords
 SMTP_HOST = os.getenv("SMTP_HOST", "smtp.ionos.co.uk")
 SMTP_PORT = int(os.getenv("SMTP_PORT", "587"))
 SMTP_USER = os.getenv("SMTP_USER", "health@celloxen.com")
-SMTP_PASSWORD = os.getenv("SMTP_PASSWORD", "Kuwait1000$$")
+SMTP_PASSWORD = os.getenv("SMTP_PASSWORD")  # Must be set in environment
 SMTP_FROM_EMAIL = os.getenv("SMTP_FROM_EMAIL", "health@celloxen.com")
 SMTP_FROM_NAME = os.getenv("SMTP_FROM_NAME", "Celloxen Health Portal")
 
-# Database Configuration
+# Database Configuration - NO DEFAULTS for passwords
 DB_HOST = os.getenv("DB_HOST", "localhost")
 DB_PORT = os.getenv("DB_PORT", "5432")
 DB_USER = os.getenv("DB_USER", "celloxen_user")
-DB_PASSWORD = os.getenv("DB_PASSWORD", "CelloxenSecure2025")
+DB_PASSWORD = os.getenv("DB_PASSWORD")  # Must be set in environment
 DB_NAME = os.getenv("DB_NAME", "celloxen_portal")
+
+# Validate required credentials
+if not SMTP_PASSWORD:
+    print("WARNING: SMTP_PASSWORD not set in environment")
+if not DB_PASSWORD:
+    print("WARNING: DB_PASSWORD not set in environment")
 
 print(f"SMTP Config: {SMTP_HOST}:{SMTP_PORT}, User: {SMTP_USER}")
 
@@ -209,7 +215,7 @@ async def send_welcome_email(patient_email: str, patient_name: str, patient_id: 
         </div>
         
         <p style="text-align: center;">
-            <a href="http://celloxen.com/patient_portal.html" class="button">Access Patient Portal</a>
+            <a href="https://celloxen.com/patient_portal.html" class="button">Access Patient Portal</a>
         </p>
         
         <p><strong>What you can do:</strong></p>
@@ -232,7 +238,7 @@ async def send_welcome_email(patient_email: str, patient_name: str, patient_id: 
 
 async def send_password_reset_email(patient_email: str, patient_name: str, patient_id: int, reset_token: str):
     """Send password reset email"""
-    reset_link = f"http://celloxen.com/patient_portal.html?reset_token={reset_token}"
+    reset_link = f"https://celloxen.com/patient_portal.html?reset_token={reset_token}"
     
     content = f"""
         <h2>Password Reset Request 🔒</h2>
@@ -262,7 +268,7 @@ async def send_password_reset_email(patient_email: str, patient_name: str, patie
 
 async def send_report_ready_email(patient_email: str, patient_name: str, patient_id: int, report_number: str):
     """Send notification when new report is ready"""
-    portal_link = "http://celloxen.com/patient_portal.html"
+    portal_link = "https://celloxen.com/patient_portal.html"
     
     content = f"""
         <h2>New Report Available 📄</h2>
@@ -321,7 +327,7 @@ async def send_appointment_reminder_email(patient_email: str, patient_name: str,
         </ul>
         
         <p style="text-align: center;">
-            <a href="http://celloxen.com/patient_portal.html" class="button">View in Portal</a>
+            <a href="https://celloxen.com/patient_portal.html" class="button">View in Portal</a>
         </p>
         
         <p>We look forward to seeing you!</p>
@@ -351,7 +357,7 @@ async def send_appointment_confirmation_email(patient_email: str, patient_name: 
         </div>
         
         <p style="text-align: center;">
-            <a href="http://celloxen.com/patient_portal.html" class="button">Manage Appointments</a>
+            <a href="https://celloxen.com/patient_portal.html" class="button">Manage Appointments</a>
         </p>
         
         <p><strong>What to expect:</strong></p>

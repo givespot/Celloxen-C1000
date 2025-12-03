@@ -7,6 +7,7 @@ Usage: python3 set_patient_password.py <patient_email> <password>
 import sys
 import bcrypt
 import psycopg2
+import os
 
 def set_patient_password(email, password):
     """Set password for a patient by email"""
@@ -18,7 +19,7 @@ def set_patient_password(email, password):
     conn = psycopg2.connect(
         dbname="celloxen_portal",
         user="celloxen_user",
-        password="CelloxenSecure2025",
+        password=os.getenv("DB_PASSWORD"),
         host="localhost"
     )
     cur = conn.cursor()

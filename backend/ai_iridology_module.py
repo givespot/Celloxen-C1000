@@ -164,7 +164,7 @@ async def analyze_iridology(data: IridologyAnalysis):
         # Connect to database
         conn = await asyncpg.connect(
             host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
         )
         
         # Update assessment with iridology data
@@ -212,7 +212,7 @@ async def get_iridology_results(assessment_id: int):
     try:
         conn = await asyncpg.connect(
             host="localhost", port=5432, user="celloxen_user",
-            password="CelloxenSecure2025", database="celloxen_portal"
+            password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
         )
         
         result = await conn.fetchrow(

@@ -1,5 +1,0 @@
-SMTP_SERVER=smtp.ionos.co.uk
-SMTP_PORT=587
-SMTP_SSL=False
-SMTP_USERNAME=health@celloxen.com
-SMTP_PASSWORD=Kuwait1000$$

@@ -9,24 +9,33 @@ class Settings(BaseSettings):
     PROJECT_NAME: str = "Celloxen Health Portal"
     VERSION: str = "1.0.0"
     DESCRIPTION: str = "Multi-tenant clinic management system for Celloxen therapies"
-    
-    # Security
-    SECRET_KEY: str = "your_super_secret_key_change_in_production_celloxen_2025"
+
+    # Security - MUST be set via environment variable
+    SECRET_KEY: str = os.getenv("SECRET_KEY", "")
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
-    
-    # Database
-    DATABASE_URL: str = "postgresql://celloxen_user:CelloxenSecure2025@localhost:5432/celloxen_portal"
-    
-    # Environment
-    ENVIRONMENT: str = "development"
-    DEBUG: bool = True
-    
-    # CORS
+
+    # Database - credentials from environment variables
+    DB_HOST: str = os.getenv("DB_HOST", "localhost")
+    DB_PORT: str = os.getenv("DB_PORT", "5432")
+    DB_USER: str = os.getenv("DB_USER", "celloxen_user")
+    DB_PASSWORD: str = os.getenv("DB_PASSWORD", "")
+    DB_NAME: str = os.getenv("DB_NAME", "celloxen_portal")
+
+    @property
+    def DATABASE_URL(self) -> str:
+        """Build database URL from environment variables"""
+        if not self.DB_PASSWORD:
+            raise ValueError("DB_PASSWORD environment variable must be set")
+        return f"postgresql://{self.DB_USER}:{self.DB_PASSWORD}@{self.DB_HOST}:{self.DB_PORT}/{self.DB_NAME}"
+
+    # Environment - default to production for safety
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
+    DEBUG: bool = os.getenv("DEBUG", "false").lower() == "true"
+
+    # CORS - only allow production domain by default
     BACKEND_CORS_ORIGINS: List[str] = [
-        "http://localhost:3000",
-        "https://celloxen.com",
-        "http://celloxen.com"
+        "https://celloxen.com"
     ]
     
     # Email Configuration (IONOS SMTP)

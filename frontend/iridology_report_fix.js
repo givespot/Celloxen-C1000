@@ -1,5 +1,25 @@
 // CELLOXEN IRIDOLOGY REPORT DISPLAY FIX
-console.log('🔧 Iridology Report Fix Loaded - v1.0');
+console.log('🔧 Iridology Report Fix Loaded - v1.1 (Security Update)');
+
+// XSS Prevention: HTML entity escaping function
+function escapeHtml(text) {
+    if (text === null || text === undefined) return '';
+    const div = document.createElement('div');
+    div.textContent = String(text);
+    return div.innerHTML;
+}
+
+// Safely escape object values recursively
+function sanitizeObject(obj) {
+    if (typeof obj === 'string') return escapeHtml(obj);
+    if (typeof obj !== 'object' || obj === null) return obj;
+    if (Array.isArray(obj)) return obj.map(item => sanitizeObject(item));
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+        sanitized[key] = sanitizeObject(value);
+    }
+    return sanitized;
+}
 
 // Fixed report display function
 async function displayIridologyReport(assessmentId) {
@@ -28,25 +48,29 @@ async function displayIridologyReport(assessmentId) {
             throw new Error(`API Error: ${response.status} - ${response.statusText}`);
         }
         
-        const reportData = await response.json();
-        console.log('✅ Report data received:', reportData);
-        
-        if (!reportData.success) {
-            throw new Error(reportData.error || 'Report generation failed');
+        const rawReportData = await response.json();
+        console.log('✅ Report data received:', rawReportData);
+
+        if (!rawReportData.success) {
+            throw new Error(rawReportData.error || 'Report generation failed');
         }
-        
-        // Create comprehensive report HTML
+
+        // Sanitize all user-provided data to prevent XSS
+        const reportData = sanitizeObject(rawReportData);
+        const safeAssessmentId = escapeHtml(String(assessmentId));
+
+        // Create comprehensive report HTML with sanitized data
         const reportHTML = `
             <div class="iridology-report max-w-5xl mx-auto p-6 bg-white">
                 <div class="report-header mb-8 text-center border-b pb-6">
                     <h1 class="text-4xl font-bold text-gray-800 mb-3">🔬 Iridology Analysis Report</h1>
                     <div class="text-sm text-gray-500 mb-4">
-                        <span class="mr-4">📅 Generated: ${new Date().toLocaleDateString('en-GB')}</span>
-                        <span class="mr-4">⏰ Time: ${new Date().toLocaleTimeString('en-GB')}</span>
+                        <span class="mr-4">📅 Generated: ${escapeHtml(new Date().toLocaleDateString('en-GB'))}</span>
+                        <span class="mr-4">⏰ Time: ${escapeHtml(new Date().toLocaleTimeString('en-GB'))}</span>
                         <span>🏥 Celloxen Health Portal</span>
                     </div>
                 </div>
-                
+
                 <div class="patient-info bg-blue-50 border border-blue-200 rounded-lg p-6 mb-8">
                     <h2 class="text-2xl font-bold mb-4 text-blue-800">👤 Patient Information</h2>
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -56,9 +80,9 @@ async function displayIridologyReport(assessmentId) {
                             <div><span class="font-semibold">Date of Birth:</span> ${reportData.patient.date_of_birth || 'Not provided'}</div>
                         </div>
                         <div class="space-y-3">
-                            <div><span class="font-semibold">Assessment Date:</span> ${new Date().toLocaleDateString('en-GB')}</div>
+                            <div><span class="font-semibold">Assessment Date:</span> ${escapeHtml(new Date().toLocaleDateString('en-GB'))}</div>
                             <div><span class="font-semibold">Practitioner:</span> ${reportData.practitioner || 'Dr. Smith'}</div>
-                            <div><span class="font-semibold">Report ID:</span> ${assessmentId}</div>
+                            <div><span class="font-semibold">Report ID:</span> ${safeAssessmentId}</div>
                         </div>
                     </div>
                 </div>
@@ -182,7 +206,12 @@ async function displayIridologyReport(assessmentId) {
         
     } catch (error) {
         console.error('❌ Failed to load report:', error);
-        
+
+        // Sanitize error message and assessmentId
+        const safeErrorMessage = escapeHtml(error.message);
+        const safeAssessmentId = escapeHtml(String(assessmentId));
+        const safeTimestamp = escapeHtml(new Date().toLocaleString());
+
         const errorHTML = `
             <div class="error-message text-center p-8">
                 <div class="bg-red-50 border border-red-200 rounded-lg p-6 max-w-md mx-auto">
@@ -190,9 +219,9 @@ async function displayIridologyReport(assessmentId) {
                         <i class="fas fa-exclamation-triangle text-3xl mb-3"></i>
                         <h3 class="text-lg font-bold">Error Loading Report</h3>
                     </div>
-                    <p class="text-red-700 mb-4">${error.message}</p>
+                    <p class="text-red-700 mb-4">${safeErrorMessage}</p>
                     <div class="space-x-3">
-                        <button onclick="displayIridologyReport(${assessmentId})" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
+                        <button onclick="displayIridologyReport(${safeAssessmentId})" class="px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700">
                             <i class="fas fa-redo mr-2"></i>Try Again
                         </button>
                         <button onclick="history.back()" class="px-4 py-2 bg-gray-600 text-white rounded hover:bg-gray-700">
@@ -200,8 +229,8 @@ async function displayIridologyReport(assessmentId) {
                         </button>
                     </div>
                     <div class="mt-4 text-xs text-gray-500">
-                        <p>Report ID: ${assessmentId}</p>
-                        <p>Error Time: ${new Date().toLocaleString()}</p>
+                        <p>Report ID: ${safeAssessmentId}</p>
+                        <p>Error Time: ${safeTimestamp}</p>
                     </div>
                 </div>
             </div>

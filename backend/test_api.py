@@ -2,6 +2,7 @@ import asyncio
 import asyncpg
 from datetime import datetime, date
 import json
+import os
 
 async def create_sample_data():
     # Database connection
@@ -9,7 +10,7 @@ async def create_sample_data():
         host="localhost",
         port=5432,
         user="celloxen_user",
-        password="CelloxenSecure2025",
+        password=os.getenv("DB_PASSWORD"),
         database="celloxen_portal"
     )
     

@@ -8,6 +8,7 @@ import uuid
 from datetime import datetime
 import json
 import asyncpg
+import os
 
 router = APIRouter()
 
@@ -15,7 +16,7 @@ router = APIRouter()
 async def get_db_conn():
     return await asyncpg.connect(
         host="localhost", port=5432, user="celloxen_user",
-        password="CelloxenSecure2025", database="celloxen_portal"
+        password=os.getenv("DB_PASSWORD"), database="celloxen_portal"
     )
 
 # Simple auth helper

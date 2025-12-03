@@ -5,6 +5,7 @@ __pycache__/
 *.egg-info/
 venv/
 env/
+.venv/
 
 # Node
 node_modules/
@@ -18,9 +19,21 @@ logs/
 *.db
 *.sqlite
 
-# Environment
+# Environment and secrets - CRITICAL
 .env
+.env.*
+!.env.example
 *.env
+backend/.env
+backend/.env.*
+!backend/.env.example
+.env.backup*
+.env.local
+.env.production
+secrets/
+*.pem
+*.key
+credentials.json
 
 # Backups
 *.backup
@@ -33,3 +46,18 @@ Thumbs.db
 *.tar.gz
 *.sql
 *backup*
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Coverage and testing
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Uploads (user data)
+uploads/
+frontend/uploads/
