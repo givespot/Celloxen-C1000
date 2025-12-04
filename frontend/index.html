@@ -112,7 +112,7 @@
         }
 
         .gradient-bg {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            background: linear-gradient(135deg, #1e3a8a 0%, #1e3a8a 50%, #2d4a9a 100%);
         }
 
         .gradient-bg-animated {
@@ -343,11 +343,11 @@
         // Hero Section
         const HeroSection = () => {
             return (
-                <section className="relative min-h-screen gradient-bg hero-pattern overflow-hidden">
+                <section className="relative min-h-screen gradient-bg overflow-hidden">
                     {/* Background Elements */}
                     <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-float"></div>
-                        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-float-slow"></div>
+                        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-400/5 rounded-full blur-3xl animate-float"></div>
+                        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-400/5 rounded-full blur-3xl animate-float-slow"></div>
                     </div>
 
                     <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
@@ -361,7 +361,7 @@
 
                                 <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
                                     Transform Your
-                                    <span className="block gradient-text">Healthcare Practice</span>
+                                    <span className="block text-blue-200">Healthcare Practice</span>
                                 </h1>
 
                                 <p className="text-lg sm:text-xl text-white mb-8 max-w-xl mx-auto lg:mx-0">
