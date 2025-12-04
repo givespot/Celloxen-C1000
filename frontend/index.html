@@ -505,7 +505,6 @@
                     code: 'C-102',
                     icon: 'zap',
                     title: 'Vitality & Energy Support',
-                    protocol: 'Advanced Metabolic Support Protocol',
                     description: 'Our flagship metabolic wellness therapy supports comprehensive cellular energy production and enhances overall vitality through mitochondrial optimisation.',
                     tags: ['Cellular Energy', 'Metabolic Efficiency', 'Stress Recovery'],
                     color: 'from-blue-600 to-blue-500'
@@ -514,7 +513,6 @@
                     code: 'C-104',
                     icon: 'move',
                     title: 'Comfort & Mobility Support',
-                    protocol: 'Joint Health & Wellness Protocol',
                     description: 'Advanced bioelectronic technology supports natural comfort and movement wellness, helping optimise joint function and promote natural mobility.',
                     tags: ['Joint Comfort', 'Mobility', 'Flexibility'],
                     color: 'from-green-600 to-green-500'
@@ -523,7 +521,6 @@
                     code: 'C-105',
                     icon: 'heart',
                     title: 'Circulation & Heart Wellness',
-                    protocol: 'Heart & Circulation Support Protocol',
                     description: 'Supports optimal cardiovascular function and promotes healthy circulation throughout the body through targeted electromagnetic stimulation.',
                     tags: ['Cardiovascular', 'Circulation', 'Vascular Health'],
                     color: 'from-red-600 to-red-500'
@@ -532,7 +529,6 @@
                     code: 'C-107',
                     icon: 'moon',
                     title: 'Stress & Relaxation Support',
-                    protocol: 'Sleep & Cognitive Wellness Protocol',
                     description: 'Support the body\'s natural relaxation response and promote mental wellness, helping restore balance to the nervous system and healthy sleep patterns.',
                     tags: ['Stress Management', 'Sleep Quality', 'Mental Clarity'],
                     color: 'from-purple-600 to-purple-500'
@@ -541,7 +537,6 @@
                     code: 'C-108',
                     icon: 'activity',
                     title: 'Metabolic Balance Support',
-                    protocol: 'Glycaemic Control Protocol',
                     description: 'Support the body\'s natural metabolic regulation and blood sugar balance mechanisms through comprehensive endocrine support.',
                     tags: ['Blood Sugar Balance', 'Metabolic Regulation', 'Energy Stability'],
                     color: 'from-orange-600 to-orange-500'
@@ -575,8 +570,7 @@
                                 >
                                     <div className={`bg-gradient-to-r ${therapy.color} p-6`}>
                                         <span className="inline-block bg-white/20 text-white text-xs font-bold px-3 py-1 rounded-full mb-3">{therapy.code}</span>
-                                        <h3 className="text-xl font-bold text-white mb-1">{therapy.title}</h3>
-                                        <p className="text-white/80 text-sm">{therapy.protocol}</p>
+                                        <h3 className="text-xl font-bold text-white">{therapy.title}</h3>
                                     </div>
                                     <div className="p-6">
                                         <p className="text-slate-600 leading-relaxed mb-4">{therapy.description}</p>
