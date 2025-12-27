@@ -1,1172 +1,879 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en-GB">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Celloxen Health Portal - Advanced clinic management system for health assessments, therapy management, and patient care. Transform your healthcare practice today.">
-    <meta name="keywords" content="Celloxen, health portal, clinic management, therapy management, health assessments, iridology, patient care">
-    <title>Celloxen Health Portal - Transform Your Healthcare Practice</title>
-
-    <!-- Tailwind CSS -->
-    <script src="https://cdn.tailwindcss.com"></script>
-
-    <!-- React 18 -->
-    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-
-    <!-- Babel for JSX -->
-    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-
-    <!-- Lucide Icons -->
-    <script src="https://unpkg.com/lucide@latest/dist/umd/lucide.min.js"></script>
-
-    <!-- Google Fonts -->
+    <title>Celloxen Health | Advanced Wellness & Clinic Management Platform</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
-
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    fontFamily: {
-                        'inter': ['Inter', 'sans-serif'],
-                    },
-                    colors: {
-                        navy: {
-                            50: '#f0f4ff',
-                            100: '#e0e9ff',
-                            200: '#c7d6fe',
-                            300: '#a4b8fc',
-                            400: '#8093f8',
-                            500: '#5b6cf1',
-                            600: '#4f4ce5',
-                            700: '#3b3bca',
-                            800: '#1e3a8a',
-                            900: '#1e293b',
-                            950: '#0f172a',
-                        },
-                        celloxen: {
-                            primary: '#1e3a8a',
-                            secondary: '#3b82f6',
-                            accent: '#3b82f6',
-                            dark: '#1e293b',
-                            light: '#f8fafc',
-                        }
-                    },
-                    animation: {
-                        'float': 'float 6s ease-in-out infinite',
-                        'float-slow': 'float 8s ease-in-out infinite',
-                        'pulse-slow': 'pulse 4s cubic-bezier(0.4, 0, 0.6, 1) infinite',
-                        'gradient': 'gradient 8s ease infinite',
-                        'fade-in': 'fadeIn 0.6s ease-out forwards',
-                        'slide-up': 'slideUp 0.6s ease-out forwards',
-                        'slide-in-left': 'slideInLeft 0.6s ease-out forwards',
-                        'slide-in-right': 'slideInRight 0.6s ease-out forwards',
-                    },
-                    keyframes: {
-                        float: {
-                            '0%, 100%': { transform: 'translateY(0px)' },
-                            '50%': { transform: 'translateY(-20px)' },
-                        },
-                        gradient: {
-                            '0%, 100%': { backgroundPosition: '0% 50%' },
-                            '50%': { backgroundPosition: '100% 50%' },
-                        },
-                        fadeIn: {
-                            '0%': { opacity: '0' },
-                            '100%': { opacity: '1' },
-                        },
-                        slideUp: {
-                            '0%': { opacity: '0', transform: 'translateY(30px)' },
-                            '100%': { opacity: '1', transform: 'translateY(0)' },
-                        },
-                        slideInLeft: {
-                            '0%': { opacity: '0', transform: 'translateX(-30px)' },
-                            '100%': { opacity: '1', transform: 'translateX(0)' },
-                        },
-                        slideInRight: {
-                            '0%': { opacity: '0', transform: 'translateX(30px)' },
-                            '100%': { opacity: '1', transform: 'translateX(0)' },
-                        },
-                    },
-                },
-            },
-        }
-    </script>
-
+    <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
     <style>
+        :root {
+            --navy-900: #0f172a;
+            --navy-800: #1e293b;
+            --navy-700: #1e3a8a;
+            --navy-600: #2563eb;
+            --navy-500: #3b82f6;
+            --gold-500: #d4af37;
+            --gold-400: #f0d78c;
+            --white: #ffffff;
+            --gray-50: #f8fafc;
+            --gray-100: #f1f5f9;
+        }
+
         * {
-            font-family: 'Inter', sans-serif;
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
         }
 
         html {
             scroll-behavior: smooth;
         }
 
-        .gradient-text {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-            background-clip: text;
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--white);
+            color: var(--navy-900);
+            line-height: 1.6;
+            overflow-x: hidden;
         }
 
-        .gradient-bg {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(212, 175, 55, 0.2);
         }
 
-        .gradient-bg-animated {
-            background: linear-gradient(-45deg, #1e3a8a, #3b82f6, #1e293b, #3b82f6);
-            background-size: 400% 400%;
-            animation: gradient 15s ease infinite;
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1.25rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
         }
 
-        .card-hover {
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--navy-900);
+        }
+
+        .logo-text {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.5rem;
+            color: var(--white);
+            font-weight: 400;
+        }
+
+        .logo-text span {
+            color: var(--gold-500);
+            font-style: italic;
+        }
+
+        .nav-cta {
+            background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
+            color: var(--navy-900);
+            padding: 0.875rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 0.95rem;
+            letter-spacing: 0.5px;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
+            text-transform: uppercase;
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 30px rgba(212, 175, 55, 0.5);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            position: relative;
+            display: flex;
+            align-items: center;
+            padding-top: 80px;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            inset: 0;
+            background-image: 
+                radial-gradient(circle at 20% 30%, rgba(212, 175, 55, 0.08) 0%, transparent 50%),
+                radial-gradient(circle at 80% 70%, rgba(59, 130, 246, 0.08) 0%, transparent 50%);
+        }
+
+        .hero-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 4rem 2rem;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-content h1 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 4.5rem;
+            line-height: 1.1;
+            color: var(--white);
+            margin-bottom: 1.5rem;
+            text-shadow: 0 2px 30px rgba(0, 0, 0, 0.3);
+        }
+
+        .hero-content h1 .highlight {
+            color: var(--gold-500);
+            font-style: italic;
+        }
+
+        .hero-content p {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 2.5rem;
+            line-height: 1.8;
+            max-width: 540px;
+            text-shadow: 0 1px 10px rgba(0, 0, 0, 0.2);
+        }
+
+        .hero-badges {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2.5rem;
+            flex-wrap: wrap;
+        }
+
+        .badge {
+            background: rgba(212, 175, 55, 0.15);
+            border: 1px solid rgba(212, 175, 55, 0.3);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            color: var(--gold-400);
+            font-size: 0.9rem;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .badge svg {
+            width: 18px;
+            height: 18px;
+        }
+
+        .hero-cta {
+            display: flex;
+            gap: 1rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, var(--gold-500), var(--gold-400));
+            color: var(--navy-900);
+            padding: 1.25rem 3rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 6px 25px rgba(212, 175, 55, 0.4);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 10px 40px rgba(212, 175, 55, 0.5);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--white);
+            padding: 1.25rem 3rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 700;
+            font-size: 1.1rem;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--white);
+        }
+
+        .hero-visual {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 1.5rem;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.08);
+            backdrop-filter: blur(10px);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 20px;
+            padding: 2rem;
             transition: all 0.3s ease;
         }
 
-        .card-hover:hover {
-            transform: translateY(-8px);
-            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.25);
+        .stat-card:hover {
+            transform: translateY(-5px);
+            background: rgba(255, 255, 255, 0.12);
         }
 
-        .glow {
-            box-shadow: 0 0 40px rgba(59, 130, 246, 0.3);
+        .stat-number {
+            font-family: 'DM Serif Display', serif;
+            font-size: 3rem;
+            font-weight: 700;
+            color: var(--gold-500);
+            margin-bottom: 0.5rem;
         }
 
-        .nav-blur {
-            backdrop-filter: blur(12px);
-            -webkit-backdrop-filter: blur(12px);
+        .stat-label {
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
+            font-weight: 500;
         }
 
-        .hero-pattern {
-            background-image: radial-gradient(circle at 25% 25%, rgba(59, 130, 246, 0.1) 0%, transparent 50%),
-                              radial-gradient(circle at 75% 75%, rgba(30, 58, 138, 0.1) 0%, transparent 50%);
+        /* Features Section */
+        .features {
+            padding: 8rem 2rem;
+            background: var(--white);
+        }
+
+        .section-header {
+            text-align: center;
+            max-width: 800px;
+            margin: 0 auto 5rem;
+        }
+
+        .section-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.1), rgba(59, 130, 246, 0.1));
+            color: var(--navy-700);
+            padding: 0.625rem 1.5rem;
+            border-radius: 50px;
+            font-size: 0.875rem;
+            font-weight: 700;
+            letter-spacing: 1.5px;
+            text-transform: uppercase;
+            margin-bottom: 1.5rem;
+        }
+
+        .section-title {
+            font-family: 'DM Serif Display', serif;
+            font-size: 3.5rem;
+            color: var(--navy-900);
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .section-subtitle {
+            font-size: 1.25rem;
+            color: var(--navy-800);
+            line-height: 1.8;
+        }
+
+        .features-grid {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2.5rem;
+        }
+
+        .feature-card {
+            background: var(--gray-50);
+            border-radius: 24px;
+            padding: 3rem;
+            transition: all 0.4s ease;
+            border: 2px solid transparent;
+        }
+
+        .feature-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 30px 60px rgba(30, 58, 138, 0.12);
+            border-color: var(--navy-500);
         }
 
         .feature-icon {
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
+            width: 70px;
+            height: 70px;
+            background: linear-gradient(135deg, var(--navy-700), var(--navy-500));
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
         }
 
-        @keyframes pulse-ring {
-            0% {
-                transform: scale(0.8);
-                opacity: 0.8;
-            }
-            100% {
-                transform: scale(1.4);
-                opacity: 0;
-            }
+        .feature-icon svg {
+            width: 35px;
+            height: 35px;
+            color: var(--gold-500);
         }
 
-        .pulse-ring::before {
+        .feature-card h3 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 1.5rem;
+            color: var(--navy-900);
+            margin-bottom: 1rem;
+        }
+
+        .feature-card p {
+            color: var(--navy-800);
+            line-height: 1.7;
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 8rem 2rem;
+            background: linear-gradient(135deg, #0f172a 0%, #1e3a8a 100%);
+            position: relative;
+        }
+
+        .cta::before {
             content: '';
             position: absolute;
-            inset: -8px;
-            border-radius: 9999px;
-            background: linear-gradient(135deg, #1e3a8a 0%, #3b82f6 100%);
-            animation: pulse-ring 2s ease-out infinite;
-            z-index: -1;
+            inset: 0;
+            background-image: 
+                radial-gradient(circle at 30% 50%, rgba(212, 175, 55, 0.12) 0%, transparent 50%),
+                radial-gradient(circle at 70% 50%, rgba(59, 130, 246, 0.12) 0%, transparent 50%);
         }
 
-        .scroll-indicator {
-            animation: bounce 2s infinite;
+        .cta-container {
+            max-width: 1000px;
+            margin: 0 auto;
+            text-align: center;
+            position: relative;
+            z-index: 1;
         }
 
-        @keyframes bounce {
-            0%, 20%, 50%, 80%, 100% {
-                transform: translateY(0) translateX(-50%);
+        .cta-container h2 {
+            font-family: 'DM Serif Display', serif;
+            font-size: 3.5rem;
+            color: var(--white);
+            margin-bottom: 1.5rem;
+            line-height: 1.2;
+        }
+
+        .cta-container p {
+            font-size: 1.35rem;
+            color: rgba(255, 255, 255, 0.9);
+            margin-bottom: 3rem;
+            line-height: 1.8;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--navy-900);
+            color: rgba(255, 255, 255, 0.8);
+            padding: 4rem 2rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 4rem;
+            margin-bottom: 3rem;
+        }
+
+        .footer-brand p {
+            margin-top: 1rem;
+            line-height: 1.8;
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .footer-col h4 {
+            color: var(--white);
+            font-weight: 700;
+            margin-bottom: 1.5rem;
+            font-size: 1.1rem;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col ul li {
+            margin-bottom: 0.875rem;
+        }
+
+        .footer-col a {
+            color: rgba(255, 255, 255, 0.7);
+            text-decoration: none;
+            transition: color 0.3s ease;
+        }
+
+        .footer-col a:hover {
+            color: var(--gold-500);
+        }
+
+        .footer-bottom {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding-top: 2rem;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-legal {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .footer-legal a {
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+            font-size: 0.9rem;
+        }
+
+        /* Responsive */
+        @media (max-width: 968px) {
+            .hero-container {
+                grid-template-columns: 1fr;
+                text-align: center;
             }
-            40% {
-                transform: translateY(-10px) translateX(-50%);
+
+            .hero-content h1 {
+                font-size: 3rem;
             }
-            60% {
-                transform: translateY(-5px) translateX(-50%);
+
+            .hero-content p {
+                margin-left: auto;
+                margin-right: auto;
+            }
+
+            .hero-badges,
+            .hero-cta {
+                justify-content: center;
+            }
+
+            .features-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-content {
+                grid-template-columns: 1fr;
+            }
+
+            .section-title {
+                font-size: 2.5rem;
+            }
+
+            .cta-container h2 {
+                font-size: 2.5rem;
             }
         }
     </style>
 </head>
-<body class="bg-slate-50">
-    <div id="root"></div>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <div class="logo-icon">C</div>
+                <span class="logo-text">Celloxen <span>Health</span></span>
+            </a>
+            <a href="/portal.html" class="nav-cta">Clinic Portal</a>
+        </div>
+    </nav>
 
-    <script type="text/babel">
-        const { useState, useEffect, useRef } = React;
-
-        // Icon component using Lucide
-        const Icon = ({ name, size = 24, className = '' }) => {
-            const iconRef = useRef(null);
-
-            useEffect(() => {
-                if (iconRef.current && lucide.icons[name]) {
-                    iconRef.current.innerHTML = '';
-                    const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-                    svg.setAttribute('width', size);
-                    svg.setAttribute('height', size);
-                    svg.setAttribute('viewBox', '0 0 24 24');
-                    svg.setAttribute('fill', 'none');
-                    svg.setAttribute('stroke', 'currentColor');
-                    svg.setAttribute('stroke-width', '2');
-                    svg.setAttribute('stroke-linecap', 'round');
-                    svg.setAttribute('stroke-linejoin', 'round');
-                    svg.innerHTML = lucide.icons[name][2];
-                    iconRef.current.appendChild(svg);
-                }
-            }, [name, size]);
-
-            return <span ref={iconRef} className={className}></span>;
-        };
-
-        // Navigation Component
-        const Navigation = () => {
-            const [isScrolled, setIsScrolled] = useState(false);
-            const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
-            useEffect(() => {
-                const handleScroll = () => {
-                    setIsScrolled(window.scrollY > 20);
-                };
-                window.addEventListener('scroll', handleScroll);
-                return () => window.removeEventListener('scroll', handleScroll);
-            }, []);
-
-            const navLinks = [
-                { name: 'Features', href: '#features' },
-                { name: 'Services', href: '#services' },
-                { name: 'About', href: '#about' },
-                { name: 'Contact', href: '#contact' },
-            ];
-
-            return (
-                <nav className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
-                    isScrolled ? 'bg-white/90 nav-blur shadow-lg' : 'bg-transparent'
-                }`}>
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="flex items-center justify-between h-20">
-                            {/* Logo */}
-                            <div className="flex items-center space-x-3">
-                                <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center shadow-lg">
-                                    <span className="text-white font-bold text-xl">C</span>
-                                </div>
-                                <span className={`text-2xl font-bold ${isScrolled ? 'text-navy-800' : 'text-white'}`}>
-                                    Celloxen
-                                </span>
-                            </div>
-
-                            {/* Desktop Navigation */}
-                            <div className="hidden md:flex items-center space-x-8">
-                                {navLinks.map((link) => (
-                                    <a
-                                        key={link.name}
-                                        href={link.href}
-                                        className={`font-medium transition-colors duration-200 ${
-                                            isScrolled
-                                                ? 'text-slate-600 hover:text-blue-600'
-                                                : 'text-white/90 hover:text-white'
-                                        }`}
-                                    >
-                                        {link.name}
-                                    </a>
-                                ))}
-                            </div>
-
-                            {/* CTA Buttons */}
-                            <div className="hidden md:flex items-center space-x-4">
-                                <a
-                                    href="/login"
-                                    className={`font-medium transition-colors duration-200 ${
-                                        isScrolled
-                                            ? 'text-slate-600 hover:text-blue-600'
-                                            : 'text-white/90 hover:text-white'
-                                    }`}
-                                >
-                                    Sign In
-                                </a>
-                                <a
-                                    href="register.html"
-                                    className="bg-gradient-to-r from-blue-600 to-blue-500 text-white px-6 py-2.5 rounded-full font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 transform hover:scale-105"
-                                >
-                                    Get Started
-                                </a>
-                            </div>
-
-                            {/* Mobile Menu Button */}
-                            <button
-                                onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-                                className="md:hidden p-2"
-                            >
-                                <div className={`w-6 h-0.5 mb-1.5 transition-all duration-300 ${
-                                    isScrolled ? 'bg-navy-800' : 'bg-white'
-                                } ${isMobileMenuOpen ? 'rotate-45 translate-y-2' : ''}`}></div>
-                                <div className={`w-6 h-0.5 mb-1.5 transition-all duration-300 ${
-                                    isScrolled ? 'bg-navy-800' : 'bg-white'
-                                } ${isMobileMenuOpen ? 'opacity-0' : ''}`}></div>
-                                <div className={`w-6 h-0.5 transition-all duration-300 ${
-                                    isScrolled ? 'bg-navy-800' : 'bg-white'
-                                } ${isMobileMenuOpen ? '-rotate-45 -translate-y-2' : ''}`}></div>
-                            </button>
-                        </div>
-
-                        {/* Mobile Menu */}
-                        {isMobileMenuOpen && (
-                            <div className="md:hidden bg-white rounded-2xl shadow-xl mt-2 p-4 animate-fade-in">
-                                {navLinks.map((link) => (
-                                    <a
-                                        key={link.name}
-                                        href={link.href}
-                                        className="block py-3 px-4 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-lg font-medium"
-                                        onClick={() => setIsMobileMenuOpen(false)}
-                                    >
-                                        {link.name}
-                                    </a>
-                                ))}
-                                <div className="mt-4 pt-4 border-t border-slate-100 space-y-3">
-                                    <a
-                                        href="/login"
-                                        className="block text-center py-2.5 text-slate-600 font-medium"
-                                    >
-                                        Sign In
-                                    </a>
-                                    <a
-                                        href="register.html"
-                                        className="block text-center bg-gradient-to-r from-blue-600 to-blue-500 text-white py-2.5 rounded-full font-semibold"
-                                    >
-                                        Get Started
-                                    </a>
-                                </div>
-                            </div>
-                        )}
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-container">
+            <div class="hero-content">
+                <h1>
+                    Transform Your
+                    <span class="highlight">Healthcare Practice</span>
+                </h1>
+                <p>
+                    Advanced bioelectronic wellness technology meets comprehensive clinic management. 
+                    Streamline patient care, AI-powered assessments, and therapy management in one powerful platform.
+                </p>
+                <div class="hero-badges">
+                    <div class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>AI-Powered Analysis</span>
                     </div>
-                </nav>
-            );
-        };
-
-        // Hero Section
-        const HeroSection = () => {
-            return (
-                <section className="relative min-h-screen gradient-bg hero-pattern overflow-hidden">
-                    {/* Background Elements */}
-                    <div className="absolute inset-0 overflow-hidden">
-                        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-blue-500/10 rounded-full blur-3xl animate-float"></div>
-                        <div className="absolute bottom-1/4 right-1/4 w-80 h-80 bg-blue-500/10 rounded-full blur-3xl animate-float-slow"></div>
+                    <div class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>UK Designed</span>
                     </div>
-
-                    <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-32 pb-20">
-                        <div className="grid lg:grid-cols-2 gap-12 items-center min-h-[calc(100vh-200px)]">
-                            {/* Left Content */}
-                            <div className="text-center lg:text-left animate-slide-up">
-                                <div className="inline-flex items-center bg-white/10 rounded-full px-4 py-2 mb-6">
-                                    <span className="w-2 h-2 bg-green-400 rounded-full mr-2 animate-pulse"></span>
-                                    <span className="text-white/80 text-sm font-medium">Trusted by Healthcare Professionals</span>
-                                </div>
-
-                                <h1 className="text-4xl sm:text-5xl lg:text-6xl font-bold text-white leading-tight mb-6">
-                                    Transform Your
-                                    <span className="block gradient-text">Healthcare Practice</span>
-                                </h1>
-
-                                <p className="text-lg sm:text-xl text-white mb-8 max-w-xl mx-auto lg:mx-0">
-                                    Celloxen Health Portal is your comprehensive clinic management solution.
-                                    Streamline patient care, health assessments, and therapy management all in one powerful platform.
-                                </p>
-
-                                <div className="flex flex-col sm:flex-row items-center justify-center lg:justify-start gap-4 mb-12">
-                                    <a
-                                        href="register.html"
-                                        className="w-full sm:w-auto bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-full font-semibold text-lg hover:shadow-xl hover:shadow-blue-500/30 transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
-                                    >
-                                        Register Your Clinic
-                                        <Icon name="arrow-right" size={20} />
-                                    </a>
-                                    <a
-                                        href="#features"
-                                        className="w-full sm:w-auto bg-white/10 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2"
-                                    >
-                                        <Icon name="info" size={20} />
-                                        Learn More
-                                    </a>
-                                </div>
-
-                                {/* Stats */}
-                                <div className="grid grid-cols-3 gap-8">
-                                    <div className="text-center lg:text-left">
-                                        <div className="text-3xl sm:text-4xl font-bold text-white">500+</div>
-                                        <div className="text-white/90 text-sm">Active Clinics</div>
-                                    </div>
-                                    <div className="text-center lg:text-left">
-                                        <div className="text-3xl sm:text-4xl font-bold text-white">50K+</div>
-                                        <div className="text-white/90 text-sm">Patients Served</div>
-                                    </div>
-                                    <div className="text-center lg:text-left">
-                                        <div className="text-3xl sm:text-4xl font-bold text-white">99.9%</div>
-                                        <div className="text-white/90 text-sm">Uptime</div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right Content - Dashboard Preview */}
-                            <div className="relative animate-slide-in-right hidden lg:block">
-                                <div className="relative">
-                                    {/* Main Dashboard Card */}
-                                    <div className="bg-white/10 backdrop-blur-xl rounded-3xl p-6 shadow-2xl border border-white/20 glow">
-                                        <div className="flex items-center justify-between mb-6">
-                                            <div className="flex items-center gap-3">
-                                                <div className="w-10 h-10 bg-gradient-to-br from-blue-500 to-blue-400 rounded-xl flex items-center justify-center">
-                                                    <Icon name="activity" size={20} className="text-white" />
-                                                </div>
-                                                <div>
-                                                    <div className="text-white font-semibold">Dashboard</div>
-                                                    <div className="text-white/50 text-sm">Real-time analytics</div>
-                                                </div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <div className="w-3 h-3 bg-red-400 rounded-full"></div>
-                                                <div className="w-3 h-3 bg-yellow-400 rounded-full"></div>
-                                                <div className="w-3 h-3 bg-green-400 rounded-full"></div>
-                                            </div>
-                                        </div>
-
-                                        {/* Mini Stats */}
-                                        <div className="grid grid-cols-2 gap-4 mb-6">
-                                            <div className="bg-white/10 rounded-xl p-4">
-                                                <div className="text-white/90 text-sm mb-1">Today's Patients</div>
-                                                <div className="text-2xl font-bold text-white">24</div>
-                                                <div className="text-green-400 text-sm flex items-center gap-1">
-                                                    <Icon name="trending-up" size={14} />
-                                                    +12%
-                                                </div>
-                                            </div>
-                                            <div className="bg-white/10 rounded-xl p-4">
-                                                <div className="text-white/90 text-sm mb-1">Assessments</div>
-                                                <div className="text-2xl font-bold text-white">18</div>
-                                                <div className="text-green-400 text-sm flex items-center gap-1">
-                                                    <Icon name="trending-up" size={14} />
-                                                    +8%
-                                                </div>
-                                            </div>
-                                        </div>
-
-                                        {/* Chart Placeholder */}
-                                        <div className="bg-white/5 rounded-xl p-4 h-32 flex items-end justify-between gap-2">
-                                            {[40, 65, 45, 80, 55, 70, 90].map((height, i) => (
-                                                <div
-                                                    key={i}
-                                                    className="flex-1 bg-gradient-to-t from-blue-500 to-blue-400 rounded-t-lg"
-                                                    style={{ height: `${height}%` }}
-                                                ></div>
-                                            ))}
-                                        </div>
-                                    </div>
-
-                                    {/* Floating Card 1 */}
-                                    <div className="absolute -left-8 top-1/4 bg-white rounded-2xl p-4 shadow-xl animate-float">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center">
-                                                <Icon name="check-circle" size={24} className="text-green-600" />
-                                            </div>
-                                            <div>
-                                                <div className="font-semibold text-slate-800">Assessment Complete</div>
-                                                <div className="text-sm text-slate-500">Patient: John D.</div>
-                                            </div>
-                                        </div>
-                                    </div>
-
-                                    {/* Floating Card 2 */}
-                                    <div className="absolute -right-4 bottom-1/4 bg-white rounded-2xl p-4 shadow-xl animate-float-slow">
-                                        <div className="flex items-center gap-3">
-                                            <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center">
-                                                <Icon name="calendar" size={24} className="text-blue-600" />
-                                            </div>
-                                            <div>
-                                                <div className="font-semibold text-slate-800">New Appointment</div>
-                                                <div className="text-sm text-slate-500">Today at 2:30 PM</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
+                    <div class="badge">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>GDPR Compliant</span>
                     </div>
-
-                    {/* Scroll Indicator */}
-                    <div className="absolute bottom-8 left-1/2 scroll-indicator">
-                        <div className="w-6 h-10 border-2 border-white/30 rounded-full flex items-start justify-center p-2">
-                            <div className="w-1.5 h-3 bg-white/60 rounded-full animate-pulse"></div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // Features Section
-        const FeaturesSection = () => {
-            const features = [
-                {
-                    icon: 'users',
-                    title: 'Patient Management',
-                    description: 'Comprehensive patient records, medical history tracking, and streamlined registration process.',
-                    color: 'from-blue-500 to-blue-600'
-                },
-                {
-                    icon: 'clipboard-check',
-                    title: 'Health Assessments',
-                    description: 'AI-powered health assessments with detailed analysis and personalised recommendations.',
-                    color: 'from-blue-500 to-blue-600'
-                },
-                {
-                    icon: 'eye',
-                    title: 'Iridology Analysis',
-                    description: 'Advanced iris analysis with AI-generated reports and comprehensive health insights.',
-                    color: 'from-purple-500 to-purple-600'
-                },
-                {
-                    icon: 'heart-pulse',
-                    title: 'Therapy Management',
-                    description: 'Complete therapy program management with session tracking and progress monitoring.',
-                    color: 'from-pink-500 to-pink-600'
-                },
-                {
-                    icon: 'calendar-check',
-                    title: 'Appointment Scheduling',
-                    description: 'Smart scheduling system with automated reminders and calendar integration.',
-                    color: 'from-green-500 to-green-600'
-                },
-                {
-                    icon: 'file-text',
-                    title: 'Invoice & Billing',
-                    description: 'Professional invoicing, payment tracking, and financial reporting tools.',
-                    color: 'from-orange-500 to-orange-600'
-                },
-            ];
-
-            return (
-                <section id="features" className="py-20 lg:py-32 bg-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        {/* Section Header */}
-                        <div className="text-center max-w-3xl mx-auto mb-16">
-                            <div className="inline-flex items-center bg-blue-50 rounded-full px-4 py-2 mb-6">
-                                <span className="text-blue-600 text-sm font-semibold">Powerful Features</span>
-                            </div>
-                            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900 mb-6">
-                                Everything You Need to
-                                <span className="gradient-text"> Manage Your Clinic</span>
-                            </h2>
-                            <p className="text-lg text-slate-600">
-                                Our comprehensive suite of tools helps healthcare professionals deliver
-                                exceptional patient care while streamlining operations.
-                            </p>
-                        </div>
-
-                        {/* Features Grid */}
-                        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-8">
-                            {features.map((feature, index) => (
-                                <div
-                                    key={index}
-                                    className="bg-white rounded-2xl p-8 border border-slate-100 card-hover"
-                                >
-                                    <div className={`w-14 h-14 bg-gradient-to-br ${feature.color} rounded-2xl flex items-center justify-center mb-6 shadow-lg`}>
-                                        <Icon name={feature.icon} size={28} className="text-white" />
-                                    </div>
-                                    <h3 className="text-xl font-bold text-navy-900 mb-3">{feature.title}</h3>
-                                    <p className="text-slate-600 leading-relaxed">{feature.description}</p>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // Services Section
-        const ServicesSection = () => {
-            const therapyDevices = [
-                {
-                    code: 'C-101',
-                    name: 'Energy Rejuvenation',
-                    description: 'Revitalize your body\'s natural energy systems and combat fatigue.',
-                    icon: 'zap'
-                },
-                {
-                    code: 'C-102',
-                    name: 'Chronic Pain Management',
-                    description: 'Advanced therapy protocols for managing and reducing chronic pain.',
-                    icon: 'shield'
-                },
-                {
-                    code: 'C-103',
-                    name: 'Anxiety & Stress Relief',
-                    description: 'Specialized programs to help manage anxiety and promote relaxation.',
-                    icon: 'heart'
-                },
-                {
-                    code: 'C-104',
-                    name: 'Diabetic Support',
-                    description: 'Complementary therapy support for diabetes management.',
-                    icon: 'activity'
-                },
-            ];
-
-            return (
-                <section id="services" className="py-20 lg:py-32 bg-slate-50">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="grid lg:grid-cols-2 gap-16 items-center">
-                            {/* Left Content */}
-                            <div>
-                                <div className="inline-flex items-center bg-blue-50 rounded-full px-4 py-2 mb-6">
-                                    <span className="text-blue-600 text-sm font-semibold">Celloxen Therapies</span>
-                                </div>
-                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900 mb-6">
-                                    Advanced Therapy
-                                    <span className="gradient-text"> Solutions</span>
-                                </h2>
-                                <p className="text-lg text-slate-600 mb-8">
-                                    Our Celloxen therapy devices offer cutting-edge treatments designed
-                                    to support various health conditions. Each program is tailored to
-                                    deliver optimal results through our proprietary technology.
-                                </p>
-
-                                <div className="space-y-6">
-                                    {therapyDevices.map((device, index) => (
-                                        <div
-                                            key={index}
-                                            className="flex items-start gap-4 p-4 bg-white rounded-xl border border-slate-100 hover:border-blue-200 hover:shadow-lg transition-all duration-300"
-                                        >
-                                            <div className="w-12 h-12 bg-gradient-to-br from-blue-500 to-blue-500 rounded-xl flex items-center justify-center flex-shrink-0">
-                                                <Icon name={device.icon} size={24} className="text-white" />
-                                            </div>
-                                            <div>
-                                                <div className="flex items-center gap-2 mb-1">
-                                                    <span className="text-xs font-mono bg-slate-100 text-slate-600 px-2 py-0.5 rounded">{device.code}</span>
-                                                    <h4 className="font-semibold text-navy-900">{device.name}</h4>
-                                                </div>
-                                                <p className="text-sm text-slate-600">{device.description}</p>
-                                            </div>
-                                        </div>
-                                    ))}
-                                </div>
-                            </div>
-
-                            {/* Right Content - Image/Illustration */}
-                            <div className="relative">
-                                <div className="bg-gradient-to-br from-blue-600 to-blue-500 rounded-3xl p-8 lg:p-12 text-white">
-                                    <div className="absolute top-4 right-4 w-20 h-20 bg-white/10 rounded-full blur-2xl"></div>
-                                    <div className="absolute bottom-4 left-4 w-32 h-32 bg-white/10 rounded-full blur-3xl"></div>
-
-                                    <div className="relative">
-                                        <div className="w-20 h-20 bg-white/20 rounded-2xl flex items-center justify-center mb-8">
-                                            <Icon name="heart-pulse" size={40} className="text-white" />
-                                        </div>
-
-                                        <h3 className="text-2xl font-bold mb-4">Personalised Care</h3>
-                                        <p className="text-white/80 mb-8">
-                                            Each therapy program is customised based on comprehensive health
-                                            assessments and individual patient needs.
-                                        </p>
-
-                                        <div className="grid grid-cols-2 gap-4">
-                                            <div className="bg-white/10 rounded-xl p-4">
-                                                <div className="text-3xl font-bold mb-1">8+</div>
-                                                <div className="text-sm text-white">Therapy Programs</div>
-                                            </div>
-                                            <div className="bg-white/10 rounded-xl p-4">
-                                                <div className="text-3xl font-bold mb-1">95%</div>
-                                                <div className="text-sm text-white">Patient Satisfaction</div>
-                                            </div>
-                                        </div>
-
-                                        <a
-                                            href="register.html"
-                                            className="inline-flex items-center gap-2 mt-8 bg-white text-blue-600 px-6 py-3 rounded-full font-semibold hover:shadow-lg transition-all duration-300"
-                                        >
-                                            Learn More
-                                            <Icon name="arrow-right" size={18} />
-                                        </a>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // About Section
-        const AboutSection = () => {
-            return (
-                <section id="about" className="py-20 lg:py-32 bg-white">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="grid lg:grid-cols-2 gap-16 items-center">
-                            {/* Left - Image/Visual */}
-                            <div className="order-2 lg:order-1">
-                                <div className="relative">
-                                    {/* Main Card */}
-                                    <div className="bg-slate-100 rounded-3xl p-8 lg:p-12">
-                                        <div className="grid grid-cols-2 gap-4 mb-6">
-                                            <div className="bg-white rounded-2xl p-6 shadow-sm">
-                                                <Icon name="building-2" size={32} className="text-blue-600 mb-3" />
-                                                <div className="text-2xl font-bold text-navy-900">500+</div>
-                                                <div className="text-slate-600 text-sm">Clinics Worldwide</div>
-                                            </div>
-                                            <div className="bg-white rounded-2xl p-6 shadow-sm">
-                                                <Icon name="users" size={32} className="text-blue-600 mb-3" />
-                                                <div className="text-2xl font-bold text-navy-900">50K+</div>
-                                                <div className="text-slate-600 text-sm">Patients Helped</div>
-                                            </div>
-                                            <div className="bg-white rounded-2xl p-6 shadow-sm">
-                                                <Icon name="award" size={32} className="text-purple-600 mb-3" />
-                                                <div className="text-2xl font-bold text-navy-900">10+</div>
-                                                <div className="text-slate-600 text-sm">Years Experience</div>
-                                            </div>
-                                            <div className="bg-white rounded-2xl p-6 shadow-sm">
-                                                <Icon name="star" size={32} className="text-orange-500 mb-3" />
-                                                <div className="text-2xl font-bold text-navy-900">4.9/5</div>
-                                                <div className="text-slate-600 text-sm">User Rating</div>
-                                            </div>
-                                        </div>
-
-                                        {/* Trust Badges */}
-                                        <div className="flex items-center justify-center gap-6 pt-6 border-t border-slate-200">
-                                            <div className="text-center">
-                                                <Icon name="shield-check" size={24} className="text-green-600 mx-auto mb-1" />
-                                                <div className="text-xs text-slate-600">HIPAA Compliant</div>
-                                            </div>
-                                            <div className="text-center">
-                                                <Icon name="lock" size={24} className="text-blue-600 mx-auto mb-1" />
-                                                <div className="text-xs text-slate-600">256-bit Encryption</div>
-                                            </div>
-                                            <div className="text-center">
-                                                <Icon name="server" size={24} className="text-purple-600 mx-auto mb-1" />
-                                                <div className="text-xs text-slate-600">99.9% Uptime</div>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* Right - Content */}
-                            <div className="order-1 lg:order-2">
-                                <div className="inline-flex items-center bg-purple-50 rounded-full px-4 py-2 mb-6">
-                                    <span className="text-purple-600 text-sm font-semibold">About Celloxen</span>
-                                </div>
-                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900 mb-6">
-                                    Empowering Healthcare
-                                    <span className="gradient-text"> Through Innovation</span>
-                                </h2>
-                                <p className="text-lg text-slate-600 mb-6">
-                                    Celloxen Health Portal was founded with a simple mission: to make healthcare
-                                    management more efficient, accessible, and effective for both practitioners
-                                    and patients.
-                                </p>
-                                <p className="text-lg text-slate-600 mb-8">
-                                    Our platform combines cutting-edge technology with intuitive design,
-                                    enabling healthcare professionals to focus on what matters most -
-                                    providing exceptional patient care.
-                                </p>
-
-                                <div className="space-y-4 mb-8">
-                                    {[
-                                        'Multi-tenant architecture for clinic networks',
-                                        'AI-powered health assessments and insights',
-                                        'Comprehensive therapy program management',
-                                        'Secure, HIPAA-compliant data storage',
-                                    ].map((item, index) => (
-                                        <div key={index} className="flex items-center gap-3">
-                                            <div className="w-6 h-6 bg-green-100 rounded-full flex items-center justify-center flex-shrink-0">
-                                                <Icon name="check" size={14} className="text-green-600" />
-                                            </div>
-                                            <span className="text-slate-700">{item}</span>
-                                        </div>
-                                    ))}
-                                </div>
-
-                                <a
-                                    href="#contact"
-                                    className="inline-flex items-center gap-2 bg-gradient-to-r from-blue-600 to-blue-500 text-white px-8 py-4 rounded-full font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300"
-                                >
-                                    Contact Us
-                                    <Icon name="arrow-right" size={20} />
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // Testimonials Section
-        const TestimonialsSection = () => {
-            const testimonials = [
-                {
-                    quote: "Celloxen has transformed how we manage our clinic. The health assessment tools are incredibly powerful and our patients love the portal.",
-                    author: "Dr. Sarah Mitchell",
-                    role: "Clinic Director",
-                    clinic: "Wellness First Clinic"
-                },
-                {
-                    quote: "The therapy management system has streamlined our operations significantly. We've seen a 40% improvement in patient follow-through rates.",
-                    author: "Michael Chen",
-                    role: "Practice Manager",
-                    clinic: "Holistic Health Center"
-                },
-                {
-                    quote: "Outstanding support team and intuitive interface. The iridology analysis feature has been a game-changer for our diagnostic process.",
-                    author: "Dr. Emma Williams",
-                    role: "Naturopathic Physician",
-                    clinic: "Natural Care Institute"
-                }
-            ];
-
-            return (
-                <section className="py-20 lg:py-32 gradient-bg">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        {/* Section Header */}
-                        <div className="text-center max-w-3xl mx-auto mb-16">
-                            <div className="inline-flex items-center bg-white/10 rounded-full px-4 py-2 mb-6">
-                                <span className="text-white/80 text-sm font-semibold">Testimonials</span>
-                            </div>
-                            <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-                                Trusted by Healthcare
-                                <span className="block">Professionals Worldwide</span>
-                            </h2>
-                        </div>
-
-                        {/* Testimonials Grid */}
-                        <div className="grid md:grid-cols-3 gap-8">
-                            {testimonials.map((testimonial, index) => (
-                                <div
-                                    key={index}
-                                    className="bg-white/10 backdrop-blur-sm rounded-2xl p-8 border border-white/10 hover:bg-white/15 transition-all duration-300"
-                                >
-                                    <div className="flex gap-1 mb-6">
-                                        {[...Array(5)].map((_, i) => (
-                                            <Icon key={i} name="star" size={20} className="text-yellow-400 fill-current" />
-                                        ))}
-                                    </div>
-                                    <p className="text-white/80 text-lg mb-6 leading-relaxed">
-                                        "{testimonial.quote}"
-                                    </p>
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 bg-gradient-to-br from-blue-400 to-blue-400 rounded-full flex items-center justify-center">
-                                            <span className="text-white font-bold text-lg">
-                                                {testimonial.author.split(' ').map(n => n[0]).join('')}
-                                            </span>
-                                        </div>
-                                        <div>
-                                            <div className="text-white font-semibold">{testimonial.author}</div>
-                                            <div className="text-white/90 text-sm">{testimonial.role}</div>
-                                            <div className="text-white/40 text-sm">{testimonial.clinic}</div>
-                                        </div>
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // CTA Section
-        const CTASection = () => {
-            return (
-                <section className="py-20 lg:py-32 bg-white">
-                    <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="bg-gradient-to-br from-blue-600 via-blue-700 to-blue-600 rounded-3xl p-8 lg:p-16 text-center relative overflow-hidden">
-                            {/* Background decorations */}
-                            <div className="absolute top-0 right-0 w-64 h-64 bg-white/10 rounded-full blur-3xl"></div>
-                            <div className="absolute bottom-0 left-0 w-48 h-48 bg-blue-400/20 rounded-full blur-3xl"></div>
-
-                            <div className="relative">
-                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-white mb-6">
-                                    Ready to Transform Your Practice?
-                                </h2>
-                                <p className="text-lg text-white max-w-2xl mx-auto mb-10">
-                                    Join healthcare professionals across the UK who trust Celloxen to manage their
-                                    clinics. Register today and experience the difference.
-                                </p>
-
-                                <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-                                    <a
-                                        href="register.html"
-                                        className="w-full sm:w-auto bg-white text-blue-600 px-8 py-4 rounded-full font-semibold text-lg hover:shadow-xl transition-all duration-300 transform hover:scale-105 flex items-center justify-center gap-2"
-                                    >
-                                        Register Your Clinic
-                                        <Icon name="arrow-right" size={20} />
-                                    </a>
-                                    <a
-                                        href="#contact"
-                                        className="w-full sm:w-auto bg-white/10 text-white px-8 py-4 rounded-full font-semibold text-lg hover:bg-white/20 transition-all duration-300 flex items-center justify-center gap-2"
-                                    >
-                                        <Icon name="phone" size={20} />
-                                        Contact Us
-                                    </a>
-                                </div>
-
-                                <p className="text-white text-sm mt-6">
-                                    Get in touch to learn more about our solutions.
-                                </p>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // Contact Section
-        const ContactSection = () => {
-            const [formData, setFormData] = useState({
-                name: '',
-                email: '',
-                clinic: '',
-                message: ''
-            });
-
-            const handleSubmit = (e) => {
-                e.preventDefault();
-                // Handle form submission
-                alert('Thank you for your message! We will get back to you soon.');
-                setFormData({ name: '', email: '', clinic: '', message: '' });
-            };
-
-            return (
-                <section id="contact" className="py-20 lg:py-32 bg-slate-50">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="grid lg:grid-cols-2 gap-16">
-                            {/* Left - Contact Info */}
-                            <div>
-                                <div className="inline-flex items-center bg-green-50 rounded-full px-4 py-2 mb-6">
-                                    <span className="text-green-600 text-sm font-semibold">Get in Touch</span>
-                                </div>
-                                <h2 className="text-3xl sm:text-4xl lg:text-5xl font-bold text-navy-900 mb-6">
-                                    We'd Love to
-                                    <span className="gradient-text"> Hear From You</span>
-                                </h2>
-                                <p className="text-lg text-slate-600 mb-10">
-                                    Have questions about Celloxen? Want to schedule a demo?
-                                    Our team is here to help you get started.
-                                </p>
-
-                                <div className="space-y-6">
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 bg-blue-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                                            <Icon name="mail" size={24} className="text-blue-600" />
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold text-navy-900 mb-1">Email</div>
-                                            <a href="mailto:support@celloxen.com" className="text-slate-600 hover:text-blue-600">
-                                                support@celloxen.com
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 bg-green-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                                            <Icon name="phone" size={24} className="text-green-600" />
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold text-navy-900 mb-1">Phone</div>
-                                            <a href="tel:+44123456789" className="text-slate-600 hover:text-blue-600">
-                                                +44 123 456 789
-                                            </a>
-                                        </div>
-                                    </div>
-
-                                    <div className="flex items-start gap-4">
-                                        <div className="w-12 h-12 bg-purple-100 rounded-xl flex items-center justify-center flex-shrink-0">
-                                            <Icon name="map-pin" size={24} className="text-purple-600" />
-                                        </div>
-                                        <div>
-                                            <div className="font-semibold text-navy-900 mb-1">Address</div>
-                                            <p className="text-slate-600">
-                                                123 Health Street<br />
-                                                London, UK
-                                            </p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                {/* Social Links */}
-                                <div className="flex items-center gap-4 mt-10">
-                                    <a href="#" className="w-10 h-10 bg-slate-200 hover:bg-blue-100 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="facebook" size={20} className="text-slate-600" />
-                                    </a>
-                                    <a href="#" className="w-10 h-10 bg-slate-200 hover:bg-blue-100 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="twitter" size={20} className="text-slate-600" />
-                                    </a>
-                                    <a href="#" className="w-10 h-10 bg-slate-200 hover:bg-blue-100 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="linkedin" size={20} className="text-slate-600" />
-                                    </a>
-                                    <a href="#" className="w-10 h-10 bg-slate-200 hover:bg-blue-100 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="instagram" size={20} className="text-slate-600" />
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* Right - Contact Form */}
-                            <div>
-                                <form onSubmit={handleSubmit} className="bg-white rounded-2xl p-8 shadow-xl border border-slate-100">
-                                    <div className="space-y-6">
-                                        <div>
-                                            <label className="block text-sm font-medium text-navy-900 mb-2">Full Name</label>
-                                            <input
-                                                type="text"
-                                                value={formData.name}
-                                                onChange={(e) => setFormData({...formData, name: e.target.value})}
-                                                required
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="John Doe"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-navy-900 mb-2">Email Address</label>
-                                            <input
-                                                type="email"
-                                                value={formData.email}
-                                                onChange={(e) => setFormData({...formData, email: e.target.value})}
-                                                required
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="john@example.com"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-navy-900 mb-2">Clinic Name (Optional)</label>
-                                            <input
-                                                type="text"
-                                                value={formData.clinic}
-                                                onChange={(e) => setFormData({...formData, clinic: e.target.value})}
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all"
-                                                placeholder="Your Clinic"
-                                            />
-                                        </div>
-
-                                        <div>
-                                            <label className="block text-sm font-medium text-navy-900 mb-2">Message</label>
-                                            <textarea
-                                                value={formData.message}
-                                                onChange={(e) => setFormData({...formData, message: e.target.value})}
-                                                required
-                                                rows="4"
-                                                className="w-full px-4 py-3 border border-slate-200 rounded-xl focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all resize-none"
-                                                placeholder="Tell us how we can help..."
-                                            ></textarea>
-                                        </div>
-
-                                        <button
-                                            type="submit"
-                                            className="w-full bg-gradient-to-r from-blue-600 to-blue-500 text-white py-4 rounded-xl font-semibold hover:shadow-lg hover:shadow-blue-500/30 transition-all duration-300 flex items-center justify-center gap-2"
-                                        >
-                                            Send Message
-                                            <Icon name="send" size={20} />
-                                        </button>
-                                    </div>
-                                </form>
-                            </div>
-                        </div>
-                    </div>
-                </section>
-            );
-        };
-
-        // Footer Component
-        const Footer = () => {
-            return (
-                <footer className="bg-navy-950 text-white py-16">
-                    <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-                        <div className="grid md:grid-cols-2 lg:grid-cols-4 gap-12 mb-12">
-                            {/* Brand */}
-                            <div className="lg:col-span-1">
-                                <div className="flex items-center space-x-3 mb-6">
-                                    <div className="w-10 h-10 bg-gradient-to-br from-blue-600 to-blue-500 rounded-xl flex items-center justify-center">
-                                        <span className="text-white font-bold text-xl">C</span>
-                                    </div>
-                                    <span className="text-2xl font-bold">Celloxen</span>
-                                </div>
-                                <p className="text-slate-400 mb-6">
-                                    Empowering healthcare professionals with innovative clinic management solutions.
-                                </p>
-                                <div className="flex items-center gap-4">
-                                    <a href="#" className="w-10 h-10 bg-white/10 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="facebook" size={18} />
-                                    </a>
-                                    <a href="#" className="w-10 h-10 bg-white/10 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="twitter" size={18} />
-                                    </a>
-                                    <a href="#" className="w-10 h-10 bg-white/10 hover:bg-blue-600 rounded-full flex items-center justify-center transition-colors">
-                                        <Icon name="linkedin" size={18} />
-                                    </a>
-                                </div>
-                            </div>
-
-                            {/* Quick Links */}
-                            <div>
-                                <h4 className="text-lg font-semibold mb-6">Quick Links</h4>
-                                <ul className="space-y-4">
-                                    <li><a href="#features" className="text-slate-400 hover:text-white transition-colors">Features</a></li>
-                                    <li><a href="#services" className="text-slate-400 hover:text-white transition-colors">Services</a></li>
-                                    <li><a href="#about" className="text-slate-400 hover:text-white transition-colors">About Us</a></li>
-                                    <li><a href="#contact" className="text-slate-400 hover:text-white transition-colors">Contact</a></li>
-                                </ul>
-                            </div>
-
-                            {/* Portals */}
-                            <div>
-                                <h4 className="text-lg font-semibold mb-6">Portals</h4>
-                                <ul className="space-y-4">
-                                    <li><a href="/login" className="text-slate-400 hover:text-white transition-colors">Clinic Portal</a></li>
-                                    <li><a href="patient_login.html" className="text-slate-400 hover:text-white transition-colors">Patient Portal</a></li>
-                                    <li><a href="super_admin_login.html" className="text-slate-400 hover:text-white transition-colors">Admin Portal</a></li>
-                                    <li><a href="register.html" className="text-slate-400 hover:text-white transition-colors">Register Clinic</a></li>
-                                </ul>
-                            </div>
-
-                            {/* Support */}
-                            <div>
-                                <h4 className="text-lg font-semibold mb-6">Support</h4>
-                                <ul className="space-y-4">
-                                    <li><a href="#" className="text-slate-400 hover:text-white transition-colors">Help Center</a></li>
-                                    <li><a href="#" className="text-slate-400 hover:text-white transition-colors">Documentation</a></li>
-                                    <li><a href="#" className="text-slate-400 hover:text-white transition-colors">Privacy Policy</a></li>
-                                    <li><a href="#" className="text-slate-400 hover:text-white transition-colors">Terms of Service</a></li>
-                                </ul>
-                            </div>
-                        </div>
-
-                        {/* Bottom Bar */}
-                        <div className="pt-8 border-t border-white/10 flex flex-col md:flex-row items-center justify-between gap-4">
-                            <p className="text-slate-400 text-sm">
-                                &copy; {new Date().getFullYear()} Celloxen Health Portal. All rights reserved.
-                            </p>
-                            <div className="flex items-center gap-6 text-sm">
-                                <a href="#" className="text-slate-400 hover:text-white transition-colors">Privacy</a>
-                                <a href="#" className="text-slate-400 hover:text-white transition-colors">Terms</a>
-                                <a href="#" className="text-slate-400 hover:text-white transition-colors">Cookies</a>
-                            </div>
-                        </div>
-                    </div>
-                </footer>
-            );
-        };
-
-        // Main App Component
-        const App = () => {
-            return (
-                <div className="min-h-screen">
-                    <Navigation />
-                    <HeroSection />
-                    <FeaturesSection />
-                    <ServicesSection />
-                    <AboutSection />
-                    <TestimonialsSection />
-                    <CTASection />
-                    <ContactSection />
-                    <Footer />
                 </div>
-            );
-        };
+                <div class="hero-cta">
+                    <a href="/portal.html" class="btn-primary">
+                        Access Clinic Portal
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                            <line x1="5" y1="12" x2="19" y2="12"/>
+                            <polyline points="12 5 19 12 12 19"/>
+                        </svg>
+                    </a>
+                    <a href="#features" class="btn-secondary">
+                        Learn More
+                    </a>
+                </div>
+            </div>
+            <div class="hero-visual">
+                <div class="stat-card">
+                    <div class="stat-number">AI</div>
+                    <div class="stat-label">Powered Iridology Analysis</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">5</div>
+                    <div class="stat-label">Therapy Protocols</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">100%</div>
+                    <div class="stat-label">Non-Invasive</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number">UK</div>
+                    <div class="stat-label">Designed & Supported</div>
+                </div>
+            </div>
+        </div>
+    </section>
 
-        // Render the app
-        const root = ReactDOM.createRoot(document.getElementById('root'));
-        root.render(<App />);
-    </script>
+    <!-- Features Section -->
+    <section class="features" id="features">
+        <div class="section-header">
+            <span class="section-tag">Platform Features</span>
+            <h2 class="section-title">Everything Your Clinic Needs</h2>
+            <p class="section-subtitle">
+                Comprehensive tools for modern holistic health practitioners, 
+                combining advanced technology with intuitive clinic management.
+            </p>
+        </div>
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="3"/>
+                        <path d="M12 1v6m0 6v6"/>
+                        <path d="M1 12h6m6 0h6"/>
+                    </svg>
+                </div>
+                <h3>AI-Powered Iridology</h3>
+                <p>Advanced AI analysis of iris images providing detailed constitutional assessments and wellness insights for personalized therapy recommendations.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/>
+                        <circle cx="9" cy="7" r="4"/>
+                        <path d="M23 21v-2a4 4 0 0 0-3-3.87"/>
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75"/>
+                    </svg>
+                </div>
+                <h3>Patient Management</h3>
+                <p>Complete patient records, assessments, and therapy tracking. Secure, GDPR-compliant data management with intuitive access controls.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+                    </svg>
+                </div>
+                <h3>Bioelectronic Therapies</h3>
+                <p>Five specialised therapy protocols supporting vitality, mobility, circulation, stress management, and metabolic balance through electromagnetic field therapy.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <rect x="3" y="4" width="18" height="18" rx="2" ry="2"/>
+                        <line x1="16" y1="2" x2="16" y2="6"/>
+                        <line x1="8" y1="2" x2="8" y2="6"/>
+                        <line x1="3" y1="10" x2="21" y2="10"/>
+                    </svg>
+                </div>
+                <h3>Appointment System</h3>
+                <p>Integrated booking and scheduling with automated reminders. Patient portal access for self-service appointment management.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                        <polyline points="14 2 14 8 20 8"/>
+                        <line x1="16" y1="13" x2="8" y2="13"/>
+                        <line x1="16" y1="17" x2="8" y2="17"/>
+                        <polyline points="10 9 9 9 8 9"/>
+                    </svg>
+                </div>
+                <h3>Professional Reports</h3>
+                <p>Generate comprehensive wellness reports with AI insights, therapy recommendations, and professional branding for patient distribution.</p>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/>
+                        <polyline points="3.27 6.96 12 12.01 20.73 6.96"/>
+                        <line x1="12" y1="22.08" x2="12" y2="12"/>
+                    </svg>
+                </div>
+                <h3>Multi-Clinic Support</h3>
+                <p>Manage multiple clinic locations with centralized billing, individual branding, and comprehensive analytics across your entire practice.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- Therapies Section -->
+    <section class="features" style="background: var(--gray-50);" id="therapies">
+        <div class="section-header">
+            <span class="section-tag">Therapy Protocols</span>
+            <h2 class="section-title">Five Specialised Wellness Pathways</h2>
+            <p class="section-subtitle">
+                Each therapy protocol is designed to support specific wellness domains through precisely calibrated bioelectronic stimulation.
+            </p>
+        </div>
+        <div class="features-grid" style="max-width: 1200px; margin: 0 auto; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M22 12h-4l-3 9L9 3l-3 9H2"/>
+                    </svg>
+                </div>
+                <div style="display: inline-block; background: linear-gradient(135deg, var(--navy-700), var(--navy-500)); color: var(--gold-500); padding: 0.5rem 1rem; border-radius: 50px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem;">C-102</div>
+                <h3>Vitality & Energy Support</h3>
+                <p style="margin-bottom: 1.5rem;">Advanced metabolic wellness technology supporting cellular energy production and overall vitality through targeted electromagnetic field stimulation.</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Cellular energy optimisation</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Mitochondrial function support</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Overall vitality enhancement</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M12 2v20M2 12h20"/>
+                    </svg>
+                </div>
+                <div style="display: inline-block; background: linear-gradient(135deg, var(--navy-700), var(--navy-500)); color: var(--gold-500); padding: 0.5rem 1rem; border-radius: 50px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem;">C-104</div>
+                <h3>Comfort & Mobility Support</h3>
+                <p style="margin-bottom: 1.5rem;">Supports joint wellness, muscle comfort, and physical mobility through bioelectronic technology designed to promote musculoskeletal wellbeing.</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Joint wellness support</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Muscle comfort enhancement</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Physical mobility optimisation</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                </div>
+                <div style="display: inline-block; background: linear-gradient(135deg, var(--navy-700), var(--navy-500)); color: var(--gold-500); padding: 0.5rem 1rem; border-radius: 50px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem;">C-105</div>
+                <h3>Circulation & Heart Wellness</h3>
+                <p style="margin-bottom: 1.5rem;">Utilises bioelectronic technology to support optimal cardiovascular function and promote healthy circulation throughout the body.</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Cardiovascular wellness support</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Heart rhythm optimisation</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Circulation enhancement</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <path d="M8 14s1.5 2 4 2 4-2 4-2"/>
+                        <line x1="9" y1="9" x2="9.01" y2="9"/>
+                        <line x1="15" y1="9" x2="15.01" y2="9"/>
+                    </svg>
+                </div>
+                <div style="display: inline-block; background: linear-gradient(135deg, var(--navy-700), var(--navy-500)); color: var(--gold-500); padding: 0.5rem 1rem; border-radius: 50px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem;">C-107</div>
+                <h3>Stress & Relaxation Support</h3>
+                <p style="margin-bottom: 1.5rem;">Supports stress resilience and promotes relaxation through bioelectronic systems designed to enhance the body's natural stress response mechanisms.</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Stress resilience support</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Nervous system balance</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Deep relaxation promotion</span>
+                    </li>
+                </ul>
+            </div>
+
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <polyline points="12 6 12 12 16 14"/>
+                    </svg>
+                </div>
+                <div style="display: inline-block; background: linear-gradient(135deg, var(--navy-700), var(--navy-500)); color: var(--gold-500); padding: 0.5rem 1rem; border-radius: 50px; font-weight: 700; font-size: 0.9rem; margin-bottom: 1rem;">C-108</div>
+                <h3>Metabolic Balance Support</h3>
+                <p style="margin-bottom: 1.5rem;">Supports the body's natural metabolic regulation and blood sugar balance mechanisms through targeted electromagnetic field stimulation.</p>
+                <ul style="list-style: none; padding: 0;">
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Blood sugar balance support</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Metabolic efficiency optimisation</span>
+                    </li>
+                    <li style="display: flex; align-items: center; gap: 0.5rem; color: var(--navy-800);">
+                        <svg style="width: 18px; height: 18px; color: var(--gold-500); flex-shrink: 0;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                        <span>Endocrine system balance</span>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta">
+        <div class="cta-container">
+            <h2>Ready to Transform Your Practice?</h2>
+            <p>
+                Join leading wellness practitioners using Celloxen to deliver exceptional patient care 
+                with cutting-edge technology and comprehensive clinic management.
+            </p>
+            <div class="hero-cta">
+                <a href="/portal.html" class="btn-primary">
+                    Access Clinic Portal
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                        <line x1="5" y1="12" x2="19" y2="12"/>
+                        <polyline points="12 5 19 12 12 19"/>
+                    </svg>
+                </a>
+                <a href="mailto:health@celloxen.co.uk" class="btn-secondary">
+                    Contact Us
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-brand">
+                <a href="#" class="logo">
+                    <div class="logo-icon">C</div>
+                    <span class="logo-text">Celloxen <span>Health</span></span>
+                </a>
+                <p>Advanced bioelectronic wellness solutions and comprehensive clinic management for modern holistic health practitioners.</p>
+            </div>
+            <div class="footer-col">
+                <h4>Platform</h4>
+                <ul>
+                    <li><a href="/portal.html">Clinic Portal</a></li>
+                    <li><a href="#features">Features</a></li>
+                    <li><a href="#">Patient Portal</a></li>
+                    <li><a href="#">Documentation</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Therapies</h4>
+                <ul>
+                    <li><a href="#">Vitality & Energy</a></li>
+                    <li><a href="#">Comfort & Mobility</a></li>
+                    <li><a href="#">Circulation & Heart</a></li>
+                    <li><a href="#">Stress & Relaxation</a></li>
+                    <li><a href="#">Metabolic Balance</a></li>
+                </ul>
+            </div>
+            <div class="footer-col">
+                <h4>Contact</h4>
+                <ul>
+                    <li><a href="mailto:health@celloxen.co.uk">health@celloxen.co.uk</a></li>
+                    <li><a href="https://www.celloxen.co.uk">www.celloxen.co.uk</a></li>
+                </ul>
+            </div>
+        </div>
+        <div class="footer-bottom">
+            <p>© 2025 Celloxen Health. All rights reserved.</p>
+            <div class="footer-legal">
+                <a href="#">Privacy Policy</a>
+                <a href="#">Terms of Service</a>
+                <a href="#">Cookie Policy</a>
+            </div>
+        </div>
+    </footer>
 </body>
 </html>

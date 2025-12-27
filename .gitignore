@@ -1,35 +1,42 @@
 # Python
 __pycache__/
-*.pyc
-*.pyo
-*.egg-info/
+*.py[cod]
+*$py.class
+*.so
+.Python
 venv/
 env/
+ENV/
 
-# Node
-node_modules/
-npm-debug.log
+# Environment variables
+.env
+*.env
 
 # Logs
 *.log
 logs/
 
 # Database
+*.sql
+*.sql.gz
 *.db
-*.sqlite
 
-# Environment
-.env
-*.env
-
-# Backups
-*.backup
-*.bak
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
 
 # OS
 .DS_Store
 Thumbs.db
 
-*.tar.gz
-*.sql
-*backup*
+# Backups
+*.backup
+*.bak
+BACKUP_*/
+
+# Sensitive files
+DATABASE_CREDENTIALS.txt
+credentials.json
+secrets.txt

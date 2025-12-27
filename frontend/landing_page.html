@@ -1,0 +1,1470 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Celloxen Health | Advanced Bioelectronic Wellness Solutions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --navy-dark: #0f172a;
+            --navy-primary: #1e3a8a;
+            --navy-medium: #1e40af;
+            --navy-light: #3b82f6;
+            --navy-glow: #60a5fa;
+            --gold-accent: #d4af37;
+            --gold-light: #f0d78c;
+            --white: #ffffff;
+            --off-white: #f8fafc;
+            --gray-100: #f1f5f9;
+            --gray-200: #e2e8f0;
+            --gray-600: #475569;
+            --success: #10b981;
+            --gradient-navy: linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1e40af 100%);
+            --gradient-gold: linear-gradient(135deg, #d4af37 0%, #f0d78c 100%);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Outfit', sans-serif;
+            color: var(--navy-dark);
+            line-height: 1.6;
+            background: var(--white);
+            overflow-x: hidden;
+        }
+
+        h1, h2, h3, h4 {
+            font-family: 'Playfair Display', serif;
+            font-weight: 600;
+            line-height: 1.2;
+        }
+
+        /* Navigation */
+        nav {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            z-index: 1000;
+            background: rgba(15, 23, 42, 0.95);
+            backdrop-filter: blur(20px);
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+            transition: all 0.3s ease;
+        }
+
+        .nav-container {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            text-decoration: none;
+        }
+
+        .logo-icon {
+            width: 48px;
+            height: 48px;
+            background: var(--gradient-gold);
+            border-radius: 12px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 700;
+            color: var(--navy-dark);
+            font-size: 1.25rem;
+        }
+
+        .logo-text {
+            color: var(--white);
+            font-family: 'Playfair Display', serif;
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+
+        .logo-text span {
+            color: var(--gold-accent);
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 2.5rem;
+            list-style: none;
+        }
+
+        .nav-links a {
+            color: rgba(255, 255, 255, 0.8);
+            text-decoration: none;
+            font-weight: 500;
+            font-size: 0.95rem;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+
+        .nav-links a::after {
+            content: '';
+            position: absolute;
+            bottom: -4px;
+            left: 0;
+            width: 0;
+            height: 2px;
+            background: var(--gold-accent);
+            transition: width 0.3s ease;
+        }
+
+        .nav-links a:hover {
+            color: var(--white);
+        }
+
+        .nav-links a:hover::after {
+            width: 100%;
+        }
+
+        .nav-cta {
+            background: var(--gradient-gold);
+            color: var(--navy-dark);
+            padding: 0.75rem 1.5rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 15px rgba(212, 175, 55, 0.3);
+        }
+
+        .nav-cta:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px rgba(212, 175, 55, 0.4);
+        }
+
+        /* Hero Section */
+        .hero {
+            min-height: 100vh;
+            background: var(--gradient-navy);
+            position: relative;
+            display: flex;
+            align-items: center;
+            overflow: hidden;
+        }
+
+        .hero::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 80%, rgba(59, 130, 246, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 20%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 50% 50%, rgba(30, 64, 175, 0.2) 0%, transparent 70%);
+            pointer-events: none;
+        }
+
+        .hero-grid {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-image: 
+                linear-gradient(rgba(59, 130, 246, 0.03) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(59, 130, 246, 0.03) 1px, transparent 1px);
+            background-size: 60px 60px;
+            pointer-events: none;
+        }
+
+        .hero-content {
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 8rem 2rem 4rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .hero-text {
+            max-width: 800px;
+        }
+
+        .hero-text h1 {
+            font-size: 3.5rem;
+            color: var(--white);
+            margin-bottom: 1.5rem;
+            line-height: 1.1;
+        }
+
+        .hero-text h1 span {
+            background: var(--gradient-gold);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .hero-subtitle {
+            font-size: 1.25rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2rem;
+            max-width: 640px;
+            font-weight: 300;
+            margin-left: auto;
+            margin-right: auto;
+        }
+
+        .hero-features {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 1rem;
+            margin-bottom: 2.5rem;
+            justify-content: center;
+        }
+
+        .hero-feature {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            color: rgba(255, 255, 255, 0.9);
+            font-size: 0.95rem;
+        }
+
+        .hero-feature svg {
+            width: 20px;
+            height: 20px;
+            color: var(--gold-accent);
+        }
+
+        .hero-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        .btn-primary {
+            background: var(--gradient-gold);
+            color: var(--navy-dark);
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            transition: all 0.3s ease;
+            box-shadow: 0 4px 20px rgba(212, 175, 55, 0.3);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 8px 30px rgba(212, 175, 55, 0.4);
+        }
+
+        .btn-secondary {
+            background: transparent;
+            color: var(--white);
+            padding: 1rem 2rem;
+            border-radius: 50px;
+            text-decoration: none;
+            font-weight: 600;
+            font-size: 1rem;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            transition: all 0.3s ease;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--white);
+        }
+
+        /* About Section */
+        .about {
+            padding: 8rem 2rem;
+            background: var(--white);
+            position: relative;
+        }
+
+        .about::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 1px;
+            background: linear-gradient(90deg, transparent, var(--navy-light), transparent);
+        }
+
+        .section-container {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .section-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .section-tag {
+            display: inline-block;
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.1) 0%, rgba(59, 130, 246, 0.1) 100%);
+            color: var(--navy-primary);
+            padding: 0.5rem 1.25rem;
+            border-radius: 50px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            letter-spacing: 1px;
+            text-transform: uppercase;
+            margin-bottom: 1rem;
+        }
+
+        .section-title {
+            font-size: 2.75rem;
+            color: var(--navy-dark);
+            margin-bottom: 1rem;
+        }
+
+        .section-subtitle {
+            font-size: 1.15rem;
+            color: var(--gray-600);
+            max-width: 700px;
+            margin: 0 auto;
+        }
+
+        .about-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 2rem;
+        }
+
+        .about-card {
+            background: var(--off-white);
+            border-radius: 20px;
+            padding: 2.5rem;
+            transition: all 0.4s ease;
+            border: 1px solid transparent;
+        }
+
+        .about-card:hover {
+            transform: translateY(-8px);
+            box-shadow: 0 20px 60px rgba(30, 58, 138, 0.1);
+            border-color: var(--navy-light);
+        }
+
+        .about-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-navy);
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .about-icon svg {
+            width: 32px;
+            height: 32px;
+            color: var(--gold-accent);
+        }
+
+        .about-card h3 {
+            font-size: 1.35rem;
+            color: var(--navy-dark);
+            margin-bottom: 0.75rem;
+        }
+
+        .about-card p {
+            color: var(--gray-600);
+            font-size: 0.95rem;
+        }
+
+        /* Technology Section */
+        .technology {
+            padding: 8rem 2rem;
+            background: var(--gradient-navy);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .technology::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 0% 100%, rgba(212, 175, 55, 0.1) 0%, transparent 50%),
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.1) 0%, transparent 50%);
+            pointer-events: none;
+        }
+
+        .tech-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .tech-header {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .tech-header .section-tag {
+            background: rgba(212, 175, 55, 0.2);
+            color: var(--gold-accent);
+        }
+
+        .tech-header .section-title {
+            color: var(--white);
+        }
+
+        .tech-header .section-subtitle {
+            color: rgba(255, 255, 255, 0.7);
+        }
+
+        .tech-features {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+        }
+
+        .tech-feature {
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            padding: 2.5rem;
+            transition: all 0.4s ease;
+        }
+
+        .tech-feature:hover {
+            background: rgba(255, 255, 255, 0.08);
+            border-color: rgba(212, 175, 55, 0.3);
+            transform: translateY(-4px);
+        }
+
+        .tech-feature-icon {
+            width: 56px;
+            height: 56px;
+            background: var(--gradient-gold);
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1.5rem;
+        }
+
+        .tech-feature-icon svg {
+            width: 28px;
+            height: 28px;
+            color: var(--navy-dark);
+        }
+
+        .tech-feature h3 {
+            font-size: 1.25rem;
+            color: var(--white);
+            margin-bottom: 0.75rem;
+        }
+
+        .tech-feature p {
+            color: rgba(255, 255, 255, 0.7);
+            font-size: 0.95rem;
+        }
+
+        /* Therapies Section */
+        .therapies {
+            padding: 8rem 2rem;
+            background: var(--off-white);
+        }
+
+        .therapies-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(350px, 1fr));
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .therapy-card {
+            background: var(--white);
+            border-radius: 24px;
+            overflow: hidden;
+            transition: all 0.4s ease;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--gray-200);
+        }
+
+        .therapy-card:hover {
+            transform: translateY(-10px);
+            box-shadow: 0 20px 60px rgba(30, 58, 138, 0.15);
+        }
+
+        .therapy-header {
+            padding: 2rem;
+            background: var(--gradient-navy);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .therapy-header::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 150px;
+            height: 150px;
+            background: radial-gradient(circle, rgba(212, 175, 55, 0.2) 0%, transparent 70%);
+            border-radius: 50%;
+            transform: translate(30%, -30%);
+        }
+
+        .therapy-code {
+            display: inline-block;
+            background: var(--gradient-gold);
+            color: var(--navy-dark);
+            padding: 0.35rem 1rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            margin-bottom: 0.75rem;
+        }
+
+        .therapy-name {
+            font-size: 1.4rem;
+            color: var(--white);
+            margin-bottom: 0.5rem;
+        }
+
+        .therapy-protocol {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.7);
+            font-weight: 400;
+        }
+
+        .therapy-body {
+            padding: 2rem;
+        }
+
+        .therapy-description {
+            color: var(--gray-600);
+            font-size: 0.95rem;
+            margin-bottom: 1.5rem;
+            line-height: 1.7;
+        }
+
+        .therapy-targets {
+            margin-bottom: 1.5rem;
+        }
+
+        .therapy-targets-title {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--navy-primary);
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            margin-bottom: 0.75rem;
+        }
+
+        .therapy-tags {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+        }
+
+        .therapy-tag {
+            background: linear-gradient(135deg, rgba(30, 58, 138, 0.08) 0%, rgba(59, 130, 246, 0.08) 100%);
+            color: var(--navy-primary);
+            padding: 0.4rem 0.9rem;
+            border-radius: 50px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+
+        /* Benefits Section */
+        .benefits {
+            padding: 8rem 2rem;
+            background: var(--white);
+        }
+
+        .benefits-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 4rem;
+            align-items: center;
+        }
+
+        .benefits-content h2 {
+            font-size: 2.5rem;
+            color: var(--navy-dark);
+            margin-bottom: 1.5rem;
+        }
+
+        .benefits-content p {
+            color: var(--gray-600);
+            margin-bottom: 2rem;
+            font-size: 1.1rem;
+        }
+
+        .benefits-list {
+            display: flex;
+            flex-direction: column;
+            gap: 1.25rem;
+        }
+
+        .benefit-item {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-start;
+        }
+
+        .benefit-icon {
+            width: 40px;
+            height: 40px;
+            min-width: 40px;
+            background: linear-gradient(135deg, rgba(16, 185, 129, 0.15) 0%, rgba(16, 185, 129, 0.1) 100%);
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .benefit-icon svg {
+            width: 20px;
+            height: 20px;
+            color: var(--success);
+        }
+
+        .benefit-text h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: var(--navy-dark);
+            margin-bottom: 0.25rem;
+        }
+
+        .benefit-text p {
+            font-size: 0.9rem;
+            color: var(--gray-600);
+            margin: 0;
+        }
+
+        .benefits-visual {
+            position: relative;
+        }
+
+        .benefits-image {
+            background: var(--gradient-navy);
+            border-radius: 24px;
+            padding: 3rem;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .benefits-image::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: radial-gradient(circle at 50% 50%, rgba(212, 175, 55, 0.15) 0%, transparent 60%);
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 2rem;
+            position: relative;
+            z-index: 1;
+        }
+
+        .stat-card {
+            text-align: center;
+            padding: 1.5rem;
+            background: rgba(255, 255, 255, 0.05);
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .stat-number {
+            font-family: 'Playfair Display', serif;
+            font-size: 2.5rem;
+            font-weight: 700;
+            color: var(--gold-accent);
+            margin-bottom: 0.5rem;
+        }
+
+        .stat-label {
+            font-size: 0.9rem;
+            color: rgba(255, 255, 255, 0.8);
+        }
+
+        /* Process Section */
+        .process {
+            padding: 8rem 2rem;
+            background: var(--off-white);
+        }
+
+        .process-steps {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 2rem;
+            margin-top: 3rem;
+        }
+
+        .process-step {
+            text-align: center;
+            position: relative;
+        }
+
+        .process-step:not(:last-child)::after {
+            content: '';
+            position: absolute;
+            top: 40px;
+            right: -1rem;
+            width: calc(100% - 80px);
+            height: 2px;
+            background: linear-gradient(90deg, var(--navy-light), var(--gold-accent));
+            transform: translateX(50%);
+        }
+
+        .step-number {
+            width: 80px;
+            height: 80px;
+            margin: 0 auto 1.5rem;
+            background: var(--gradient-navy);
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Playfair Display', serif;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--gold-accent);
+            position: relative;
+            z-index: 1;
+            border: 4px solid var(--off-white);
+            box-shadow: 0 8px 30px rgba(30, 58, 138, 0.2);
+        }
+
+        .process-step h3 {
+            font-size: 1.15rem;
+            color: var(--navy-dark);
+            margin-bottom: 0.5rem;
+        }
+
+        .process-step p {
+            font-size: 0.9rem;
+            color: var(--gray-600);
+        }
+
+        /* CTA Section */
+        .cta {
+            padding: 8rem 2rem;
+            background: var(--gradient-navy);
+            text-align: center;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .cta::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: 
+                radial-gradient(circle at 20% 50%, rgba(212, 175, 55, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 80% 50%, rgba(59, 130, 246, 0.1) 0%, transparent 40%);
+            pointer-events: none;
+        }
+
+        .cta-content {
+            max-width: 700px;
+            margin: 0 auto;
+            position: relative;
+            z-index: 1;
+        }
+
+        .cta h2 {
+            font-size: 2.75rem;
+            color: var(--white);
+            margin-bottom: 1.5rem;
+        }
+
+        .cta p {
+            font-size: 1.15rem;
+            color: rgba(255, 255, 255, 0.8);
+            margin-bottom: 2.5rem;
+        }
+
+        .cta-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: center;
+        }
+
+        /* Footer */
+        footer {
+            background: var(--navy-dark);
+            padding: 4rem 2rem 2rem;
+        }
+
+        .footer-content {
+            max-width: 1200px;
+            margin: 0 auto;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr 1fr;
+            gap: 3rem;
+            margin-bottom: 3rem;
+            padding-bottom: 3rem;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .footer-brand p {
+            color: rgba(255, 255, 255, 0.6);
+            margin-top: 1rem;
+            font-size: 0.9rem;
+            max-width: 300px;
+        }
+
+        .footer-col h4 {
+            font-family: 'Outfit', sans-serif;
+            font-size: 1rem;
+            font-weight: 600;
+            color: var(--white);
+            margin-bottom: 1.25rem;
+        }
+
+        .footer-col ul {
+            list-style: none;
+        }
+
+        .footer-col li {
+            margin-bottom: 0.75rem;
+        }
+
+        .footer-col a {
+            color: rgba(255, 255, 255, 0.6);
+            text-decoration: none;
+            font-size: 0.9rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-col a:hover {
+            color: var(--gold-accent);
+        }
+
+        .footer-bottom {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .footer-copyright {
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 0.85rem;
+        }
+
+        .footer-legal {
+            display: flex;
+            gap: 2rem;
+        }
+
+        .footer-legal a {
+            color: rgba(255, 255, 255, 0.5);
+            text-decoration: none;
+            font-size: 0.85rem;
+            transition: color 0.3s ease;
+        }
+
+        .footer-legal a:hover {
+            color: var(--gold-accent);
+        }
+
+        /* Disclaimer */
+        .disclaimer {
+            background: var(--gray-100);
+            padding: 2rem;
+            text-align: center;
+        }
+
+        .disclaimer p {
+            max-width: 900px;
+            margin: 0 auto;
+            font-size: 0.8rem;
+            color: var(--gray-600);
+            line-height: 1.7;
+        }
+
+        /* Responsive */
+        @media (max-width: 1024px) {
+            .hero-text h1 {
+                font-size: 2.75rem;
+            }
+
+            .about-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .tech-features {
+                grid-template-columns: 1fr;
+            }
+
+            .benefits-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .process-steps {
+                grid-template-columns: repeat(2, 1fr);
+            }
+
+            .process-step:not(:last-child)::after {
+                display: none;
+            }
+
+            .footer-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        @media (max-width: 768px) {
+            .nav-links {
+                display: none;
+            }
+
+            .hero-text h1 {
+                font-size: 2.25rem;
+            }
+
+            .section-title {
+                font-size: 2rem;
+            }
+
+            .therapies-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .process-steps {
+                grid-template-columns: 1fr;
+            }
+
+            .cta h2 {
+                font-size: 2rem;
+            }
+
+            .cta-buttons {
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .footer-bottom {
+                flex-direction: column;
+                gap: 1rem;
+                text-align: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav>
+        <div class="nav-container">
+            <a href="#" class="logo">
+                <div class="logo-icon">C</div>
+                <span class="logo-text">Celloxen<span>Health</span></span>
+            </a>
+            <ul class="nav-links">
+                <li><a href="#about">About</a></li>
+                <li><a href="#technology">Technology</a></li>
+                <li><a href="#therapies">Therapies</a></li>
+                <li><a href="#benefits">Benefits</a></li>
+                <li><a href="#process">Process</a></li>
+            </ul>
+            <a href="https://celloxen.com" class="nav-cta">Clinic Portal</a>
+        </div>
+    </nav>
+
+    <!-- Hero Section -->
+    <section class="hero">
+        <div class="hero-grid"></div>
+        <div class="hero-content">
+            <div class="hero-text">
+                <h1>Advanced <span>Bioelectronic</span> Wellness Solutions</h1>
+                <p class="hero-subtitle">Experience the future of holistic wellness with Celloxen. Our advanced electromagnetic therapy system supports your body's natural healing processes through precision-calibrated bioelectronic stimulation.</p>
+                <div class="hero-features">
+                    <div class="hero-feature">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Non-Invasive
+                    </div>
+                    <div class="hero-feature">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        Clinically Designed
+                    </div>
+                    <div class="hero-feature">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+                        5 Therapy Protocols
+                    </div>
+                </div>
+                <div class="hero-buttons">
+                    <a href="#therapies" class="btn-primary">
+                        Explore Therapies
+                        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                    </a>
+                    <a href="#contact" class="btn-secondary">
+                        Contact Us
+                    </a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="about" id="about">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-tag">About Celloxen</span>
+                <h2 class="section-title">Pioneering Wellness Technology</h2>
+                <p class="section-subtitle">We combine cutting-edge bioelectronic science with holistic wellness principles to support your body's natural balance and vitality.</p>
+            </div>
+            <div class="about-grid">
+                <div class="about-card">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>
+                    </div>
+                    <h3>Evidence-Based Approach</h3>
+                    <p>Our therapy protocols are developed through rigorous research and clinical observation, ensuring each treatment supports genuine wellness outcomes.</p>
+                </div>
+                <div class="about-card">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+                    </div>
+                    <h3>Complete Safety</h3>
+                    <p>Non-invasive electromagnetic field stimulation works harmoniously with your body's natural systems, ensuring comfortable and safe therapy sessions.</p>
+                </div>
+                <div class="about-card">
+                    <div class="about-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+                    </div>
+                    <h3>Professional Support</h3>
+                    <p>Qualified practitioners guide your wellness journey, tailoring therapy protocols to your individual needs and monitoring your progress throughout.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Technology Section -->
+    <section class="technology" id="technology">
+        <div class="tech-content">
+            <div class="tech-header">
+                <span class="section-tag">Our Technology</span>
+                <h2 class="section-title">How Bioelectronic Therapy Works</h2>
+                <p class="section-subtitle">Our advanced bioelectronic system delivers precisely calibrated electromagnetic fields that support cellular function and enhance your body's natural regulatory mechanisms.</p>
+            </div>
+            <div class="tech-features">
+                <div class="tech-feature">
+                    <div class="tech-feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2"/></svg>
+                    </div>
+                    <h3>Electromagnetic Field Stimulation</h3>
+                    <p>Gentle, precisely calibrated electromagnetic fields support cellular communication and enhance the body's natural energy production systems at the deepest level.</p>
+                </div>
+                <div class="tech-feature">
+                    <div class="tech-feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+                    </div>
+                    <h3>Targeted Application</h3>
+                    <p>Specialised applicators are positioned on specific body areas to deliver focused therapy, ensuring optimal electromagnetic field penetration to target tissues.</p>
+                </div>
+                <div class="tech-feature">
+                    <div class="tech-feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+                    </div>
+                    <h3>Progressive Enhancement</h3>
+                    <p>Benefits build progressively across treatment sessions, with many clients experiencing improvements from the first session and optimal results over the full protocol.</p>
+                </div>
+                <div class="tech-feature">
+                    <div class="tech-feature-icon">
+                        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+                    </div>
+                    <h3>Complete Comfort</h3>
+                    <p>Sessions are entirely non-invasive and relaxing. Clients remain fully clothed during treatment, experiencing gentle warmth and soothing electromagnetic stimulation.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Therapies Section -->
+    <section class="therapies" id="therapies">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-tag">Therapy Protocols</span>
+                <h2 class="section-title">Five Specialised Wellness Therapies</h2>
+                <p class="section-subtitle">Each protocol is precision-designed to support specific wellness areas, addressing the unique needs of your body's systems.</p>
+            </div>
+            <div class="therapies-grid">
+                <!-- C-102 Vitality & Energy -->
+                <div class="therapy-card">
+                    <div class="therapy-header">
+                        <span class="therapy-code">C-102</span>
+                        <h3 class="therapy-name">Vitality & Energy Support</h3>
+                        <p class="therapy-protocol">Advanced Metabolic Support Protocol</p>
+                    </div>
+                    <div class="therapy-body">
+                        <p class="therapy-description">Our flagship metabolic wellness therapy supports comprehensive cellular energy production and enhances overall vitality. This sophisticated approach optimises mitochondrial function while supporting the body's complex energy production systems.</p>
+                        <div class="therapy-targets">
+                            <p class="therapy-targets-title">Primary Support Areas</p>
+                            <div class="therapy-tags">
+                                <span class="therapy-tag">Cellular Energy</span>
+                                <span class="therapy-tag">Mitochondrial Function</span>
+                                <span class="therapy-tag">Metabolic Efficiency</span>
+                                <span class="therapy-tag">Stress Recovery</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- C-104 Comfort & Mobility -->
+                <div class="therapy-card">
+                    <div class="therapy-header">
+                        <span class="therapy-code">C-104</span>
+                        <h3 class="therapy-name">Comfort & Mobility Support</h3>
+                        <p class="therapy-protocol">Joint Health & Wellness Protocol</p>
+                    </div>
+                    <div class="therapy-body">
+                        <p class="therapy-description">Advanced bioelectronic technology supports the body's natural comfort and movement wellness. This targeted approach helps optimise joint function, support tissue health, and promote natural mobility through precisely calibrated stimulation.</p>
+                        <div class="therapy-targets">
+                            <p class="therapy-targets-title">Primary Support Areas</p>
+                            <div class="therapy-tags">
+                                <span class="therapy-tag">Joint Comfort</span>
+                                <span class="therapy-tag">Mobility Enhancement</span>
+                                <span class="therapy-tag">Tissue Health</span>
+                                <span class="therapy-tag">Flexibility</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- C-105 Circulation & Heart -->
+                <div class="therapy-card">
+                    <div class="therapy-header">
+                        <span class="therapy-code">C-105</span>
+                        <h3 class="therapy-name">Circulation & Heart Wellness</h3>
+                        <p class="therapy-protocol">Heart & Circulation Support Protocol</p>
+                    </div>
+                    <div class="therapy-body">
+                        <p class="therapy-description">Advanced bioelectronic technology supports optimal cardiovascular function and promotes healthy circulation throughout the body. This comprehensive approach optimises heart function and enhances vascular health through targeted stimulation.</p>
+                        <div class="therapy-targets">
+                            <p class="therapy-targets-title">Primary Support Areas</p>
+                            <div class="therapy-tags">
+                                <span class="therapy-tag">Cardiovascular Support</span>
+                                <span class="therapy-tag">Circulation Enhancement</span>
+                                <span class="therapy-tag">Vascular Health</span>
+                                <span class="therapy-tag">Heart Rhythm</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- C-107 Stress & Relaxation -->
+                <div class="therapy-card">
+                    <div class="therapy-header">
+                        <span class="therapy-code">C-107</span>
+                        <h3 class="therapy-name">Stress & Relaxation Support</h3>
+                        <p class="therapy-protocol">Sleep & Cognitive Wellness Protocol</p>
+                    </div>
+                    <div class="therapy-body">
+                        <p class="therapy-description">Support the body's natural relaxation response and promote mental wellness. This evidence-based approach helps restore balance to the nervous system while supporting healthy sleep patterns and cognitive function.</p>
+                        <div class="therapy-targets">
+                            <p class="therapy-targets-title">Primary Support Areas</p>
+                            <div class="therapy-tags">
+                                <span class="therapy-tag">Stress Management</span>
+                                <span class="therapy-tag">Sleep Quality</span>
+                                <span class="therapy-tag">Mental Clarity</span>
+                                <span class="therapy-tag">Emotional Balance</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- C-108 Metabolic Balance -->
+                <div class="therapy-card">
+                    <div class="therapy-header">
+                        <span class="therapy-code">C-108</span>
+                        <h3 class="therapy-name">Metabolic Balance Support</h3>
+                        <p class="therapy-protocol">Glycaemic Control Protocol</p>
+                    </div>
+                    <div class="therapy-body">
+                        <p class="therapy-description">Support the body's natural metabolic regulation and blood sugar balance mechanisms. This comprehensive approach helps optimise glucose metabolism while supporting overall endocrine function through targeted electromagnetic stimulation.</p>
+                        <div class="therapy-targets">
+                            <p class="therapy-targets-title">Primary Support Areas</p>
+                            <div class="therapy-tags">
+                                <span class="therapy-tag">Blood Sugar Balance</span>
+                                <span class="therapy-tag">Metabolic Regulation</span>
+                                <span class="therapy-tag">Energy Stability</span>
+                                <span class="therapy-tag">Endocrine Support</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Benefits Section -->
+    <section class="benefits" id="benefits">
+        <div class="section-container">
+            <div class="benefits-grid">
+                <div class="benefits-content">
+                    <h2>Why Choose Celloxen Bioelectronic Therapy?</h2>
+                    <p>Our advanced wellness technology offers a natural, holistic approach to supporting your body's inherent healing capabilities. Experience the difference that precision bioelectronic therapy can make.</p>
+                    <div class="benefits-list">
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <div class="benefit-text">
+                                <h4>Completely Non-Invasive</h4>
+                                <p>No needles, no surgery, no medication. Just gentle electromagnetic therapy that works with your body.</p>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <div class="benefit-text">
+                                <h4>Personalised Protocols</h4>
+                                <p>Each therapy is tailored to your specific wellness needs following comprehensive assessment.</p>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <div class="benefit-text">
+                                <h4>Progressive Results</h4>
+                                <p>Many clients notice improvements from the first session, with benefits building throughout the treatment course.</p>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <div class="benefit-text">
+                                <h4>Relaxing Experience</h4>
+                                <p>Sessions are comfortable and calmingâ€”many clients describe feeling deeply relaxed during treatment.</p>
+                            </div>
+                        </div>
+                        <div class="benefit-item">
+                            <div class="benefit-icon">
+                                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+                            </div>
+                            <div class="benefit-text">
+                                <h4>Professional Guidance</h4>
+                                <p>Qualified practitioners monitor your progress and adjust protocols to optimise your wellness outcomes.</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="benefits-visual">
+                    <div class="benefits-image">
+                        <div class="stats-grid">
+                            <div class="stat-card">
+                                <div class="stat-number">5</div>
+                                <div class="stat-label">Therapy Protocols</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">5</div>
+                                <div class="stat-label">Wellness Domains</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">UK</div>
+                                <div class="stat-label">Designed & Made</div>
+                            </div>
+                            <div class="stat-card">
+                                <div class="stat-number">100%</div>
+                                <div class="stat-label">Non-Invasive</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Process Section -->
+    <section class="process" id="process">
+        <div class="section-container">
+            <div class="section-header">
+                <span class="section-tag">Your Journey</span>
+                <h2 class="section-title">How Your Wellness Journey Begins</h2>
+                <p class="section-subtitle">From initial consultation to ongoing support, we guide you through every step of your bioelectronic therapy experience.</p>
+            </div>
+            <div class="process-steps">
+                <div class="process-step">
+                    <div class="step-number">1</div>
+                    <h3>Initial Consultation</h3>
+                    <p>Meet with a qualified practitioner to discuss your wellness goals and complete your initial assessment.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">2</div>
+                    <h3>Comprehensive Assessment</h3>
+                    <p>Complete our 35-question wellness questionnaire and optional iridology analysis for personalised insights.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">3</div>
+                    <h3>Therapy Assignment</h3>
+                    <p>Based on your assessment, your practitioner recommends the most suitable therapy protocol for your needs.</p>
+                </div>
+                <div class="process-step">
+                    <div class="step-number">4</div>
+                    <h3>Treatment & Progress</h3>
+                    <p>Begin your therapy sessions with ongoing monitoring and support to track your wellness improvements.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- CTA Section -->
+    <section class="cta" id="contact">
+        <div class="cta-content">
+            <h2>Begin Your Wellness Journey Today</h2>
+            <p>Discover how Celloxen bioelectronic therapy can support your body's natural healing processes and enhance your overall wellbeing.</p>
+            <div class="cta-buttons">
+                <a href="/cdn-cgi/l/email-protection#610904000d15092102040d0d0e19040f4f020e4f140a" class="btn-primary">
+                    Book Your Consultation
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="5" y1="12" x2="19" y2="12"/><polyline points="12 5 19 12 12 19"/></svg>
+                </a>
+                <a href="tel:+441onal" class="btn-secondary">
+                    Call Us Today
+                </a>
+            </div>
+        </div>
+    </section>
+
+    <!-- Disclaimer -->
+    <div class="disclaimer">
+        <p><strong>Important Notice:</strong> Celloxen bioelectronic therapy is a wellness support service and is not intended to diagnose, treat, cure, or prevent any disease or medical condition. The therapies described support general wellbeing and should complement, not replace, conventional medical care. Always consult with a qualified healthcare professional regarding any health concerns. Individual results may vary. This information is for educational purposes only.</p>
+    </div>
+
+    <!-- Footer -->
+    <footer>
+        <div class="footer-content">
+            <div class="footer-grid">
+                <div class="footer-brand">
+                    <a href="#" class="logo">
+                        <div class="logo-icon">C</div>
+                        <span class="logo-text">Celloxen<span>Health</span></span>
+                    </a>
+                    <p>Advanced bioelectronic wellness solutions supporting your body's natural healing processes through precision electromagnetic therapy.</p>
+                </div>
+                <div class="footer-col">
+                    <h4>Therapies</h4>
+                    <ul>
+                        <li><a href="#therapies">C-102 Vitality & Energy</a></li>
+                        <li><a href="#therapies">C-104 Comfort & Mobility</a></li>
+                        <li><a href="#therapies">C-105 Circulation & Heart</a></li>
+                        <li><a href="#therapies">C-107 Stress & Relaxation</a></li>
+                        <li><a href="#therapies">C-108 Metabolic Balance</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Company</h4>
+                    <ul>
+                        <li><a href="#about">About Us</a></li>
+                        <li><a href="#technology">Our Technology</a></li>
+                        <li><a href="#process">How It Works</a></li>
+                        <li><a href="#contact">Contact</a></li>
+                    </ul>
+                </div>
+                <div class="footer-col">
+                    <h4>Contact</h4>
+                    <ul>
+                        <li><a href="/cdn-cgi/l/email-protection#3b535e5a574f537b585e575754435e55155854154e50"><span class="__cf_email__" data-cfemail="bbd3dedad7cfd3fbd8ded7d7d4c3ded595d8d495ced0">[email&#160;protected]</span></a></li>
+                        <li><a href="https://www.celloxen.co.uk">www.celloxen.co.uk</a></li>
+                    </ul>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p class="footer-copyright">Â© 2025 Celloxen Health. All rights reserved.</p>
+                <div class="footer-legal">
+                    <a href="#">Privacy Policy</a>
+                    <a href="#">Terms of Service</a>
+                    <a href="#">Cookie Policy</a>
+                </div>
+            </div>
+        </div>
+    </footer>
+
+    <script data-cfasync="false" src="/cdn-cgi/scripts/5c5dd728/cloudflare-static/email-decode.min.js"></script><script>
+        // Smooth scroll for navigation links
+        document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+            anchor.addEventListener('click', function (e) {
+                e.preventDefault();
+                const target = document.querySelector(this.getAttribute('href'));
+                if (target) {
+                    target.scrollIntoView({
+                        behavior: 'smooth',
+                        block: 'start'
+                    });
+                }
+            });
+        });
+
+        // Navbar background change on scroll
+        window.addEventListener('scroll', function() {
+            const nav = document.querySelector('nav');
+            if (window.scrollY > 50) {
+                nav.style.background = 'rgba(15, 23, 42, 0.98)';
+            } else {
+                nav.style.background = 'rgba(15, 23, 42, 0.95)';
+            }
+        });
+
+        // Intersection Observer for fade-in animations
+        const observerOptions = {
+            threshold: 0.1,
+            rootMargin: '0px 0px -50px 0px'
+        };
+
+        const observer = new IntersectionObserver((entries) => {
+            entries.forEach(entry => {
+                if (entry.isIntersecting) {
+                    entry.target.style.opacity = '1';
+                    entry.target.style.transform = 'translateY(0)';
+                }
+            });
+        }, observerOptions);
+
+        // Apply initial styles and observe elements
+        document.querySelectorAll('.about-card, .tech-feature, .therapy-car
