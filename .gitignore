@@ -40,3 +40,5 @@ BACKUP_*/
 DATABASE_CREDENTIALS.txt
 credentials.json
 secrets.txt
+-e .env
+.env.*
